@@ -10,7 +10,7 @@
 
 #include "opsekos.h"
 
-#include "ekosmanager.h"
+#include "manager.h"
 #include "kspaths.h"
 #include "kstars.h"
 #include "kstarsdata.h"
@@ -175,7 +175,7 @@ void OpsEkos::loadDarkFITS(QModelIndex index)
     if (filename.isEmpty() == false)
     {
         QUrl url = QUrl::fromLocalFile(filename);
-        KStars::Instance()->genericFITSViewer()->addFITS(&url);
+        KStars::Instance()->genericFITSViewer()->addFITS(url);
         KStars::Instance()->genericFITSViewer()->show();
     }
 }

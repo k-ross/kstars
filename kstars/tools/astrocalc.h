@@ -27,7 +27,8 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 /**
- * @class AstroCalc is the base class for the KStars astronomical calculator
+ * @class AstroCalc
+ * @brief This is the base class for the KStars astronomical calculator
  *
  * @author: Pablo de Vicente
  * @version 0.9
@@ -80,7 +81,7 @@ class AstroCalc : public QDialog
 
     /**
      * Create widget of type T and put it to widget stack. Widget must
-     * have construtor of type T(QWidget*). Returns constructed widget.
+     * have constructor of type T(QWidget*). Returns constructed widget.
      */
     template <typename T>
     inline QWidget *addToStack();

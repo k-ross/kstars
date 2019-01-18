@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <kcfg xmlns="http://www.kde.org/standards/kcfg/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
                           http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
-   <kcfgfile name="kstarsrc" />
    <include>ksutils.h</include>
+   <kcfgfile name="kstarsrc" />
 
    <group name="GUI">
       <entry name="PositionTimeBox" type="Point">
@@ -473,7 +473,7 @@
          <label>Set magnitude limit for supernovae to be alerted</label>
          <whatsthis>Set magnitude limit for supernovae to be alerted.</whatsthis>
          <default>13</default>
-      </entry>      
+      </entry>
       <entry name="ShowCBounds" type="Bool">
          <label>Draw constellation boundaries in the sky map?</label>
          <whatsthis>Toggle whether constellation boundaries are drawn in the sky map.</whatsthis>
@@ -874,7 +874,7 @@
          <label>The name of the color scheme</label>
          <whatsthis>The name of the color scheme</whatsthis>
          <default>moonless-night.colors</default>
-      </entry>      
+      </entry>
       <entry name="StarColorMode" type="UInt">
          <label>Mode for rendering stars</label>
          <whatsthis>The method for rendering stars: 0="realistic colors"; 1="solid red"; 2="solid black"; 3="solid white"; 4="solid real colors"</whatsthis>
@@ -1073,17 +1073,27 @@
          <whatsthis>Xplanet binary path</whatsthis>
          <default code="true">KSUtils::getDefaultPath("XplanetPath")</default>
       </entry>
-      <entry name="XplanetTitle" type="String">
-         <label>Window title</label>
-         <whatsthis>Set the window’s title.</whatsthis>
-         <default></default>
+      <entry name="XplanetUseFIFO" type="Bool">
+         <label>Use FIFO file</label>
+         <whatsthis>Option to use a FIFO file instead of saving to the hard disk</whatsthis>
+         <default>true</default>
       </entry>
-      <entry name="XplanetWidth" type="String">
+      <entry name="XplanetTimeout" type="UInt">
+         <label>XPlanet Timeout</label>
+         <whatsthis>How long to wait for XPlanet before giving up in milliseconds</whatsthis>
+         <default>1000</default>
+      </entry>
+      <entry name="XplanetAnimationDelay" type="UInt">
+         <label>XPlanet Animation Delay</label>
+         <whatsthis>How long to pause between frames in the XPlanet Animation</whatsthis>
+         <default>100</default>
+      </entry>
+      <entry name="XplanetWidth" type="UInt">
          <label>Width of xplanet window</label>
          <whatsthis>Width of xplanet window</whatsthis>
          <default>640</default>
       </entry>
-      <entry name="XplanetHeight" type="String">
+      <entry name="XplanetHeight" type="UInt">
          <label>Height of xplanet window</label>
          <whatsthis>Height of xplanet window</whatsthis>
          <default>480</default>
@@ -1168,16 +1178,6 @@
          <label>Projection</label>
          <whatsthis>The default is no projection. Multiple bodies will not be shown if this option is specified, although shadows will still be drawn.</whatsthis>
          <default>0</default>
-      </entry>
-      <entry name="XplanetWait" type="Bool">
-         <label>Update view</label>
-         <whatsthis>If true, update view.</whatsthis>
-         <default>false</default>
-      </entry>
-      <entry name="XplanetWaitValue" type="String">
-         <label>Number of seconds to wait before updating</label>
-         <whatsthis>Number of seconds to wait before updating</whatsthis>
-         <default>60</default>
       </entry>
       <entry name="XplanetBackground" type="Bool">
          <label>Use background</label>
@@ -1304,7 +1304,7 @@
       </entry>
       <entry name="DefaultDSSImageSize" type="Double">
          <label>Default size for DSS images</label>
-         <whatsthis>The default size for DSS images downloaded from the internet.</whatsthis>
+         <whatsthis>The default size for DSS images downloaded from the Internet.</whatsthis>
          <default>15.0</default>
       </entry>
       <entry name="DSSPadding" type="Double">
@@ -1364,7 +1364,7 @@
       <entry name="MountLogging" type="Bool">
          <whatsthis>Log Ekos Mount Module activity.</whatsthis>
          <default>false</default>
-      </entry>      
+      </entry>
    </group>
    <group name="FITSViewer">
    <entry name="useFITSViewer" type="Bool">
@@ -1386,7 +1386,11 @@
       <whatsthis>Display all opened FITS images in a single FITS Viewer window.</whatsthis>
       <default>true</default>
    </entry>
-   <entry name="independentWindowFITS" type="Bool">
+   <entry name="focusFITSOnNewImage" type="Bool">
+      <whatsthis>Bring the FITSViewer window to the foreground when receiving a new image.</whatsthis>
+      <default>true</default>
+   </entry>
+    <entry name="independentWindowFITS" type="Bool">
       <label>Make FITS Viewer window independent of KStars main window</label>
       <default>false</default>
    </entry>
@@ -1446,6 +1450,18 @@
        <label>Ekos modules icons are placed to the left of pages</label>
        <default>false</default>
     </entry>
+    <entry name="RememberCredentials" type="Bool">
+       <label>Remember Ekos Live credentials.</label>
+       <default>true</default>
+    </entry>
+    <entry name="AutoStartEkosLive" type="Bool">
+       <label>Start Ekos Live on KStars startup.</label>
+       <default>true</default>
+    </entry>
+    <entry name="EkosLiveOnline" type="Bool">
+       <label>Whether EkosLive connection mode is online.</label>
+       <default>true</default>
+    </entry>
       <entry name="independentWindowEkos" type="Bool">
          <label>Make Ekos window independent of KStars main window</label>
          <default>false</default>
@@ -1465,7 +1481,11 @@
       <entry name="loadDefaultConfig" type="Bool">
          <label>Always load device default configuration upon successful connection?</label>
          <default>false</default>
-      </entry>      
+      </entry>
+      <entry name="autoLoadSerialAssistant" type="Bool">
+         <label>Automatically load Serial Port Assistant tool when detecting unmapped serial ports?</label>
+         <default>true</default>
+      </entry>
    </group>
    <group name="DarkLibrary">
    <entry name="MaxDarkTemperatureDiff" type="Double">
@@ -1583,9 +1603,13 @@
          <label>Maximum acceptable difference between requested and measured temperature set point.</label>
          <default>0.1</default>
       </entry>
-      <entry name="RememberJobProgress" type="Bool">
-         <label>When starting a new capture job, check if files were previously captured and resume capture afterwards.</label>
-         <default>true</default>
+      <entry name="GuidingSettle" type="Double">
+         <label>Wait this many seconds after guiding is resumed before starting capture.</label>
+         <default>0</default>
+      </entry>
+      <entry name="AlwaysResetSequenceWhenStarting" type="Bool">
+         <label>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When starting to process a sequence list, reset all capture counts to zero. Scheduler overrides this option when Remember Job Progress is enabled.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</label>
+         <default>false</default>
       </entry>
       <entry name="FlatSyncFocus" type="Bool">
          <label>Capture flat frames at the same focus position of light frames.</label>
@@ -1594,6 +1618,10 @@
       <entry name="HFRThresholdPercentage" type="Double">
          <label>Increase autofocus HFR value by this percentage gain and store it in Capture Module.</label>
          <default>2.5</default>
+      </entry>
+      <entry name="UseMedianFocus" type="Bool">
+         <label>Calculate median focus value after each autofocus operation is complete.</label>
+         <default>true</default>
       </entry>
       <entry name="SaveHFRToFile" type="Bool">
          <label>When saving a sequence file, save current HFR threshold value. By default, zero value is used.</label>
@@ -1610,9 +1638,13 @@
       <entry name="AutoStretch" type="Bool">
          <label>Perform auto stretch on captured images in FITS Viewer.</label>
          <default>true</default>
-      </entry>      
+      </entry>
       <entry name="useSummaryPreview" type="Bool">
          <label>Display every image captured sequence image in the Ekos summary screen preview window.</label>
+         <default>true</default>
+      </entry>
+      <entry name="useDSLRImageViewer" type="Bool">
+         <label>Display every captured DSLR image in the Image Viewer window.</label>
          <default>true</default>
       </entry>
       <entry name="CaptureFormatIndex" type="UInt">
@@ -1622,6 +1654,9 @@
       <entry name="CaptureDirectory" type="String">
          <label>Path to capture directory to save images.</label>
          <default code="true">KSUtils::getDefaultPath("fitsDir")</default>
+      </entry>
+      <entry name="RemoteCaptureDirectory" type="String">
+         <label>Path to remote capture directory to save images.</label>
       </entry>
    </group>
    <group name="Focus">
@@ -1638,6 +1673,10 @@
       </entry>
       <entry name="FocusSettleTime" type="Double">
          <whatsthis>Wait for this many seconds after moving the focuser before capturing the next image during AutoFocus.</whatsthis>
+         <default>0</default>
+      </entry>
+      <entry name="GuideSettleTime" type="Double">
+         <whatsthis>Wait for this many seconds after resuming guide.</whatsthis>
          <default>0</default>
       </entry>
       <entry name="FocusTolerance" type="Double">
@@ -1725,12 +1764,8 @@
       </entry>
       <entry name="SolverBinningIndex" type="UInt">
          <label>Default CCD binning index while in alignment mode</label>
-         <whatsthis>Set binning index of CCD camera while in alignment mode. Default values 0-3 corresponding to 1x1 to 4x4 binning</whatsthis>
-         <default>0</default>
-      </entry>
-      <entry name="AstrometrySolverVerbose" type="Bool">
-         <whatsthis>Display detailed verbose messages of the astrometry solver process while in progress.</whatsthis>
-         <default>false</default>
+         <whatsthis>Set binning index of CCD camera while in alignment mode. Default values 0-3 corresponding to 1x1 to 4x4 binning. 4 is max binning.</whatsthis>
+         <default>4</default>
       </entry>
       <entry name="AstrometryUseRotator" type="Bool">
          <whatsthis>Use rotator when performing load and slew.</whatsthis>
@@ -1743,18 +1778,18 @@
       <entry name="SolverType" type="UInt">
          <label>Set solver type (online, offline, remote).</label>
          <default>0</default>
-      </entry>      
+      </entry>
       <entry name="SolverScopeType" type="UInt">
          <label>Index of telescope type to be used when solving an image. 0 for Primary, 1 for Guide</label>
          <default>0</default>
       </entry>
       <entry name="SolverGotoOption" type="UInt">
          <label>Action to take if solver if successful (Sync, Slew to Target, or None)</label>
-         <default>0</default>
+         <default>1</default>
       </entry>
       <entry name="AstrometrySolverWCS" type="Bool">
          <label>World Coordinate System (WCS). WCS is used to encode RA/DEC coordinates in captured CCD images.</label>
-         <default>false</default>
+         <default>true</default>
       </entry>
       <entry name="AstrometrySolverOverlay" type="Bool">
          <label>Display received FITS images unto solver FOV rectangle in the sky map.</label>
@@ -1887,6 +1922,10 @@
          <label>Timeout in seconds to wait for astrometry solver to complete.</label>
          <default>180</default>
       </entry>
+      <entry name="PAHMountSpeedIndex" type="Int">
+         <label>Speed index to set mount in Polar Alignment Assistant Tool.</label>
+         <default>-1</default>
+      </entry>
    </group>
    <group name="Guide">
       <entry name="DefaultGuideCCD" type="String">
@@ -1962,6 +2001,10 @@
       <entry name="GuideLostStarTimeout" type="UInt">
          <label>When star tracking is lost, wait this many seconds before aborting.</label>
          <default>60</default>
+      </entry>
+      <entry name="GuideMaxDeltaRMS" type="Double">
+         <label>Maximum delta RMS permitted while guiding before aborting.</label>
+         <default>10</default>
       </entry>
       <entry name="TwoAxisEnabled" type="Bool">
          <label>Use both axes to perform calibration.</label>
@@ -2134,9 +2177,17 @@
          <label>Always Reset guiding calibration before starting each job.</label>
          <default>true</default>
       </entry>
+      <entry name="RealignAfterCalibrationFailure" type="Bool">
+         <label>If guiding calibration fails, run alignment process again before proceeding to recalibration.</label>
+         <default>false</default>
+      </entry>
       <entry name="PreemptiveShutdownTime" type="Double">
          <label>Maximum number of hours before the next job is due to trigger a pre-emptive shutdown.</label>
          <default>2</default>
+      </entry>
+      <entry name="RememberJobProgress" type="Bool">
+         <label>When processing a scheduled job, resume the sequence starting from the last image present in storage.</label>
+         <default>true</default>
       </entry>
       <entry name="LeadTime" type="Double">
          <label>Minimum time between jobs in minutes.</label>

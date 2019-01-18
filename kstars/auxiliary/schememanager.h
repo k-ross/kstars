@@ -57,7 +57,7 @@ class SchemeManagerPrivate;
  *
  * To facilitate working with potentially-varying states, two convenience API's
  * are provided. These are SchemeManager::adjustBackground and its sister
- * SchemeManager::adjustForeground, and the helper class ::KStatefulBrush.
+ * SchemeManager::adjustForeground, and the helper class KStatefulBrush.
  *
  * @see SchemeManager::ColorSet, SchemeManager::ForegroundRole,
  * SchemeManager::BackgroundRole, SchemeManager::DecorationRole,
@@ -117,7 +117,7 @@ public:
          * Complementary areas.
          *
          * Some applications want some areas to have a different color scheme.
-         * Ususally dark areas over a light theme. For instance the fullscreen UI
+         * Usually dark areas over a light theme. For instance the fullscreen UI
          * of a picture viewer, or the logout/lock screen of the plasma workspace
          * ask for a dark color scheme even on light themes.
          * @since 5.19
@@ -391,6 +391,8 @@ public:
      * Retrieve the requested shade color, using the specified color as the
      * base color and the specified contrast.
      *
+     * @param color The base color
+     * @param role The shade role
      * @param contrast Amount roughly specifying the contrast by which to
      * adjust the base color, between -1.0 and 1.0 (values between 0.0 and 1.0
      * correspond to the value from SchemeManager::contrastF)

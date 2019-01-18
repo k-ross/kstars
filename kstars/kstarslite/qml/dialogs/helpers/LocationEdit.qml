@@ -41,7 +41,7 @@ KSPage {
         loadingText = fetchingCoordinatesLoading
         if(!positionSource.valid) {
             positionSource.stop()
-            notification.showNotification(xi18("Positioning is not available on your device"))
+            skyMapLite.notification.showNotification(xi18("Positioning is not available on your device"))
         }
     }
 
@@ -66,21 +66,21 @@ KSPage {
             var province = xi18n("Default province")
             var country = xi18n("Default country")
             if(addAutomatically) {
-                notification.showNotification(xi18n("Couldn't fetch location name (check your internet connection). Added with default name"))
+                skyMapLite.notification.showNotification(xi18n("Could not fetch location name (check your Internet connection). Added with default name"))
                 if(!LocationDialogLite.addCity(city, province, country,
                                                lat, lng, tz,
                                                "--")) {
-                    notification.showNotification(xi18n("Failed to set location"))
+                    skyMapLite.notification.showNotification(xi18n("Failed to set location"))
                     return
                 }
 
                 if(LocationDialogLite.setLocation(city + ", " + province + ", " + country)) {
-                    notification.showNotification(xi18n("Successfully set your location"))
+                    skyMapLite.notification.showNotification(xi18n("Successfully set your location"))
                 } else {
-                    notification.showNotification(xi18n("Couldn't set your location"))
+                    skyMapLite.notification.showNotification(xi18n("Could not set your location"))
                 }
             } else {
-                notification.showNotification(xi18n("Couldn't fetch location name (check your internet connection). Set default name"))
+                skyMapLite.notification.showNotification(xi18n("Could not fetch location name (check your Internet connection). Set default name"))
                 cityField.text = city
                 provinceField.text = province
                 countryField.text = country
@@ -100,13 +100,13 @@ KSPage {
         if(!LocationDialogLite.addCity(city, region, country,
                                        lat, lng, tz,
                                        "--")) {
-            notification.showNotification(xi18n("Failed to set location"))
+            skyMapLite.notification.showNotification(xi18n("Failed to set location"))
         }
 
         if(LocationDialogLite.setLocation(city + ", " + region + ", " + country)) {
-            notification.showNotification(xi18n("Successfully set your location"))
+            skyMapLite.notification.showNotification(xi18n("Successfully set your location"))
         } else {
-            notification.showNotification(xi18n("Couldn't set your location"))
+            skyMapLite.notification.showNotification(xi18n("Could not set your location"))
         }
 
         addAutomatically = false
@@ -152,19 +152,19 @@ KSPage {
             var errorDesc = ""
 
             if (sourceError == 2 || sourceError == 1) {
-                errorDesc = xi18n("No location service (GPS, cellular service, etc.) is available.\nPlease, switch on location service and retry")
+                errorDesc = xi18n("No location service (GPS, cellular service, etc.) is available.\nPlease, switch on the location service, and retry")
             } else if (sourceError == 4) {
-                errorDesc = xi18n("Unknown error occurred. Please contact application developer.")
+                errorDesc = xi18n("Unknown error occurred. Please contact the application developer.")
             }
 
-            notification.showNotification(errorDesc)
+            skyMapLite.notification.showNotification(errorDesc)
             positionSource.stop()
             error = true
             locationLoading.close()
         }
 
         onUpdateTimeout: {
-            notification.showNotification(xi18n("Timeout occurred. Try again."))
+            skyMapLite.notification.showNotification(xi18n("Timeout occurred. Try again."))
             locationLoading.close()
         }
 
@@ -179,7 +179,7 @@ KSPage {
 
         onPositionChanged: {
             if(isLoaded) {
-                notification.showNotification(xi18n("Found your longitude and altitude"))
+                skyMapLite.notification.showNotification(xi18n("Found your longitude and altitude"))
                 var lat = positionSource.position.coordinate.latitude
                 var lng = positionSource.position.coordinate.longitude
                 latField.text = lat
@@ -364,7 +364,7 @@ KSPage {
                     loadingText = fetchingCoordinatesLoading
                     if(!positionSource.valid) {
                         positionSource.stop()
-                        notification.showNotification(xi18("Positioning is not available on your device"))
+                        skyMapLite.notification.showNotification(xi18("Positioning is not available on your device"))
                     }
                 }
 
@@ -382,27 +382,27 @@ KSPage {
                 text: editMode ? xi18n("Save") : xi18n("Add")
                 onClicked: {
                     if(cityField.text == "") {
-                        notification.showNotification(xi18n("Please, fill in city"))
+                        skyMapLite.notification.showNotification(xi18n("Please, fill in the city"))
                         return
                     } else if(countryField.text == "") {
-                        notification.showNotification(xi18n("Please, fill in country"))
+                        skyMapLite.notification.showNotification(xi18n("Please, fill in the country"))
                         return
                     } else if(latField.text == "") {
-                        notification.showNotification(xi18n("Please, fill in latitude"))
+                        skyMapLite.notification.showNotification(xi18n("Please, fill in the latitude"))
                         return
                     } else if(longField.text == "") {
-                        notification.showNotification(xi18n("Please, fill in longitude"))
+                        skyMapLite.notification.showNotification(xi18n("Please, fill in the longitude"))
                         return
                     }
 
                     if(!LocationDialogLite.checkLongLat(longField.text, latField.text)) {
-                        notification.showNotification(xi18n("Either longitude or latitude values are not valid"))
+                        skyMapLite.notification.showNotification(xi18n("Either the longitude or the latitude values are not valid"))
                         return
                     }
 
                     if(fieldsChanged) {
                         if(LocationDialogLite.isDuplicate(cityField.text, provinceField.text, countryField.text)) {
-                            notification.showNotification(xi18n("This location already exists. Change either city, province or country"))
+                            skyMapLite.notification.showNotification(xi18n("This location already exists. Change either the city, the province or the country"))
                             return
                         }
                     }
@@ -418,16 +418,16 @@ KSPage {
                         if(!LocationDialogLite.addCity(cityField.text, provinceField.text, countryField.text,
                                                        latField.text, longField.text, comboBoxTZ.currentText,
                                                        comboBoxDST.currentText)) {
-                            notification.showNotification(xi18n("Failed to add location"))
+                            skyMapLite.notification.showNotification(xi18n("Failed to add location"))
                             return
                         } else {
-                            notification.showNotification(xi18n("Added new location - " + fullName))
+                            skyMapLite.notification.showNotification(xi18n("Added new location - %1", fullName))
                         }
                     } else {
                         if(!LocationDialogLite.editCity(geoName, cityField.text, provinceField.text, countryField.text,
                                                         latField.text, longField.text, comboBoxTZ.currentText,
                                                         comboBoxDST.currentText)) {
-                            notification.showNotification(xi18n("Failed to edit city"))
+                            skyMapLite.notification.showNotification(xi18n("Failed to edit city"))
                             return
                         }
                     }

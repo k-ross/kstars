@@ -19,6 +19,7 @@
 
 #include "ekos_guide_debug.h"
 
+#include <QVector3D>
 #include <cmath>
 #include <set>
 
@@ -249,13 +250,25 @@ void cgmath::getStarScreenPosition(double *dx, double *dy) const
 
 bool cgmath::reset(void)
 {
-    square_alg_idx = AUTO_THRESHOLD;
+//    square_alg_idx = AUTO_THRESHOLD;
 
-    // sky coord. system vars.
-    star_pos     = Vector(0);
-    scr_star_pos = Vector(0);
+//    // sky coord. system vars.
+//    star_pos     = Vector(0);
+//    scr_star_pos = Vector(0);
 
-    setReticleParameters(video_width / 2, video_height / 2, 0.0);
+//    setReticleParameters(video_width / 2, video_height / 2, 0.0);
+
+    ticks = 0;
+    channel_ticks[GUIDE_RA] = channel_ticks[GUIDE_DEC] = 0;
+    accum_ticks[GUIDE_RA] = accum_ticks[GUIDE_DEC] = 0;
+    drift_integral[GUIDE_RA] = drift_integral[GUIDE_DEC] = 0;
+    out_params.reset();
+
+    memset(drift[GUIDE_RA], 0, sizeof(double) * MAX_ACCUM_CNT);
+    memset(drift[GUIDE_DEC], 0, sizeof(double) * MAX_ACCUM_CNT);
+
+    // cleanup stat vars.
+    sum = 0;
 
     return true;
 }
@@ -554,7 +567,7 @@ float *cgmath::createFloatImage(FITSData *target) const
 
     // #1 Convert to float array
     // We only process 1st plane if it is a color image
-    uint32_t imgSize = imageData->getSize();
+    uint32_t imgSize = imageData->width() * imageData->height();
     float *imgFloat  = new float[imgSize];
 
     if (imgFloat == nullptr)
@@ -563,7 +576,7 @@ float *cgmath::createFloatImage(FITSData *target) const
         return nullptr;
     }
 
-    switch (imageData->getDataType())
+    switch (imageData->property("dataType").toInt())
     {
         case TBYTE:
         {
@@ -648,8 +661,8 @@ QVector<float *> cgmath::partitionImage() const
     if (imgFloat == nullptr)
         return regions;
 
-    const uint32_t width  = imageData->getWidth();
-    const uint32_t height = imageData->getHeight();
+    const uint16_t width  = imageData->width();
+    const uint16_t height = imageData->height();
 
     uint8_t xRegions = floor(width / regionAxis);
     uint8_t yRegions = floor(height / regionAxis);
@@ -709,20 +722,20 @@ Vector cgmath::findLocalStarPosition(void) const
         QVector<Vector> shifts;
         float xsum = 0, ysum = 0;
 
-        QVector<float *> imageParition = partitionImage();
+        QVector<float *> imagePartition = partitionImage();
 
-        if (imageParition.isEmpty())
+        if (imagePartition.isEmpty())
         {
-            qWarning() << "Failed to partiion regions in image!";
+            qWarning() << "Failed to partition regions in image!";
             return Vector(-1, -1, -1);
         }
 
-        if (imageParition.count() != referenceRegions.count())
+        if (imagePartition.count() != referenceRegions.count())
         {
             qWarning() << "Mismatch between reference regions #" << referenceRegions.count()
-                       << "and image parition regions #" << imageParition.count();
+                       << "and image partition regions #" << imagePartition.count();
             // Clear memory in case of mis-match
-            foreach (float *region, imageParition)
+            foreach (float *region, imagePartition)
             {
                 delete[] region;
             }
@@ -730,9 +743,9 @@ Vector cgmath::findLocalStarPosition(void) const
             return Vector(-1, -1, -1);
         }
 
-        for (uint8_t i = 0; i < imageParition.count(); i++)
+        for (uint8_t i = 0; i < imagePartition.count(); i++)
         {
-            ImageAutoGuiding::ImageAutoGuiding1(referenceRegions[i], imageParition[i], regionAxis, &xshift, &yshift);
+            ImageAutoGuiding::ImageAutoGuiding1(referenceRegions[i], imagePartition[i], regionAxis, &xshift, &yshift);
             Vector shift(xshift, yshift, -1);
             qCDebug(KSTARS_EKOS_GUIDE) << "Region #" << i << ": X-Shift=" << xshift << "Y-Shift=" << yshift;
 
@@ -742,11 +755,11 @@ Vector cgmath::findLocalStarPosition(void) const
         }
 
         // Delete partitions
-        foreach (float *region, imageParition)
+        foreach (float *region, imagePartition)
         {
             delete[] region;
         }
-        imageParition.clear();
+        imagePartition.clear();
 
         float average_x = xsum / referenceRegions.count();
         float average_y = ysum / referenceRegions.count();
@@ -760,7 +773,7 @@ Vector cgmath::findLocalStarPosition(void) const
         return Vector(median_x, median_y, -1);
     }
 
-    switch (imageData->getDataType())
+    switch (imageData->property("dataType").toInt())
     {
         case TBYTE:
             return findLocalStarPosition<uint8_t>();
@@ -857,7 +870,7 @@ Vector cgmath::findLocalStarPosition(void) const
     resx = resy = 0;
     threshold = mass = 0;
 
-    // several threshold adaptive smart agorithms
+    // several threshold adaptive smart algorithms
     switch (square_alg_idx)
     {
         case CENTROID_THRESHOLD:
@@ -1567,16 +1580,17 @@ QList<Edge*> cgmath::PSFAutoFind(int extraEdgeAllowance)
 
     int searchRegion = guideView->getTrackingBox().width();
 
-    int subW = smoothed->getWidth();
-    int subH = smoothed->getHeight();
+    int subW = smoothed->width();
+    int subH = smoothed->height();
+    int size = subW*subH;
 
     // convert to floating point
     float *conv = createFloatImage(smoothed);
 
     // run the PSF convolution
     {
-        float *tmp = new float[smoothed->getSize()];
-        memset(tmp, 0, smoothed->getSize()*sizeof(float));
+        float *tmp = new float[size];
+        memset(tmp, 0, size*sizeof(float));
         psf_conv(tmp, conv, subW, subH);
         delete [] conv;
         // Swap

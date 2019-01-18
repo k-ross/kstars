@@ -7,14 +7,14 @@
     version 2 of the License, or (at your option) any later version.
 */
 
+#include "ekos.h"
+
 #include <gsl/gsl_fit.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_multifit.h>
 
 #include <QDebug>
-
-#include "ekos.h"
 
 namespace Ekos
 {
@@ -37,6 +37,10 @@ const QString &getAlignStatusString(AlignState state)
 const QString &getFilterStatusString(FilterState state)
 {
     return filterStates[state];
+}
+const QString &getSchedulerStatusString(FilterState state)
+{
+    return schedulerStates[state];
 }
 
 /* Taken from http://codereview.stackexchange.com/questions/71300/wrapper-function-to-do-polynomial-fits-with-gsl */
@@ -87,4 +91,112 @@ std::vector<double> gsl_polynomial_fit(const double *const data_x, const double 
 
     return vc;
 }
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::CommunicationStatus& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::CommunicationStatus &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::CommunicationStatus>(a);
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::CaptureState& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::CaptureState &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::CaptureState>(a);
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::FocusState& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::FocusState &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::FocusState>(a);
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::GuideState& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::GuideState &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::GuideState>(a);
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::AlignState& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::AlignState &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::AlignState>(a);
+    return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::SchedulerState& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::SchedulerState &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<Ekos::SchedulerState>(a);
+    return argument;
 }

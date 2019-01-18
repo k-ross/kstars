@@ -51,7 +51,7 @@
 #include "indi/indilistener.h"
 #include "indi/driverinfo.h"
 #include "indi/indistd.h"
-#include "ekos/ekosmanager.h"
+#include "ekos/manager.h"
 #include "ekos/align/align.h"
 #endif
 
@@ -251,10 +251,10 @@ void SkyMapDrawAbstract::drawSolverFOV(QPainter &psky)
             }
         }
 
-        if (align->getStatus() == Ekos::ALIGN_COMPLETE || align->getStatus() == Ekos::ALIGN_PROGRESS)
+        if (align->status() == Ekos::ALIGN_COMPLETE || align->status() == Ekos::ALIGN_PROGRESS)
         {
             bool isVisible = false;
-            FOV *fov       = align->fov();
+            FOV *fov       = align->getSolverFOV();
             if (fov == nullptr)
                 return;
 
@@ -306,21 +306,41 @@ void SkyMapDrawAbstract::drawTelescopeSymbols(QPainter &psky)
 
         if (coordNP == nullptr)
         {
-            coordNP = bd->getNumber("HORIZONTAL_COORD");
-            if (coordNP == nullptr)
-                continue;
+            coordNP = bd->getNumber("EQUATORIAL_COORD");
+            if (coordNP)
+            {
+                INumber *np = IUFindNumber(coordNP, "RA");
+                if (np == nullptr)
+                    continue;
+                indi_sp.setRA(np->value);
+                indi_sp.setRA0(np->value);
+
+                np = IUFindNumber(coordNP, "DEC");
+                if (np == nullptr)
+                    continue;
+                indi_sp.setDec(np->value);
+                indi_sp.setDec0(np->value);
+
+                indi_sp.apparentCoord(static_cast<long double>(J2000), KStars::Instance()->data()->ut().djd());
+            }
             else
             {
-                INumber *np = IUFindNumber(coordNP, "AZ");
-                if (np == nullptr)
+                coordNP = bd->getNumber("HORIZONTAL_COORD");
+                if (coordNP == nullptr)
                     continue;
-                indi_sp.setAz(np->value);
+                else
+                {
+                    INumber *np = IUFindNumber(coordNP, "AZ");
+                    if (np == nullptr)
+                        continue;
+                    indi_sp.setAz(np->value);
 
-                np = IUFindNumber(coordNP, "ALT");
-                if (np == nullptr)
-                    continue;
-                indi_sp.setAlt(np->value);
-                indi_sp.HorizontalToEquatorial(m_KStarsData->lst(), m_KStarsData->geo()->lat());
+                    np = IUFindNumber(coordNP, "ALT");
+                    if (np == nullptr)
+                        continue;
+                    indi_sp.setAlt(np->value);
+                    indi_sp.HorizontalToEquatorial(m_KStarsData->lst(), m_KStarsData->geo()->lat());
+                }
             }
         }
         else

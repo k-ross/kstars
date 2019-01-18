@@ -13,8 +13,36 @@
 
 namespace ISD
 {
+
+Weather::Weather(GDInterface *iPtr) : DeviceDecorator(iPtr)
+{
+    dType = KSTARS_WEATHER;
+
+    readyTimer.reset(new QTimer());
+    readyTimer.get()->setInterval(250);
+    readyTimer.get()->setSingleShot(true);
+    connect(readyTimer.get(), &QTimer::timeout, this, &Weather::ready);
+}
+
+void Weather::registerProperty(INDI::Property *prop)
+{
+    if (isConnected())
+        readyTimer.get()->start();
+
+    DeviceDecorator::registerProperty(prop);
+}
+
 void Weather::processLight(ILightVectorProperty *lvp)
 {
+    if (!strcmp(lvp->name, "WEATHER_STATUS"))
+    {
+        if (lvp->s != m_WeatherStatus)
+        {
+            m_WeatherStatus = lvp->s;
+            emit newStatus(m_WeatherStatus);
+        }
+    }
+
     DeviceDecorator::processLight(lvp);
 }
 
@@ -40,6 +68,8 @@ IPState Weather::getWeatherStatus()
     if (weatherLP == nullptr)
         return IPS_ALERT;
 
+    m_WeatherStatus = weatherLP->s;
+
     return weatherLP->s;
 }
 
@@ -50,6 +80,6 @@ uint16_t Weather::getUpdatePeriod()
     if (updateNP == nullptr)
         return 0;
 
-    return (uint16_t)updateNP->np[0].value;
+    return static_cast<uint16_t>(updateNP->np[0].value);
 }
 }

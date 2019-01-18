@@ -1,4 +1,4 @@
-/*  INDI CCD
+/*  INDI Telescope
     Copyright (C) 2012 Jasem Mutlaq <mutlaqja@ikarustech.com>
 
     This application is free software; you can redistribute it and/or
@@ -9,6 +9,9 @@
 
 #pragma once
 
+#include <QDBusArgument>
+#include <QTimer>
+
 #include "indistd.h"
 #include "skypoint.h"
 
@@ -18,7 +21,7 @@ namespace ISD
 {
 /**
  * @class Telescope
- * device handle controlling telescope. It can slew and sync to a specific sky point and supports all standard propreties with INDI
+ * device handle controlling telescope. It can slew and sync to a specific sky point and supports all standard properties with INDI
  * telescope device.
  *
  * @author Jasem Mutlaq
@@ -34,6 +37,7 @@ class Telescope : public DeviceDecorator
     typedef enum { MOTION_NORTH, MOTION_SOUTH } TelescopeMotionNS;
     typedef enum { MOTION_WEST, MOTION_EAST } TelescopeMotionWE;
     typedef enum { MOTION_START, MOTION_STOP } TelescopeMotionCommand;
+    typedef enum { PIER_UNKNOWN=-1, PIER_WEST = 0 , PIER_EAST = 0 } PierSide;
     typedef enum {
         MOUNT_IDLE,
         MOUNT_MOVING,
@@ -42,9 +46,9 @@ class Telescope : public DeviceDecorator
         MOUNT_PARKING,
         MOUNT_PARKED,
         MOUNT_ERROR
-    } TelescopeStatus;
-    typedef enum { PARK_UNKNOWN, PARK_PARKED, PARK_PARKING, PARK_UNPARKING, PARK_UNPARKED } ParkStatus;
+    } Status;    
     typedef enum { PARK_OPTION_CURRENT, PARK_OPTION_DEFAULT, PARK_OPTION_WRITE_DATA } ParkOptionCommand;
+    typedef enum { TRACK_SIDEREAL, TRACK_SOLAR, TRACK_LUNAR, TRACK_CUSTOM } TrackModes;
 
     void registerProperty(INDI::Property *prop) override;
     void processSwitch(ISwitchVectorProperty *svp) override;
@@ -55,6 +59,7 @@ class Telescope : public DeviceDecorator
 
     // Coordinates
     bool getEqCoords(double *ra, double *dec);
+    bool isJ2000() { return m_isJ2000; }
 
     // Slew
     bool Slew(SkyPoint *ScopeTarget);
@@ -79,7 +84,9 @@ class Telescope : public DeviceDecorator
 
     // Motion
     bool MoveNS(TelescopeMotionNS dir, TelescopeMotionCommand cmd);
+    bool StopNS();
     bool MoveWE(TelescopeMotionWE dir, TelescopeMotionCommand cmd);
+    bool StopWE();
     bool isSlewing();
     bool isInMotion();
     QString getManualMotionString() const;
@@ -91,14 +98,14 @@ class Telescope : public DeviceDecorator
 
     // Parking
     bool canPark();
-    bool isParked() { return parkStatus == PARK_PARKED; }
+    bool isParked() { return m_ParkStatus == PARK_PARKED; }
     bool canCustomPark() { return m_hasCustomParking; }
     bool sendParkingOptionCommand(ParkOptionCommand command);
 
     // Status
-    ParkStatus getParkStatus() { return parkStatus; }
-    TelescopeStatus getStatus();
-    const QString getStatusString(TelescopeStatus status);
+    ParkStatus parkStatus() { return m_ParkStatus; }
+    Status status();
+    const QString getStatusString(Status status);
 
     // Altitude Limits
     void setAltLimits(double minAltitude, double maxAltitude);
@@ -107,6 +114,14 @@ class Telescope : public DeviceDecorator
     bool setAlignmentModelEnabled(bool enable);
     bool clearAlignmentModel();
     bool hasAlignmentModel() { return m_hasAlignmentModel; }
+
+    // Slew Rates
+    bool hasSlewRates() { return m_hasSlewRates; }
+    QStringList slewRates() { return m_slewRates; }
+    int getSlewRate() const;
+
+    // Pier side
+    PierSide pierSide() const { return m_PierSide; }
 
   protected:
     bool sendCoords(SkyPoint *ScopeTarget);
@@ -123,25 +138,43 @@ class Telescope : public DeviceDecorator
 
   signals:
     void newTarget(const QString &);
+    void newParkStatus(ISD::ParkStatus status);
+    void slewRateChanged(int rate);
+    void pierSideChanged(PierSide side);
+    void ready();
 
   private:
     SkyPoint currentCoord;
-    double minAlt, maxAlt;
-    ParkStatus parkStatus = PARK_UNKNOWN;
+    double minAlt=0, maxAlt=90;
+    ParkStatus m_ParkStatus = PARK_UNKNOWN;
     IPState EqCoordPreviousState;
-    QTimer *centerLockTimer  = nullptr;
+    QTimer centerLockTimer;
+    QTimer readyTimer;
     SkyObject *currentObject = nullptr;
     bool inManualMotion      = false;
     bool inCustomParking     = false;
     IPState NSPreviousState  = IPS_IDLE;
     IPState WEPreviousState  = IPS_IDLE;
+    PierSide m_PierSide = PIER_UNKNOWN;
+
+    QMap<TrackModes, uint8_t> TrackMap;
+    TrackModes currentTrackMode { TRACK_SIDEREAL };
 
     bool m_hasAlignmentModel = { false };
     bool m_canControlTrack = { false };
     bool m_hasTrackModes { false};
     bool m_hasCustomTrackRate { false};
     bool m_hasCustomParking { false };
-
-
+    bool m_hasSlewRates { false };
+    bool m_isJ2000 { false };
+    QStringList m_slewRates;
 };
 }
+
+Q_DECLARE_METATYPE(ISD::Telescope::Status)
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::Status& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, ISD::Telescope::Status &dest);
+
+Q_DECLARE_METATYPE(ISD::Telescope::PierSide)
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::PierSide& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, ISD::Telescope::PierSide &dest);

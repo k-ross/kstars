@@ -17,13 +17,13 @@
 
 #include "kstarsdata.h"
 
-#include "fov.h"
 #include "ksutils.h"
 #include "Options.h"
 #include "auxiliary/kspaths.h"
 #include "skycomponents/supernovaecomponent.h"
 #include "skycomponents/skymapcomposite.h"
 #ifndef KSTARS_LITE
+#include "fov.h"
 #include "imageexporter.h"
 #include "kstars.h"
 #include "observinglist.h"
@@ -291,7 +291,7 @@ void KStarsData::updateTime(GeoLocation *geo, const bool automaticDSTchange)
         LastSkyUpdate = ut();
         m_preUpdateID++;
         //omit KSNumbers arg == just update Alt/Az coords // <-- Eh? -- asimha. Looks like this behavior / ideology has changed drastically.
-        skyComposite()->update();
+        skyComposite()->update(&num);
 
         emit skyUpdate(clock()->isManualMode());
     }
@@ -783,7 +783,7 @@ bool KStarsData::readUserLog()
         sub      = buffer.mid(startIndex); // FIXME: This is inefficient because we are making a copy of a huge string!
         endIndex = sub.indexOf(QLatin1String("[KSLogEnd]"));
 
-        // Read name after KSLABEL identifer
+        // Read name after KSLABEL identifier
         name = sub.mid(startIndex + 9, sub.indexOf(']') - (startIndex + 9));
         // Read data and skip new line
         data   = sub.mid(sub.indexOf(']') + 2, endIndex - (sub.indexOf(']') + 2));
@@ -1467,6 +1467,7 @@ bool KStarsData::executeScript(const QString &scriptname, SkyMap *map)
     return false;
 }
 
+#ifndef KSTARS_LITE
 void KStarsData::syncFOV()
 {
     visibleFOVs.clear();
@@ -1485,7 +1486,7 @@ void KStarsData::syncFOV()
     }
     Options::setFOVNames(all.intersect(names).toList());
 }
-#ifndef KSTARS_LITE
+
 // FIXME: Why does KStarsData store the Execute instance??? -- asimha
 Execute *KStarsData::executeSession()
 {

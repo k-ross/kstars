@@ -51,7 +51,7 @@
 #include "indi/indilistener.h"
 #include "indi/drivermanager.h"
 #include "indi/driverinfo.h"
-#include "ekos/ekosmanager.h"
+#include "ekos/manager.h"
 #endif
 
 #include <KPlotting/KPlotAxis>
@@ -167,7 +167,7 @@ ObservingList::ObservingList()
     ui->WizardButton->setIcon(QIcon::fromTheme("tools-wizard"));
     ui->WizardButton->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     noSelection = true;
-    showScope   = false;    
+    showScope   = false;
     ui->NotesEdit->setEnabled(false);
     ui->SetTime->setEnabled(false);
     ui->TimeEdit->setEnabled(false);
@@ -231,7 +231,7 @@ void ObservingList::showEvent(QShowEvent *)
 
         slotLoadWishList(); //Load the wishlist from disk if present
         m_CurrentObject = nullptr;
-        setSaveImagesButton();    
+        setSaveImagesButton();
 
         slotUpdateAltitudes();
         m_altitudeUpdater = new QTimer(this);
@@ -385,6 +385,7 @@ void ObservingList::slotAddObject(const SkyObject *_obj, bool session, bool upda
         ui->SessionView->resizeColumnsToContents();
         //Note addition in statusbar
         KStars::Instance()->statusBar()->showMessage(i18n("Added %1 to session list.", finalObjectName), 0);
+        SkyMap::Instance()->forceUpdate();
     }
     setSaveImagesButton();
 }
@@ -449,6 +450,7 @@ void ObservingList::slotRemoveObject(const SkyObject *_o, bool session, bool upd
         isModified = true;         //Removing an object should trigger the modified flag
         ui->avt->removeAllPlotObjects();
         ui->SessionView->resizeColumnsToContents();
+        SkyMap::Instance()->forceUpdate();
     }
 }
 
@@ -544,8 +546,8 @@ void ObservingList::slotNewSelection()
                 //First, save the last object's user log to disk, if necessary
                 saveCurrentUserLog(); //uses LogObject, which is still the previous obj.
                 //set LogObject to the new selected object
-                LogObject = currentObject();                
-                ui->NotesEdit->setEnabled(true);                
+                LogObject = currentObject();
+                ui->NotesEdit->setEnabled(true);
                 if (LogObject->userLog().isEmpty())
                 {
                     ui->NotesEdit->setPlainText(
@@ -565,7 +567,7 @@ void ObservingList::slotNewSelection()
             else //selected object is named "star"
             {
                 //clear the log text box
-                saveCurrentUserLog();                
+                saveCurrentUserLog();
                 ui->NotesEdit->clear();
                 ui->NotesEdit->setEnabled(false);
                 ui->SearchImage->setEnabled(false);
@@ -627,10 +629,10 @@ void ObservingList::slotNewSelection()
     }
     else
     {
-        if (selectedItems.size() == 0) //Nothing selected
+        if (selectedItems.isEmpty()) //Nothing selected
         {
             //Disable buttons
-            noSelection = true;            
+            noSelection = true;
             ui->NotesEdit->setEnabled(false);
             m_CurrentObject = nullptr;
             ui->TimeEdit->setEnabled(false);
@@ -643,7 +645,7 @@ void ObservingList::slotNewSelection()
             ui->avt->removeAllPlotObjects();
         }
         else //more than one object selected.
-        {            
+        {
             ui->NotesEdit->setEnabled(false);
             ui->TimeEdit->setEnabled(false);
             ui->SetTime->setEnabled(false);
@@ -756,16 +758,14 @@ void ObservingList::slotAddToSession()
 
 void ObservingList::slotFind()
 {
-    QPointer<FindDialog> fd = new FindDialog(KStars::Instance());
-    if (fd->exec() == QDialog::Accepted)
+    if (FindDialog::Instance()->exec() == QDialog::Accepted)
     {
-        SkyObject *o = fd->targetObject();
+        SkyObject *o = FindDialog::Instance()->targetObject();
         if (o != nullptr)
         {
             slotAddObject(o, sessionView);
         }
     }
-    delete fd;
 }
 
 void ObservingList::slotEyepieceView()
@@ -776,7 +776,7 @@ void ObservingList::slotEyepieceView()
 void ObservingList::slotAVT()
 {
     QModelIndexList selectedItems;
-    // TODO: Think and see if there's a more effecient way to do this. I can't seem to think of any, but this code looks like it could be improved. - Akarsh
+    // TODO: Think and see if there's a more efficient way to do this. I can't seem to think of any, but this code looks like it could be improved. - Akarsh
     selectedItems =
         (sessionView ?
              m_SessionSortModel->mapSelectionToSource(ui->SessionView->selectionModel()->selection()).indexes() :
@@ -862,6 +862,7 @@ void ObservingList::slotOpenList()
         TimeHash.clear();
         m_CurrentObject = nullptr;
         m_SessionModel->removeRows(0, m_SessionModel->rowCount());
+        SkyMap::Instance()->forceUpdate();
         //First line is the name of the list. The rest of the file is
         //object names, one per line. With the TimeHash value if present
         QTextStream istream(&f);
@@ -915,6 +916,7 @@ void ObservingList::slotClearList()
             TimeHash.clear();
             isModified = true; //Removing an object should trigger the modified flag
             m_SessionModel->setRowCount(0);
+            SkyMap::Instance()->forceUpdate();
         }
     }
 }
@@ -1047,7 +1049,7 @@ void ObservingList::slotSaveSession(bool nativeSave)
 {
     if (sessionList().isEmpty())
     {
-        KMessageBox::error(nullptr, i18n("Cannot save an empty session list!"));
+        KMessageBox::error(nullptr, i18n("Cannot save an empty session list."));
         return;
     }
 
@@ -1204,6 +1206,7 @@ void ObservingList::slotUpdate()
             slotAddObject(obj.data(), true, true);
         }
     }
+    SkyMap::Instance()->forceUpdate();
 }
 
 void ObservingList::slotSetTime()
@@ -1278,7 +1281,7 @@ void ObservingList::downloadReady(bool success)
 
     if (!success)
     {
-        KMessageBox::sorry(nullptr, i18n("Failed to download DSS/SDSS image!"));
+        KMessageBox::sorry(nullptr, i18n("Failed to download DSS/SDSS image."));
     }
     else
     {

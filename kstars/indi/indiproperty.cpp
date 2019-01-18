@@ -100,7 +100,7 @@ void INDI_P::initGUI()
 
     updateStateLED();
 
-    /* #1 First widegt is the LED status indicator */
+    /* #1 First widget is the LED status indicator */
     PHBox->addWidget(ledStatus.get());
 
     if (label.isEmpty())
@@ -116,7 +116,7 @@ void INDI_P::initGUI()
 
     //labelW->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     labelW->setFrameShape(QFrame::StyledPanel);
-    labelW->setFixedWidth(PROPERTY_LABEL_WIDTH);
+    labelW->setFixedWidth(PROPERTY_LABEL_WIDTH * KStars::Instance()->devicePixelRatio());
     labelW->setTextFormat(Qt::RichText);
     labelW->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     labelW->setWordWrap(true);
@@ -324,10 +324,7 @@ void INDI_P::buildBLOBGUI()
 
 void INDI_P::setBLOBOption(int state)
 {
-    if (state == Qt::Checked)
-        pg->getDevice()->getClientManager()->setBLOBMode(B_ALSO, dataProp->getDeviceName(), dataProp->getName());
-    else
-        pg->getDevice()->getClientManager()->setBLOBMode(B_NEVER, dataProp->getDeviceName(), dataProp->getName());
+    pg->getDevice()->getClientManager()->setBLOBEnabled(state == Qt::Checked, dataProp->getDeviceName(), dataProp->getName());
 }
 
 void INDI_P::newSwitch(QAbstractButton *button)
@@ -523,8 +520,8 @@ void INDI_P::setupSetButton(const QString &caption)
 {
     setB.reset(new QPushButton(caption, pg->getContainer()));
     setB->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    setB->setMinimumWidth(MIN_SET_WIDTH);
-    setB->setMaximumWidth(MAX_SET_WIDTH);
+    setB->setMinimumWidth(MIN_SET_WIDTH * KStars::Instance()->devicePixelRatio());
+    setB->setMaximumWidth(MAX_SET_WIDTH * KStars::Instance()->devicePixelRatio());
 
     connect(setB.get(), SIGNAL(clicked()), this, SLOT(processSetButton()));
 

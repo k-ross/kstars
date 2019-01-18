@@ -18,6 +18,7 @@
 #pragma once
 
 #include "trailobject.h"
+#include "kstarsdata.h"
 
 #include <QColor>
 #include <QDebug>
@@ -87,6 +88,7 @@ class KSPlanetBase : public TrailObject
         NEPTUNE = 6,
         SUN     = 7,
         MOON    = 8,
+        EARTH_SHADOW = 9,
         UNKNOWN_PLANET
     };
 
@@ -165,6 +167,7 @@ class KSPlanetBase : public TrailObject
      * @param includePlanets this function does nothing if includePlanets=false
      * @param lat pointer to the geographic latitude; if nullptr, we skip localizeCoords()
      * @param LST pointer to the local sidereal time; if nullptr, we skip localizeCoords()
+     * @param forceRecompute defines whether the data should be recomputed forcefully
      */
     void updateCoords(const KSNumbers *num, bool includePlanets = true, const CachingDms *lat = nullptr,
                       const CachingDms *LST = nullptr, bool forceRecompute = false) override;
@@ -257,6 +260,7 @@ class KSPlanetBase : public TrailObject
     /** Determine the phase of the planet. */
     virtual void findPhase();
 
+    virtual double findAngularSize() { return  asin(physicalSize() / Rearth / AU_KM) * 60. * 180. / dms::PI; }
     // Geocentric ecliptic position, but distance to the Sun
     EclipticPosition ep;
 

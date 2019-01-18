@@ -12,7 +12,7 @@
 
 #include "auxiliary/kspaths.h"
 #if defined(HAVE_INDI)
-#include "ekos/ekosmanager.h"
+#include "ekos/manager.h"
 #include "ekos/profileeditor.h"
 #endif
 #include "kstars.h"
@@ -23,7 +23,7 @@
 
 #include <QFuture>
 #include <QtConcurrentRun>
-#include <QtTest/QtTest>
+#include <QtTest>
 
 #include <ctime>
 #include <unistd.h>
@@ -110,7 +110,7 @@ void addEkosProfileTest()
     QCOMPARE(action != nullptr, true);
     action->trigger();
     QThread::msleep(500);
-    EkosManager *ekos = kstarsInstance->ekosManager();
+    Ekos::Manager *ekos = kstarsInstance->ekosManager();
 
     QCOMPARE(ekos != nullptr, true);
     QCOMPARE(ekos->isVisible(), true);
@@ -146,7 +146,7 @@ void addEkosProfileTest()
     QThread::msleep(500);
     QCOMPARE(ccdCBox->currentIndex() != 0, true);
     // Save the profile
-    buttons->accepted();
+    emit buttons->accepted();
     QThread::msleep(2000);
     // Hide Ekos Manager by clicking on the toolbar icon
     action->trigger();
@@ -175,7 +175,7 @@ void verifyEkosProfileTest()
     QCOMPARE(action != nullptr, true);
     action->trigger();
     QThread::msleep(1000);
-    EkosManager *ekos = kstarsInstance->ekosManager();
+    Ekos::Manager *ekos = kstarsInstance->ekosManager();
 
     QCOMPARE(ekos != nullptr, true);
     QCOMPARE(ekos->isVisible(), true);
@@ -238,7 +238,7 @@ void removeEkosProfileTest()
     QCOMPARE(action != nullptr, true);
     action->trigger();
     QThread::msleep(500);
-    EkosManager *ekos = kstarsInstance->ekosManager();
+    Ekos::Manager *ekos = kstarsInstance->ekosManager();
 
     QCOMPARE(ekos != nullptr, true);
     QCOMPARE(ekos->isVisible(), true);

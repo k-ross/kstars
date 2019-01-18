@@ -91,7 +91,7 @@ void SkyPoint::EquatorialToHorizontal(const CachingDms *LST, const CachingDms *l
         1 -
         sinAlt *
             sinAlt); // Avoid trigonometric function. Return value of asin is always in [-pi/2, pi/2] and in this domain cosine is always non-negative, so we can use this.
-    if (cosAlt == 0)
+    if (cosAlt == 0.)
         cosAlt = cos(AltRad);
 
     double arg = (sindec - sinlat * sinAlt) / (coslat * cosAlt);
@@ -750,7 +750,7 @@ double SkyPoint::vRSun(long double jd0)
     dsun.SinCos(sd, cd);
 
     /* We need an auxiliary SkyPoint since we need the
-    * source referred to the J2000 equinox and we do not want to ovewrite
+    * source referred to the J2000 equinox and we do not want to overwrite
     * the current values
     */
 
@@ -797,7 +797,7 @@ double SkyPoint::vREarth(long double jd0)
     */
 
     /* We need an auxiliary SkyPoint since we need the
-    * source referred to the J2000 equinox and we do not want to ovewrite
+    * source referred to the J2000 equinox and we do not want to overwrite
     * the current values
     */
 
@@ -936,3 +936,24 @@ double SkyPoint::minAlt(const dms &lat) const
         retval = 180. + retval;
     return retval;
 }
+
+#ifndef KSTARS_LITE
+QDBusArgument &operator<<(QDBusArgument &argument, const SkyPoint &source)
+{
+    argument.beginStructure();
+    argument << source.ra().Hours() << source.dec().Degrees();
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, SkyPoint &dest)
+{
+    double ra, dec;
+    argument.beginStructure();
+    argument >> ra >> dec;
+    argument.endStructure();
+    dest = SkyPoint(ra, dec);
+    return argument;
+}
+#endif
+

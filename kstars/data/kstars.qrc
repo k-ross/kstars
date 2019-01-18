@@ -50,6 +50,9 @@
         <file>qml/mount/go-west.png</file>
         <file>qml/mount/mountbox.qml</file>
         <file>qml/mount/stop.png</file>
+        <file>icons/kstars_satellites_invisible.svg</file>
+        <file>icons/kstars_satellites_visible.svg</file>
+        <file>icons/cloud-online.svg</file>
     </qresource>
     <qresource prefix="/kconfig">
         <file>kstars.knsrc</file>
@@ -62,5 +65,8 @@
         <file>noimage.png</file>
         <file>reticle12.png</file>
         <file>reticle24.png</file>
+    </qresource>
+    <qresource prefix="/videos">
+        <file>sm_animation.gif</file>
     </qresource>
 </RCC>

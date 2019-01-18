@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>421</width>
-    <height>304</height>
+    <width>426</width>
+    <height>353</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -243,6 +243,16 @@
      </widget>
     </item>
     <item>
+     <widget class="QCheckBox" name="kcfg_RealignAfterCalibrationFailure">
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If guiding calibration fails then restart alignment process before proceeding to guiding recalibration process again. This can help recenter the target object in the field of view if the calibration process strayed too far off.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="text">
+       <string>Restart Alignment on Guiding Calibration Failure</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QCheckBox" name="kcfg_StopEkosAfterShutdown">
       <property name="toolTip">
        <string>After shutdown procedure is successfully executed, stop INDI and Ekos.</string>
@@ -269,6 +279,19 @@
       </property>
       <property name="text">
        <string>Sort jobs by Altitude and Priority</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="kcfg_RememberJobProgress">
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When processing a scheduled job, resume the sequence starting from the last image present in storage.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="text">
+       <string>Remember Job Progress</string>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
       </property>
      </widget>
     </item>
@@ -314,8 +337,8 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_4">
-         <item>
+        <layout class="QGridLayout" name="gridLayout">
+         <item row="0" column="0">
           <widget class="QLabel" name="label">
            <property name="toolTip">
             <string>Maximum acceptable difference between requested and measured temperature set point. When the temperature threshold is below this value, the temperature set point request is deemed successful.</string>
@@ -325,7 +348,7 @@
            </property>
           </widget>
          </item>
-         <item>
+         <item row="0" column="1">
           <widget class="QDoubleSpinBox" name="kcfg_MaxTemperatureDiff">
            <property name="minimum">
             <double>0.100000000000000</double>
@@ -341,38 +364,62 @@
            </property>
           </widget>
          </item>
-         <item>
+         <item row="0" column="2">
           <widget class="QLabel" name="label_3">
            <property name="text">
             <string>° C</string>
            </property>
           </widget>
          </item>
-         <item>
+         <item row="0" column="3" rowspan="2">
           <spacer name="horizontalSpacer_4">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>
-             <width>40</width>
-             <height>20</height>
+             <width>163</width>
+             <height>13</height>
             </size>
            </property>
           </spacer>
          </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_13">
+           <property name="toolTip">
+            <string>Wait this many seconds after guiding is resumed to stabilize the guiding performance before capture.</string>
+           </property>
+           <property name="text">
+            <string>Guiding Settle:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="kcfg_GuidingSettle">
+           <property name="toolTip">
+            <string>Wait this many seconds after guiding is resumed before starting capture</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="label_14">
+           <property name="text">
+            <string>Seconds</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>
-        <widget class="QCheckBox" name="kcfg_RememberJobProgress">
+        <widget class="QCheckBox" name="kcfg_AlwaysResetSequenceWhenStarting">
          <property name="toolTip">
-          <string>When loading a sequence file,  resume the sequence starting from the last captured image, if any.</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When starting to process a sequence list, reset all capture counts to zero. Scheduler overrides this option when Remember Job Progress is enabled.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="text">
-          <string>Remember Job Progress</string>
+          <string>Always Reset Sequence When Starting</string>
          </property>
          <property name="checked">
-          <bool>true</bool>
+          <bool>false</bool>
          </property>
         </widget>
        </item>
@@ -402,6 +449,16 @@
            </property>
            <property name="text">
             <string>Summary Screen Preview</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="kcfg_useDSLRImageViewer">
+           <property name="toolTip">
+            <string>Display received DSLR images in the Image Viewer</string>
+           </property>
+           <property name="text">
+            <string>DSLR Image Viewer</string>
            </property>
           </widget>
          </item>
@@ -526,6 +583,16 @@
         </layout>
        </item>
        <item>
+        <widget class="QCheckBox" name="kcfg_UseMedianFocus">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Calculate median focus value after each autofocus operation is complete. If the autofocus results become progressively worse with time, the median value shall reflect this trend and prevent unnecessary autofocus operations when the seeing conditions deteriorate.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>Use Median Focus</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QCheckBox" name="kcfg_SaveHFRToFile">
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In-Sequence HFR threshold value controls when the autofocus process is started. If the measured HFR value exceeds the HFR threshold, autofocus process is initiated. If the HFR threshold value is zero initially (default), then the autofocus process best HFR value is used to set the new HFR threshold, after applying the HFR threshold modifier percentage. This new HFR threshold is then used for subsequent In-Sequence focus checks. If this option is enabled, the HFR threshold value is constant and gets saved to the sequence file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -626,7 +693,7 @@
          <double>0.100000000000000</double>
         </property>
         <property name="maximum">
-         <double>5.000000000000000</double>
+         <double>30.000000000000000</double>
         </property>
         <property name="singleStep">
          <double>0.100000000000000</double>

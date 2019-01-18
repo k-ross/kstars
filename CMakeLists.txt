@@ -1,18 +1,31 @@
 PROJECT(kstars CXX C)
-
-set (KStars_VERSION_MAJOR 2)
-set (KStars_VERSION_MINOR 9)
-set (KStars_VERSION_REVISION 6)
+set (KStars_VERSION_MAJOR 3)
+set (KStars_VERSION_MINOR 1)
+set (KStars_VERSION_REVISION 0)
 set (CMAKE_CXX_STANDARD 11)
-#Build KStars Lite with -DKSTARS_LITE=ON
+
+# Build KStars Lite with -DBUILD_KSTARS_LITE=ON
 option(BUILD_KSTARS_LITE "Build KStars Lite" OFF)
-if(BUILD_KSTARS_LITE)
-    add_definitions(-DKSTARS_LITE)
-endif(BUILD_KSTARS_LITE)
+
+# Fetch translations with -DFETCH_TRANSLATIONS=ON
+option(FETCH_TRANSLATIONS "Fetch Translations" OFF)
+
 # minimal requirements
 cmake_minimum_required (VERSION 2.8.12 FATAL_ERROR)
 
+# KStars Timestap build
 string(TIMESTAMP KSTARS_BUILD_TS UTC)
+
+# For KStars Lite, we ALWAYS need to fetch translations
+if(BUILD_KSTARS_LITE)
+    SET(FETCH_TRANSLATIONS ON)
+endif()
+
+# Set options for fetching translations
+if (FETCH_TRANSLATIONS)
+SET(KDE_L10N_AUTO_TRANSLATIONS ON)
+SET(KDE_L10N_BRANCH "trunk")
+endif()
 
 if(BUILD_KSTARS_LITE)
     set (QT_MIN_VERSION "5.7.0") #QtQuickControls 2 is available only in the Qt 5.7.0
@@ -40,7 +53,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Android)
     set(ANDROID TRUE)
 endif()
 
-if(CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
+if("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
     include(${CMAKE_BINARY_DIR}/kf5/kde/install/share/ECM/cmake/ECMConfig.cmake)
 endif()
 
@@ -49,8 +62,15 @@ set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules" ${CMAKE_MODULE_PATH})
 
 if(BUILD_KSTARS_LITE)
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
+    if("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
         set(QT_ANDROID $ENV{QT_ANDROID})
+        set(Qt5Core_DIR "${QT_ANDROID}/lib/cmake/Qt5Core")
+        set(Qt5Gui_DIR "${QT_ANDROID}/lib/cmake/Qt5Gui")
+        set(Qt5Network_DIR "${QT_ANDROID}/lib/cmake/Qt5Network")
+        set(Qt5Positioning_DIR "${QT_ANDROID}/lib/cmake/Qt5Positioning")
+        set(Qt5Qml_DIR "${QT_ANDROID}/lib/cmake/Qt5Qml")
+        set(Qt5Quick_DIR "${QT_ANDROID}/lib/cmake/Qt5Quick")
+        set(Qt5Widgets_DIR "${QT_ANDROID}/lib/cmake/Qt5Widgets")
         include(${QT_ANDROID}/lib/cmake/Qt5/Qt5Config.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5Core/Qt5CoreConfig.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5Gui/Qt5GuiConfig.cmake)
@@ -62,17 +82,20 @@ if(BUILD_KSTARS_LITE)
         include(${QT_ANDROID}/lib/cmake/Qt5Sql/Qt5SqlConfig.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5Network/Qt5NetworkConfig.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5Positioning/Qt5PositioningConfig.cmake)
+        include(${QT_ANDROID}/lib/cmake/Qt5PositioningQuick/Qt5PositioningQuickConfig.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5Concurrent/Qt5ConcurrentConfig.cmake)
         include(${QT_ANDROID}/lib/cmake/Qt5AndroidExtras/Qt5AndroidExtrasConfig.cmake)
     else()
         if(ANDROID)
             list(APPEND QT_EXTRA_COMPONENTS AndroidExtras)
+        else()
+            list(APPEND QT_EXTRA_COMPONENTS PrintSupport)
         endif()
-        find_package(Qt5 5.7 REQUIRED COMPONENTS Gui Qml Quick QuickControls2 Xml Svg Sql Network Positioning Concurrent ${QT_EXTRA_COMPONENTS})
+        find_package(Qt5 5.7 REQUIRED COMPONENTS Gui Qml Quick QuickControls2 Xml Svg Sql Network Positioning PositioningQuick Concurrent WebSockets ${QT_EXTRA_COMPONENTS})
     endif()
 else()
     #find_package(Qt5 5.4 REQUIRED COMPONENTS Gui Qml Quick Xml Sql Svg Network PrintSupport Positioning Concurrent)
-    find_package(Qt5 5.4 REQUIRED COMPONENTS Gui Qml Quick Xml Sql Svg Network PrintSupport Concurrent)
+    find_package(Qt5 5.4 REQUIRED COMPONENTS Gui Qml Quick Xml Sql Svg Network PrintSupport Concurrent WebSockets)
 endif()
 include(ExternalProject)
 include(ECMInstallIcons)
@@ -80,23 +103,24 @@ include(ECMAddAppIcon)
 include(KDEInstallDirs)
 include(MacroBoolTo01)
 include(ECMQtDeclareLoggingCategory)
-if(NOT CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
-    #We get error "could not find main method" with this module
-    include(KDECompilerSettings NO_POLICY_SCOPE)
-endif()
+include(KDECompilerSettings NO_POLICY_SCOPE)
 include(KDECMakeSettings)
 include(FeatureSummary)
 
 # Load the frameworks we need
 if(BUILD_KSTARS_LITE)
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
+    if("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
         set(KF5_VERSION 5.28.0)
         set(KF5_HOST_TOOLING /usr/lib/x86_64-linux-gnu/cmake/)
         include(${CMAKE_BINARY_DIR}/kf5/kde/install/lib/cmake/KF5Config/KF5ConfigConfig.cmake)
         include(${CMAKE_BINARY_DIR}/kf5/kde/install/lib/cmake/KF5I18n/KF5I18nConfig.cmake)
         include(${CMAKE_BINARY_DIR}/kf5/kde/install/lib/cmake/KF5Plotting/KF5PlottingConfig.cmake)
     else()
-        find_package(KF5 REQUIRED COMPONENTS Config I18n Plotting)
+        # Find Optional package NotifyConfig for desktop notifications
+        find_package(KF5 COMPONENTS NotifyConfig)
+        MACRO_BOOL_TO_01(KF5NotifyConfig_FOUND HAVE_NOTIFYCONFIG)
+
+        find_package(KF5 REQUIRED COMPONENTS Auth Config Crash WidgetsAddons NewStuff I18n KIO XmlGui Plotting Notifications)
     endif()
 else(BUILD_KSTARS_LITE)
     # Find Optional package NotifyConfig for desktop notifications
@@ -125,20 +149,26 @@ include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 ## CFITSIO Library
 if(ANDROID)
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
+    if("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
         set(extra_cmake "-DM_LIB=-lm")
     endif()
-    externalproject_add(cfitsio SOURCE_DIR "${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio"
+
+    find_program(DOS2UNIX dos2unix)
+    if (NOT DOS2UNIX)
+        message(FATAL_ERROR "Could not find dos2unix")
+    endif()
+
+    externalproject_add(cfitsio SOURCE_DIR "${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio"
         URL https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio3370.tar.gz
-        PATCH_COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio && dos2unix ${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio/CMakeLists.txt && patch -p1 < ${CMAKE_SOURCE_DIR}/android/3rdparty/cfitsio.patch"
+        PATCH_COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio && ${DOS2UNIX} ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio/CMakeLists.txt && patch -p1 < ${CMAKE_SOURCE_DIR}/packaging/android/3rdparty/cfitsio.patch"
         CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} ${extra_cmake}
         BUILD_COMMAND make cfitsio
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND "")
 
     set(CFITSIO_FOUND TRUE)
-    set(CFITSIO_INCLUDE_DIR PUBLIC ${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio)
-    set(CFITSIO_LIBRARIES ${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio/libcfitsio.a)
+    set(CFITSIO_INCLUDE_DIR PUBLIC ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio)
+    set(CFITSIO_LIBRARIES ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio/libcfitsio.a)
 else()
     if(BUILD_KSTARS_LITE)
         find_package(CFitsio REQUIRED)
@@ -152,22 +182,22 @@ set_package_properties(CFitsio PROPERTIES DESCRIPTION "FITS IO Library" URL "htt
 ## INDI Library
 if (ANDROID)
     set(QT_ANDROID $ENV{QT_ANDROID})
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
-        set(extra_cmake -DCMAKE_AR=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar)
+    if("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
+        set(extra_cmake -DCMAKE_AR=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar)
     endif()
-    externalproject_add(indi SOURCE_DIR "${CMAKE_BINARY_DIR}/android/indi"
+    externalproject_add(indi SOURCE_DIR "${CMAKE_BINARY_DIR}/packaging/android/indi"
         URL https://github.com/indilib/indi/archive/master.zip
         CONFIGURE_COMMAND cd libindi && cmake . -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \\
              -DINDI_BUILD_POSIX_CLIENT=OFF -DINDI_BUILD_SERVER=OFF -DINDI_BUILD_DRIVERS=OFF -DINDI_BUILD_UNITTESTS=OFF \\
              -DINDI_BUILD_DRIVERS=OFF -DINDI_BUILD_QT5_CLIENT=ON -DINDI_CALCULATE_MINMAX=ON \\
-             -DCFITSIO_DIR=${CMAKE_BINARY_DIR}/android/3rdparty/cfitsio -DQT_ANDROID=${QT_ANDROID} -DCMAKE_PREFIX_PATH=${QT_ANDROID} ${extra_cmake}
+             -DCFITSIO_DIR=${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio -DQT_ANDROID=${QT_ANDROID} -DCMAKE_PREFIX_PATH=${QT_ANDROID} ${extra_cmake}
         BUILD_COMMAND make -C libindi
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND "")
 
     set(INDI_FOUND TRUE)
-    set(INDI_INCLUDE_DIR ${CMAKE_BINARY_DIR}/android/indi/libindi/libs/indibase ${CMAKE_BINARY_DIR}/android/indi/libindi ${CMAKE_BINARY_DIR}/android/indi/libindi/libs)
-    set(INDI_CLIENT_ANDROID_LIBRARIES ${CMAKE_BINARY_DIR}/android/indi/libindi/libindiclientqt.a)
+    set(INDI_INCLUDE_DIR ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libs/indibase ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libs)
+    set(INDI_CLIENT_ANDROID_LIBRARIES ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libindiclientqt.a)
 else ()
     find_package(INDI 1.7.1)
 endif ()
@@ -181,15 +211,15 @@ if(BUILD_KSTARS_LITE AND ANDROID)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -DLIBRAW_USE_OPENMP")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lgomp")
 
-    externalproject_add(raw SOURCE_DIR "${CMAKE_BINARY_DIR}/android/3rdparty/libraw"
+    externalproject_add(raw SOURCE_DIR "${CMAKE_BINARY_DIR}/packaging/android/3rdparty/libraw"
         URL https://www.libraw.org/data/LibRaw-0.17.2.tar.gz
-        PATCH_COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/android/3rdparty/libraw && wget -qO- https://github.com/LibRaw/LibRaw-cmake/archive/master.zip | jar xvf /dev/stdin && rm -rf cmake && mv -f LibRaw-cmake-master/CMakeLists.txt LibRaw-cmake-master/cmake . && patch -p1 < ${CMAKE_SOURCE_DIR}/android/3rdparty/libraw.patch"
+        PATCH_COMMAND bash -c "cd ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/libraw && wget -qO- https://github.com/LibRaw/LibRaw-cmake/archive/master.zip | jar xvf /dev/stdin && rm -rf cmake && mv -f LibRaw-cmake-master/CMakeLists.txt LibRaw-cmake-master/cmake . && patch -p1 < ${CMAKE_SOURCE_DIR}/packaging/android/3rdparty/libraw.patch"
         CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DENABLE_OPENMP=OFF -DENABLE_LCMS=OFF
         BUILD_COMMAND make raw
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND "")
-    include_directories(${CMAKE_BINARY_DIR}/android/3rdparty/libraw)
-    set(LIBRAW_LIBRARIES ${CMAKE_BINARY_DIR}/android/3rdparty/libraw/libraw.a)
+    include_directories(${CMAKE_BINARY_DIR}/packaging/android/3rdparty/libraw)
+    set(LIBRAW_LIBRARIES ${CMAKE_BINARY_DIR}/packaging/android/3rdparty/libraw/libraw.a)
     set(LibRaw_FOUND true)
 else()
     find_package(LibRaw)
@@ -214,6 +244,10 @@ MACRO_BOOL_TO_01(Qt5DataVisualization_FOUND HAVE_DATAVISUALIZATION)
 find_package(AstrometryNet)
 set_package_properties(AstrometryNet PROPERTIES DESCRIPTION "Astrometrics Library" URL "http://www.astrometry.net" TYPE RUNTIME PURPOSE "Support for plate solving in KStars.")
 
+## Key Chain
+find_package(Qt5Keychain)
+MACRO_BOOL_TO_01(Qt5Keychain_FOUND HAVE_KEYCHAIN)
+
 ## OpenGL
 find_package(OpenGL)
 set_package_properties(OpenGL PROPERTIES DESCRIPTION "Open Graphics Library" URL "http://www.opengl.org" TYPE OPTIONAL PURPOSE "Support for hardware rendering in KStars.")
@@ -231,8 +265,10 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 add_definitions(-DQT_NO_CAST_TO_ASCII)
 
+# Needed for htmesh, and libraw
+kde_enable_exceptions()
+
 if (UNIX)
-  add_definitions(-Dfexceptions)
 
   # TEMPORARY: To disable QCustomPlot warning until 2.0.0 is released which fixes these warnings
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-non-virtual-dtor")
@@ -243,6 +279,12 @@ if (UNIX)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
   endif()
 endif(UNIX)
+
+# Optimize binary size by dropping unneeded symbols at linking stage
+if (ANDROID)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections -fvisibility=hidden -fvisibility-inlines-hidden")
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections")
+endif ()
 
 # Add security (hardening flags)
 IF (UNIX OR APPLE OR ANDROID)
@@ -382,7 +424,15 @@ IF (NOT ANDROID)
     add_subdirectory(Tests)
     ENDIF()
     # Make it possible to use the po files fetched by the fetch-translations step
-    ki18n_install("${CMAKE_CURRENT_BINARY_DIR}/po")
+    if (FETCH_TRANSLATIONS)
+        ki18n_install("${CMAKE_CURRENT_BINARY_DIR}/po")
+    else()
+        ki18n_install(po)
+        find_package(KF5DocTools CONFIG)
+        if(KF5DocTools_FOUND)
+            kdoctools_install(po)
+        endif()
+    endif()
 ENDIF ()
 
 install(FILES org.kde.kstars.appdata.xml DESTINATION ${KDE_INSTALL_METAINFODIR})
@@ -390,23 +440,24 @@ install(FILES org.kde.kstars.appdata.xml DESTINATION ${KDE_INSTALL_METAINFODIR})
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
 
 # Only build k5auth for Linux
-if (NOT BUILD_KSTARS_LITE AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    # This helper file is generated to download astrometry.net index files.
-    add_executable(kauth_kstars_helper kstars/auxiliary/downloadhelper.cpp  ${helper_mocs})
-    target_link_libraries(kauth_kstars_helper Qt5::Core)
-    target_link_libraries(kauth_kstars_helper Qt5::Widgets)
-    target_link_libraries(kauth_kstars_helper KF5::Auth)
-    install(TARGETS kauth_kstars_helper DESTINATION ${KAUTH_HELPER_INSTALL_DIR})
-    kauth_install_helper_files(kauth_kstars_helper org.kde.kf5auth.kstars root)
-    kauth_install_actions(org.kde.kf5auth.kstars org.kde.kf5auth.kstars.actions)
-ENDIF ()
+# JM 2018-09-26: KAuth is disabled due to reliability issues.
+#if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+#    # This helper file is generated to download astrometry.net index files.
+#    add_executable(kauth_kstars_helper kstars/auxiliary/downloadhelper.cpp  ${helper_mocs})
+#    target_link_libraries(kauth_kstars_helper Qt5::Core)
+#    target_link_libraries(kauth_kstars_helper Qt5::Widgets)
+#    target_link_libraries(kauth_kstars_helper KF5::Auth)
+#    install(TARGETS kauth_kstars_helper DESTINATION ${KAUTH_HELPER_INSTALL_DIR})
+#    kauth_install_helper_files(kauth_kstars_helper org.kde.kf5auth.kstars root)
+#    kauth_install_actions(org.kde.kf5auth.kstars org.kde.kf5auth.kstars.actions)
+#ENDIF ()
 
 # Final package generation
-if (CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.cmake)
-    set(EXPORT_DIR "${CMAKE_BINARY_DIR}/android/kstars_build_apk/")
-    set(ANDROID_APK_DIR "${CMAKE_SOURCE_DIR}/android/apk/")
+if ("${CMAKE_TOOLCHAIN_FILE}" MATCHES "android.toolchain.cmake$")
+    set(EXPORT_DIR "${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk/")
+    set(ANDROID_APK_DIR "${CMAKE_SOURCE_DIR}/packaging/android/apk/")
     set(EXECUTABLE_DESTINATION_PATH "${EXPORT_DIR}/libs/armeabi-v7a/libkstars.so")
-    set(ANDROID_NDK $ENV{ANDROID_NDK})
+    set(ANDROID_NDK $ENV{CMAKE_ANDROID_NDK})
     set(ANDROID_SDK_ROOT $ENV{ANDROID_SDK_ROOT})
     set(ANDROID_API_LEVEL $ENV{ANDROID_API_LEVEL})
     set(ANDROID_TOOLCHAIN arm-linux-androideabi)
@@ -417,23 +468,34 @@ if (CMAKE_TOOLCHAIN_FILE STREQUAL ${CMAKE_SOURCE_DIR}/android/toolchain-android.
     set(ANDROID_SDK_BUILD_TOOLS_REVISION 21.1.1)
     set(ANDROID_KEYSTORE $ENV{ANDROID_KEYSTORE})
     set(ANDROID_KEYSTORE_ALIAS $ENV{ANDROID_KEYSTORE_ALIAS})
-    configure_file("${CMAKE_SOURCE_DIR}/android/deployment-file.json.in" "${CMAKE_BINARY_DIR}/android/kstars-deployment.json.in")
+    configure_file("${CMAKE_SOURCE_DIR}/packaging/android/deployment-file.json.in" "${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json.in")
 
 
-    add_custom_target(create-apk-kstars
+    add_custom_target(create-apk-debug-kstars
         COMMAND cmake -E echo "Generating $<TARGET_NAME:kstars> with $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt"
         COMMAND cmake -E remove_directory "${EXPORT_DIR}"
-        COMMAND cmake -E copy_directory "${CMAKE_SOURCE_DIR}/android/apk" "${EXPORT_DIR}"
+        COMMAND cmake -E copy_directory "${CMAKE_SOURCE_DIR}/packaging/android/apk" "${EXPORT_DIR}"
         COMMAND cmake -E copy "$<TARGET_FILE:kstars>" "${EXECUTABLE_DESTINATION_PATH}"
-        COMMAND cmake -DINPUT_FILE="${CMAKE_BINARY_DIR}/android/kstars-deployment.json.in" -DOUTPUT_FILE="${CMAKE_BINARY_DIR}/android/kstars-deployment.json" "-DTARGET_DIR=${CMAKE_BINARY_DIR}/kstars" "-DTARGET_NAME=kstars" "-DEXPORT_DIR=${CMAKE_INSTALL_PREFIX}" -P ${CMAKE_SOURCE_DIR}/android/specifydependencies.cmake
-        COMMAND $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt --input "${CMAKE_BINARY_DIR}/android/kstars-deployment.json" --output "${EXPORT_DIR}" --android-platform android-${ANDROID_API_LEVEL} --debug --deployment bundled "\\$(ARGS)"
-        COMMAND $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt --input "${CMAKE_BINARY_DIR}/android/kstars-deployment.json" --output "${EXPORT_DIR}" --android-platform android-${ANDROID_API_LEVEL} --release --deployment bundled "\\$(ARGS)"
+        COMMAND cmake -DINPUT_FILE="${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json.in" -DOUTPUT_FILE="${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json" "-DTARGET_DIR=${CMAKE_BINARY_DIR}/kstars" "-DTARGET_NAME=kstars" "-DEXPORT_DIR=${CMAKE_INSTALL_PREFIX}" -P ${CMAKE_SOURCE_DIR}/packaging/android/specifydependencies.cmake
+        COMMAND $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt --input "${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json" --output "${EXPORT_DIR}" --android-platform android-${ANDROID_API_LEVEL} --debug --deployment bundled "\\$(ARGS)"
         )
+    add_custom_target(create-apk-release-kstars
+        COMMAND cmake -E echo "Generating $<TARGET_NAME:kstars> with $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt"
+        COMMAND cmake -E remove_directory "${EXPORT_DIR}"
+        COMMAND cmake -E copy_directory "${CMAKE_SOURCE_DIR}/packaging/android/apk" "${EXPORT_DIR}"
+        COMMAND cmake -E copy "$<TARGET_FILE:kstars>" "${EXECUTABLE_DESTINATION_PATH}"
+        COMMAND cmake -DINPUT_FILE="${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json.in" -DOUTPUT_FILE="${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json" "-DTARGET_DIR=${CMAKE_BINARY_DIR}/kstars" "-DTARGET_NAME=kstars" "-DEXPORT_DIR=${CMAKE_INSTALL_PREFIX}" -P ${CMAKE_SOURCE_DIR}/packaging/android/specifydependencies.cmake
+        COMMAND $<TARGET_FILE_DIR:Qt5::qmake>/androiddeployqt --input "${CMAKE_BINARY_DIR}/packaging/android/kstars-deployment.json" --output "${EXPORT_DIR}" --android-platform android-${ANDROID_API_LEVEL} --release --deployment bundled "\\$(ARGS)"
+        )
+    add_custom_target(install-apk-debug-kstars
+        COMMAND adb install -r ${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk//bin/QtApp-debug.apk
+        )
+
     if (ANDROID_KEYSTORE AND ANDROID_KEYSTORE_ALIAS)
         add_custom_target(sign-apk-kstars
-            COMMAND jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore ${ANDROID_KEYSTORE} ${CMAKE_BINARY_DIR}/android/kstars_build_apk/bin/QtApp-release-unsigned.apk ${ANDROID_KEYSTORE_ALIAS}
-            COMMAND rm -rf ${CMAKE_BINARY_DIR}/android/kstars_build_apk/bin/kstars-signed.apk
-            COMMAND zipalign -v 4 ${CMAKE_BINARY_DIR}/android/kstars_build_apk/bin/QtApp-release-unsigned.apk ${CMAKE_BINARY_DIR}/android/kstars_build_apk/bin/kstars-signed.apk
+            COMMAND jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore ${ANDROID_KEYSTORE} ${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk/bin/QtApp-release-unsigned.apk ${ANDROID_KEYSTORE_ALIAS}
+            COMMAND rm -rf ${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk/bin/kstars-signed.apk
+            COMMAND zipalign -v 4 ${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk/bin/QtApp-release-unsigned.apk ${CMAKE_BINARY_DIR}/packaging/android/kstars_build_apk/bin/kstars-signed.apk
             )
     endif ()
 endif ()

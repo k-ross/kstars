@@ -19,6 +19,8 @@
 #include "kstars.h"
 #include "kstarsdata.h"
 #include "Options.h"
+#include <QDesktopServices>
+#include <QFileDialog>
 
 OpsXplanet::OpsXplanet(KStars *_ks) : QFrame(_ks), ksw(_ks)
 {
@@ -52,7 +54,6 @@ OpsXplanet::OpsXplanet(KStars *_ks) : QFrame(_ks), ksw(_ks)
     kcfg_XplanetProjection->addItem(i18nc("Map projection method", "TSC"), "tsc");
 
     // Enable/Disable somme widgets
-    connect(kcfg_XplanetWait, SIGNAL(toggled(bool)), SLOT(slotUpdateWidgets(bool)));
     connect(kcfg_XplanetConfigFile, SIGNAL(toggled(bool)), SLOT(slotConfigFileWidgets(bool)));
     connect(kcfg_XplanetStarmap, SIGNAL(toggled(bool)), SLOT(slotStarmapFileWidgets(bool)));
     connect(kcfg_XplanetArcFile, SIGNAL(toggled(bool)), SLOT(slotArcFileWidgets(bool)));
@@ -62,11 +63,21 @@ OpsXplanet::OpsXplanet(KStars *_ks) : QFrame(_ks), ksw(_ks)
     connect(kcfg_XplanetProjection, SIGNAL(currentIndexChanged(int)), SLOT(slotProjectionWidgets(int)));
     connect(kcfg_XplanetBackground, SIGNAL(toggled(bool)), SLOT(slotBackgroundWidgets(bool)));
 
-    kcfg_XplanetWaitValue->setEnabled(Options::xplanetWait());
-    textLabelXplanetSecondes->setEnabled(Options::xplanetWait());
     kcfg_XplanetConfigFilePath->setEnabled(Options::xplanetConfigFile());
+    configFileB->setEnabled(Options::xplanetConfigFile());
+    configFileB->setIcon(QIcon::fromTheme("document-open-folder"));
+    configFileB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    connect(configFileB, SIGNAL(clicked()), this, SLOT(slotSelectConfigFile()));
     kcfg_XplanetStarmapPath->setEnabled(Options::xplanetStarmap());
+    starmapFileB->setEnabled(Options::xplanetStarmap());
+    starmapFileB->setIcon(QIcon::fromTheme("document-open-folder"));
+    starmapFileB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    connect(starmapFileB, SIGNAL(clicked()), this, SLOT(slotSelectStarMapFile()));
     kcfg_XplanetArcFilePath->setEnabled(Options::xplanetArcFile());
+    arcFileB->setEnabled(Options::xplanetArcFile());
+    arcFileB->setIcon(QIcon::fromTheme("document-open-folder"));
+    arcFileB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    connect(arcFileB, SIGNAL(clicked()), this, SLOT(slotSelectArcFile()));
     kcfg_XplanetLabelLocalTime->setEnabled(Options::xplanetLabel());
     kcfg_XplanetLabelGMT->setEnabled(Options::xplanetLabel());
     textLabelXplanetLabelString->setEnabled(Options::xplanetLabel());
@@ -96,6 +107,36 @@ OpsXplanet::OpsXplanet(KStars *_ks) : QFrame(_ks), ksw(_ks)
     kcfg_XplanetBackgroundColorValue->setEnabled(Options::xplanetBackgroundImage());
     if (Options::xplanetProjection() == 0)
         groupBoxBackground->setEnabled(false);
+
+    #ifdef Q_OS_WIN
+        kcfg_XplanetUseFIFO->setChecked(false);
+        kcfg_XplanetUseFIFO->setDisabled(true);
+        kcfg_XplanetUseFIFO->setToolTip(i18n("FIFO files are not supported on Windows"));
+    #endif
+
+    connect(openXPlanetMaps, SIGNAL(clicked()),this,SLOT(showXPlanetMapsDirectory()));
+}
+
+void OpsXplanet::showXPlanetMapsDirectory()
+{
+
+    QString xplanetMapsDir = XPlanetShareDirectory() + QDir::separator() + "images";
+
+    QUrl path = QUrl::fromLocalFile(xplanetMapsDir);
+    QDesktopServices::openUrl(path);
+}
+
+QString OpsXplanet::XPlanetShareDirectory()
+{
+    #ifdef Q_OS_WIN
+        const QFileInfo xPlanetLocationInfo(Options::xplanetPath());
+        return xPlanetLocationInfo.dir().absolutePath() + QDir::separator() + "xplanet";
+    #endif
+
+    if (Options::xplanetIsInternal())
+        return QCoreApplication::applicationDirPath() + "/xplanet/share/xplanet";
+    else
+        return Options::xplanetPath() + "../share/xplanet";
 }
 
 void OpsXplanet::toggleXPlanetInternal()
@@ -107,25 +148,22 @@ void OpsXplanet::toggleXPlanetInternal()
         kcfg_XplanetPath->setText(KSUtils::getDefaultPath("XplanetPath"));
 }
 
-void OpsXplanet::slotUpdateWidgets(bool on)
-{
-    kcfg_XplanetWaitValue->setEnabled(on);
-    textLabelXplanetSecondes->setEnabled(on);
-}
-
 void OpsXplanet::slotConfigFileWidgets(bool on)
 {
     kcfg_XplanetConfigFilePath->setEnabled(on);
+    configFileB->setEnabled(on);
 }
 
 void OpsXplanet::slotStarmapFileWidgets(bool on)
 {
     kcfg_XplanetStarmapPath->setEnabled(on);
+    starmapFileB->setEnabled(on);
 }
 
 void OpsXplanet::slotArcFileWidgets(bool on)
 {
     kcfg_XplanetArcFilePath->setEnabled(on);
+    arcFileB->setEnabled(on);
 }
 
 void OpsXplanet::slotLabelWidgets(bool on)
@@ -182,4 +220,40 @@ void OpsXplanet::slotBackgroundWidgets(bool on)
     kcfg_XplanetBackgroundImagePath->setEnabled(on);
     kcfg_XplanetBackgroundColor->setEnabled(on);
     kcfg_XplanetBackgroundColorValue->setEnabled(on);
+}
+
+void OpsXplanet::slotSelectConfigFile()
+{
+    QString xplanetConfig = XPlanetShareDirectory() + QDir::separator() + "config";
+    QString file =
+        QFileDialog::getOpenFileName(KStars::Instance(), i18n("Select XPlanet Config File"), xplanetConfig);
+
+    if (!file.isEmpty())
+        kcfg_XplanetConfigFilePath->setText(QFileInfo(file).completeBaseName());
+
+}
+
+void OpsXplanet::slotSelectStarMapFile()
+{
+    QString xplanetStarMap = XPlanetShareDirectory() + QDir::separator() + "stars";
+
+    QString file =
+        QFileDialog::getOpenFileName(KStars::Instance(), i18n("Select XPlanet Star Map File"), xplanetStarMap);
+
+    if (!file.isEmpty())
+        kcfg_XplanetStarmapPath->setText(QFileInfo(file).completeBaseName());
+
+}
+
+void OpsXplanet::slotSelectArcFile()
+{
+
+    QString xplanetArc = XPlanetShareDirectory() + QDir::separator() + "arcs";
+
+    QString file =
+        QFileDialog::getOpenFileName(KStars::Instance(), i18n("Select XPlanet Arc File"), xplanetArc);
+
+    if (!file.isEmpty())
+        kcfg_XplanetArcFilePath->setText(QFileInfo(file).completeBaseName());
+
 }

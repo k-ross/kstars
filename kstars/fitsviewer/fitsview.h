@@ -22,6 +22,7 @@
 #include <QPixmap>
 #include <QScrollArea>
 #include <QStack>
+#include <QPointer>
 
 #ifdef WIN32
 // avoid compiler warning when windows.h is included after fitsio.h
@@ -45,7 +46,6 @@ class QResizeEvent;
 class QToolBar;
 
 class FITSData;
-class FITSHistogram;
 class FITSLabel;
 
 class FITSView : public QScrollArea
@@ -57,24 +57,34 @@ class FITSView : public QScrollArea
 
     typedef enum {dragCursor, selectCursor, scopeCursor, crosshairCursor } CursorMode;
 
-    // Loads FITS image, scales it, and displays it in the GUI
-    bool loadFITS(const QString &inFilename, bool silent = true);
+    /**
+     * @brief loadFITS Loads FITS data and display it in FITSView frame
+     * @param inFilename FITS File name
+     * @param silent if set, error popups are suppressed.
+     * @note If image is successfully, loaded() signal is emitted, otherwise failed() signal is emitted.
+     * Obtain error by calling lastError()
+     */
+    void loadFITS(const QString &inFilename, bool silent = true);
     // Save FITS
     int saveFITS(const QString &newFilename);
     // Rescale image lineary from image_buffer, fit to window if desired
-    int rescale(FITSZoom type);
+    bool rescale(FITSZoom type);
 
     // Access functions
-    FITSData *getImageData() { return imageData; }
-    double getCurrentZoom() { return currentZoom; }
-    QImage *getDisplayImage() { return display_image; }
+    FITSData *getImageData() const { return imageData; }
+    double getCurrentZoom() const { return currentZoom; }
+    QImage getDisplayImage() const { return rawImage; }
+    const QPixmap &getDisplayPixmap() const { return displayPixmap; }
 
     // Tracking square
     void setTrackingBoxEnabled(bool enable);
-    bool isTrackingBoxEnabled() { return trackingBoxEnabled; }
-    QPixmap &getTrackingBoxPixmap();
+    bool isTrackingBoxEnabled() const { return trackingBoxEnabled; }
+    QPixmap &getTrackingBoxPixmap(uint8_t margin=0);
     void setTrackingBox(const QRect &rect);
-    const QRect &getTrackingBox() { return trackingBox; }
+    const QRect &getTrackingBox() const { return trackingBox; }
+
+    // last error
+    const QString &lastError() const { return m_LastError; }
 
     // Overlay
     virtual void drawOverlay(QPainter *);
@@ -110,6 +120,8 @@ class FITSView : public QScrollArea
     // Zoom related
     void cleanUpZoom(QPoint viewCenter);
     QPoint getImagePoint(QPoint viewPortPoint);
+    uint16_t zoomedWidth() { return currentWidth; }
+    uint16_t zoomedHeight() { return currentHeight; }
 
     // Star Detection
     int findStars(StarAlgorithm algorithm = ALGORITHM_CENTROID, const QRect &searchBox = QRect());
@@ -162,8 +174,7 @@ class FITSView : public QScrollArea
     /**
          * @brief syncWCSState Update toolbar and actions depending on whether WCS is available or not
          */
-    void syncWCSState();
-    //void handleWCSCompletion();
+    void syncWCSState();    
 
 private:
     bool event(QEvent *event);
@@ -171,7 +182,7 @@ private:
     void pinchTriggered(QPinchGesture *gesture);
 
     template <typename T>
-    int rescale(FITSZoom type);
+    bool rescale(FITSZoom type);
 
     double average();
     double stddev();
@@ -181,6 +192,8 @@ private:
     QPointF getPointForGridLabel();
     bool pointIsInImage(QPointF pt, bool scaled);
 
+    void loadInFrame();
+
 public:
     CursorMode lastMouseMode { selectCursor };
     bool isStarProfileShown() { return showStarProfile; }
@@ -188,6 +201,8 @@ public:
 protected:
     /// WCS Future Watcher
     QFutureWatcher<bool> wcsWatcher;
+    /// FITS Future Watcher
+    QFutureWatcher<bool> fitsWatcher;
     /// Cross hair
     QPointF markerCrosshair;
     /// Pointer to FITSData object
@@ -208,14 +223,19 @@ private:
 
     /// Current width due to zoom
     uint16_t currentWidth { 0 };
+    uint16_t lastWidth { 0 };
     /// Current height due to zoom
     uint16_t currentHeight { 0 };
+    uint16_t lastHeight { 0 };
     /// Image zoom factor
     const double zoomFactor;
 
-    /// FITS image that is displayed in the GUI
-    QImage *display_image { nullptr };
-    FITSHistogram *histogram { nullptr };
+    // Original full-size image
+    QImage rawImage;
+    // Scaled images
+    QImage scaledImage;
+    // Actual pixmap after all the overlays
+    QPixmap displayPixmap;
 
     bool firstLoad { true };
     bool markStars { false };
@@ -233,6 +253,7 @@ private:
     QString filename;
     FITSMode mode;
     FITSScale filter;
+    QString m_LastError;
 
     QStack<FITSScale> filterStack;
 
@@ -256,7 +277,7 @@ private:
 
     //Star Profile Viewer
     #ifdef HAVE_DATAVISUALIZATION
-    StarProfileViewer *starProfileWidget = nullptr;
+    QPointer<StarProfileViewer> starProfileWidget;
     #endif
 
   signals:
@@ -265,6 +286,9 @@ private:
     void wcsToggled(bool);
     void actionUpdated(const QString &name, bool enable);
     void trackingStarSelected(int x, int y);
+    void loaded();
+    void failed();
+    void starProfileWindowClosed();
 
     friend class FITSLabel;
 };

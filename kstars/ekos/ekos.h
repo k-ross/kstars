@@ -11,6 +11,8 @@
 
 #include <KLocalizedString>
 
+#include <QMetaType>
+#include <QDBusArgument>
 #include <QStringList>
 #include <QString>
 
@@ -35,6 +37,7 @@ static const QStringList guideStates = { I18N_NOOP("Idle"),
                                          I18N_NOOP("Suspended"),
                                          I18N_NOOP("Reacquiring"),
                                          I18N_NOOP("Dithering"),
+                                         I18N_NOOP("Manual Dithering"),
                                          I18N_NOOP("Dithering error"),
                                          I18N_NOOP("Dithering successful"),
                                          I18N_NOOP("Settling")};
@@ -56,6 +59,7 @@ typedef enum {
     GUIDE_SUSPENDED,
     GUIDE_REACQUIRE,
     GUIDE_DITHERING,
+    GUIDE_MANUAL_DITHERING,
     GUIDE_DITHERING_ERROR,
     GUIDE_DITHERING_SUCCESS,
     GUIDE_DITHERING_SETTLE
@@ -65,11 +69,11 @@ const QString &getGuideStatusString(GuideState state);
 
 // Capture States
 static const QStringList captureStates = {
-    I18N_NOOP("Idle"),     I18N_NOOP("In Progress"),  I18N_NOOP("Capturing"),       I18N_NOOP("Paused"),
-    I18N_NOOP("Aborted"),  I18N_NOOP("Waiting"),      I18N_NOOP("Image Received"),  I18N_NOOP("Dithering"),
-    I18N_NOOP("Focusing"), I18N_NOOP("Filter Focus"), I18N_NOOP("Changing Filter"), I18N_NOOP("Setting Temperature"),
-    I18N_NOOP("Setting Rotator"), I18N_NOOP("Aligning"), I18N_NOOP("Calibrating"),  I18N_NOOP("Meridian Flip"),
-    I18N_NOOP("Complete")
+    I18N_NOOP("Idle"), I18N_NOOP("In Progress"), I18N_NOOP("Capturing"), I18N_NOOP("Paused"),
+    I18N_NOOP("Suspended"), I18N_NOOP("Aborted"), I18N_NOOP("Waiting"), I18N_NOOP("Image Received"),
+    I18N_NOOP("Dithering"),I18N_NOOP("Focusing"), I18N_NOOP("Filter Focus"), I18N_NOOP("Changing Filter"),
+    I18N_NOOP("Setting Temperature"), I18N_NOOP("Setting Rotator"), I18N_NOOP("Aligning"), I18N_NOOP("Calibrating"),
+    I18N_NOOP("Meridian Flip"), I18N_NOOP("Complete")
 };
 
 typedef enum {
@@ -77,6 +81,7 @@ typedef enum {
     CAPTURE_PROGRESS,
     CAPTURE_CAPTURING,
     CAPTURE_PAUSED,
+    CAPTURE_SUSPENDED,
     CAPTURE_ABORTED,
     CAPTURE_WAITING,
     CAPTURE_IMAGE_RECEIVED,
@@ -142,6 +147,65 @@ typedef enum
 
 const QString &getFilterStatusString(FilterState state);
 
+// Scheduler states
+
+const QString &getSchedulerStatusString(AlignState state);
+
+static const QStringList schedulerStates = { I18N_NOOP("Idle"), I18N_NOOP("Startup"), I18N_NOOP("Running"),
+                                          I18N_NOOP("Paused"), I18N_NOOP("Shutdown"), I18N_NOOP("Aborted")};
+
+typedef enum {
+    SCHEDULER_IDLE,     /*< Scheduler is stopped. */
+    SCHEDULER_STARTUP,  /*< Scheduler is starting the observatory up. */
+    SCHEDULER_RUNNIG,   /*< Scheduler is running. */
+    SCHEDULER_PAUSED,   /*< Scheduler is paused by the end-user. */
+    SCHEDULER_SHUTDOWN, /*< Scheduler is shutting the observatory down. */
+    SCHEDULER_ABORTED,  /*< Scheduler is stopped in error. */
+    SCHEDULER_LOADING   /*< Scheduler is loading a schedule. */
+} SchedulerState;
+
+typedef enum {
+    Idle,
+    Pending,
+    Success,
+    Error
+} CommunicationStatus;
+
 std::vector<double> gsl_polynomial_fit(const double *const data_x, const double *const data_y, const int n,
                                        const int order, double &chisq);
+
+// Invalid value
+const int INVALID_VALUE = -1e6;
 }
+
+// Communication Status
+Q_DECLARE_METATYPE(Ekos::CommunicationStatus)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::CommunicationStatus& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::CommunicationStatus &dest);
+
+// Capture Status
+// FIXME is there a way to avoid unnecessary duplicating code? The solution suggested in KDE WiKi is to use Boost
+// which we do not have to add as dependency
+Q_DECLARE_METATYPE(Ekos::CaptureState)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::CaptureState& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::CaptureState &dest);
+
+// Focus
+Q_DECLARE_METATYPE(Ekos::FocusState)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::FocusState& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::FocusState &dest);
+
+// Guide
+Q_DECLARE_METATYPE(Ekos::GuideState)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::GuideState& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::GuideState &dest);
+
+// Align
+Q_DECLARE_METATYPE(Ekos::AlignState)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::AlignState& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::AlignState &dest);
+
+// Scheduler
+Q_DECLARE_METATYPE(Ekos::SchedulerState)
+QDBusArgument &operator<<(QDBusArgument &argument, const Ekos::SchedulerState& source);
+const QDBusArgument &operator>>(const QDBusArgument &argument, Ekos::SchedulerState &dest);

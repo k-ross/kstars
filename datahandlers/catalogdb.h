@@ -20,7 +20,7 @@
 #include "ksparser.h"
 
 #include <KLocalizedString>
-#ifndef KSTARS_LITE
+#if !defined(ANDROID)
 #include <KMessageBox>
 #endif
 
@@ -100,6 +100,7 @@ class CatalogDB
      *
      * @param ra Right Ascension of new object to be added
      * @param dec Declination of new object to be added
+     * @param magnitude Magnitude of new object to be added
      * @return int RowUID of the new row
      **/
     int FindFuzzyEntry(const double ra, const double dec, const double magnitude);
@@ -115,9 +116,9 @@ class CatalogDB
     /**
      * @brief Creates objects of type SkyObject and assigns them to references
      *
-     * @param catalog Name of the catalog whose objects are needed.
+     * @param catalog_name Name of the catalog whose objects are needed.
      * @param sky_list List of all skyobjects stored in database (assigns)
-     * @param names List of named objects in database (assigns)
+     * @param object_names List of named objects in database (assigns)
      * @param catalog_pointer pointer to the catalogcomponent objects
      * (needed for building skyobjects)
      * @param includeCatalogDesignation This is useful when using 'fake' catalogs to bundle up
@@ -153,10 +154,32 @@ class CatalogDB
     bool AddEntry(const CatalogEntryData &catalog_entry, int catid);
 
     /**
+     * @brief Check an entry in the database
+     *
+     * @note This public method opens and closes the database.
+     *
+     * @param entry_long_name Long name of the entry
+     * @param catid Category ID in the database
+     * @return True if successful otherwise false
+     **/
+    bool CheckCustomEntry(const QString &entry_long_name, int catid);
+
+    /**
+     * @brief Remove an entry from the database
+     *
+     * @note This public method opens and closes the database.
+     *
+     * @param entry_long_name Long name of the entry
+     * @param catid Category ID in the database
+     * @return True if successful otherwise false
+     **/
+    bool RemoveCustomEntry(const QString &entry_long_name, int catid);
+
+    /**
      * @brief Returns database ID of the required catalog.
      * Returns -1 if not found.
      *
-     * @param name Name of the class being searched
+     * @param catalog_name Name of the class being searched
      * @return int
      **/
     int FindCatalog(const QString &catalog_name);
@@ -231,7 +254,7 @@ class CatalogDB
     void ClearDSOEntries(int catalog_id);
 
     /**
-     * @brief Contains setup routines to intitialize a database for catalog storage
+     * @brief Contains setup routines to initialize a database for catalog storage
      *
      * @return void
      **/

@@ -59,12 +59,12 @@ namespace KSUtils
  *subdirectory.  If the data file cannot be found or opened, display a warning
  *messagebox.
  *@short Open a data file.
- *@param &file The QFile object to be opened
- *@param filename The name of the data file.
+ *@param file The QFile object to be opened
+ *@param s The name of the data file.
  *@returns bool Returns true if data file was opened successfully.
  *@returns a reference to the opened file.
  */
-bool openDataFile(QFile &file, const QString &filename);
+bool openDataFile(QFile &file, const QString &s);
 
 /** Clamp value into range.
  *  @p x  value to clamp.
@@ -128,8 +128,8 @@ QString getDSSURL(const SkyPoint *const p);
 
 /**
  *@short Create a URL to obtain a DSS image for a given RA, Dec
- *@param RA The J2000.0 Right Ascension of the point
- *@param Dec The J2000.0 Declination of the point
+ *@param ra The J2000.0 Right Ascension of the point
+ *@param dec The J2000.0 Declination of the point
  *@param width The width of the image in arcminutes
  *@param height The height of the image in arcminutes
  *@param type The image type, either gif or fits.
@@ -199,7 +199,7 @@ QString constGenetiveToAbbrev(const QString &genetive_);
 
 /**
 * Interface into Qt's logging system
-* @Author: Yale Dedis 2011
+* @author: Yale Dedis 2011
 * Adapted from DeDiS project.
 */
 class Logging
@@ -207,7 +207,6 @@ class Logging
   public:
     /**
          * Store all logs into the specified file
-         * @param filename the file in which to store logs
          */
     static void UseFile();
 

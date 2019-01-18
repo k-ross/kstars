@@ -20,6 +20,7 @@
 #include "ksfilereader.h"
 #include "kspaths.h"
 #include "kstarsdata.h"
+#include "kstars_debug.h"
 #include "Options.h"
 #include "skylabeler.h"
 #ifndef KSTARS_LITE
@@ -30,8 +31,6 @@
 #include "htmesh/MeshIterator.h"
 #include "projections/projector.h"
 #include "skyobjects/deepskyobject.h"
-
-#include "kstars_debug.h"
 
 DeepSkyComponent::DeepSkyComponent(SkyComposite *parent) : SkyComponent(parent)
 {
@@ -190,7 +189,7 @@ void DeepSkyComponent::loadData()
         //coordinates
         int rah     = row_content["RA_H"].toInt();
         int ram     = row_content["RA_M"].toInt();
-        float ras   = row_content["RA_S"].toFloat();
+        double ras  = row_content["RA_S"].toDouble();
         QString sgn = row_content["D_Sign"].toString();
         int dd      = row_content["Dec_d"].toInt();
         int dm      = row_content["Dec_m"].toInt();
@@ -265,7 +264,8 @@ void DeepSkyComponent::loadData()
         longname = row_content["Longname"].toString();
 
         dms r;
-        r.setH(rah, ram, int(ras));
+        //r.setH(rah, ram, int(ras));
+        r.setH(rah+ram/60.0+ras/3600.0);
         dms d(dd, dm, ds);
 
         if (sgn == "-")
@@ -507,10 +507,9 @@ void DeepSkyComponent::drawDeepSkyCatalog(SkyPainter *skyp, bool drawObject, Dee
         DeepSkyList *dsList = dsIndex->value(trixel);
         if (dsList == nullptr)
             continue;
-        for (int j = 0; j < dsList->size(); j++)
-        {
-            DeepSkyObject *obj = dsList->at(j);
 
+        for (auto &obj : *dsList)
+        {
             //if ( obj->drawID == drawID ) continue;  // only draw each line once
             //obj->drawID = drawID;
 
@@ -578,9 +577,10 @@ void DeepSkyComponent::drawLabels()
     for (int i = 0; i <= max; i++)
     {
         LabelList *list = m_labelList[i];
-        for (int j = 0; j < list->size(); j++)
+
+        for (const auto &item : *list)
         {
-            labeler->drawNameLabel(list->at(j).obj, list->at(j).o);
+            labeler->drawNameLabel(item.obj, item.o);
         }
         list->clear();
     }
@@ -597,11 +597,13 @@ void DeepSkyComponent::objectsInArea(QList<SkyObject *> &list, const SkyRegion &
     for (SkyRegion::const_iterator it = region.constBegin(); it != region.constEnd(); ++it)
     {
         Trixel trixel = it.key();
+
         if (m_DeepSkyIndex.contains(trixel))
         {
             DeepSkyList *dsoList = m_DeepSkyIndex.value(trixel);
-            for (DeepSkyList::iterator dsit = dsoList->begin(); dsit != dsoList->end(); ++dsit)
-                list.append(*dsit);
+
+            for (auto &dso : *dsoList)
+                list.append(dso);
         }
     }
 }
@@ -626,14 +628,16 @@ SkyObject *DeepSkyComponent::objectNearest(SkyPoint *p, double &maxrad)
     SkyObject *obj;
 
     MeshIterator region(m_skyMesh, OBJ_NEAREST_BUF);
+
     while (region.hasNext())
     {
         dsList = m_ICIndex[region.next()];
         if (!dsList)
             continue;
-        for (int i = 0; i < dsList->size(); ++i)
+
+        for (auto &item : *dsList)
         {
-            obj = dsList->at(i);
+            obj = item;
             r   = obj->angularDistanceTo(p).Degrees();
             if (r < rTry)
             {
@@ -657,9 +661,9 @@ SkyObject *DeepSkyComponent::objectNearest(SkyPoint *p, double &maxrad)
         dsList = m_NGCIndex[region.next()];
         if (!dsList)
             continue;
-        for (int i = 0; i < dsList->size(); ++i)
+        for (auto &item : *dsList)
         {
-            obj = dsList->at(i);
+            obj = item;
             r   = obj->angularDistanceTo(p).Degrees();
             if (r < rTry)
             {
@@ -684,9 +688,9 @@ SkyObject *DeepSkyComponent::objectNearest(SkyPoint *p, double &maxrad)
         dsList = m_OtherIndex[region.next()];
         if (!dsList)
             continue;
-        for (int i = 0; i < dsList->size(); ++i)
+        for (auto &item : *dsList)
         {
-            obj = dsList->at(i);
+            obj = item;
             r   = obj->angularDistanceTo(p).Degrees();
             if (r < rTry)
             {
@@ -711,9 +715,9 @@ SkyObject *DeepSkyComponent::objectNearest(SkyPoint *p, double &maxrad)
         dsList = m_MessierIndex[region.next()];
         if (!dsList)
             continue;
-        for (int i = 0; i < dsList->size(); ++i)
+        for (auto &item : *dsList)
         {
-            obj = dsList->at(i);
+            obj = item;
             r   = obj->angularDistanceTo(p).Degrees();
             if (r < rTry)
             {

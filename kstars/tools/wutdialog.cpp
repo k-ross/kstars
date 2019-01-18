@@ -40,14 +40,13 @@ WUTDialog::WUTDialog(QWidget *parent, bool _session, GeoLocation *_geo, KStarsDa
 #endif
     WUT = new WUTDialogUI(this);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout;
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
     mainLayout->addWidget(WUT);
-    setLayout(mainLayout);
 
     setWindowTitle(i18n("What's up Tonight"));
 
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close);
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
     mainLayout->addWidget(buttonBox);
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
 
@@ -285,9 +284,10 @@ void WUTDialog::slotLoadList(const QString &c)
             starObjects.append(data->skyComposite()->objectLists(SkyObject::STAR));
             starObjects.append(data->skyComposite()->objectLists(SkyObject::CATALOG_STAR));
 
-            for (QVector<QPair<QString, const SkyObject *>>::ConstIterator it = starObjects.cbegin();it != starObjects.cend(); ++it)
+            for (const auto &object : starObjects)
             {
-               const SkyObject *o =  (*it).second;
+               const SkyObject *o =  object.second;
+
                if (checkVisibility(o) && o->mag() <= m_Mag)
                {
                    visibleObjects(c).insert(o);

@@ -100,7 +100,9 @@ SkyLabeler::SkyLabeler()
 
 //For some reason there is no point size in default font on Android
 #ifdef ANDROID
-    m_stdFont.setPointSize(10);
+    m_stdFont.setPointSize(16);
+#else
+    m_stdFont.setPointSize(m_stdFont.pointSize()+2);
 #endif
 
 #endif
@@ -108,12 +110,11 @@ SkyLabeler::SkyLabeler()
 
 SkyLabeler::~SkyLabeler()
 {
-    for (int y = 0; y < screenRows.size(); y++)
+    for (auto &row : screenRows)
     {
-        LabelRow *row = screenRows[y];
-        for (int i = 0; i < row->size(); i++)
+        for (auto &item : *row)
         {
-            delete row->at(i);
+            delete item;
         }
         delete row;
     }
@@ -307,9 +308,10 @@ void SkyLabeler::reset(SkyMap *skyMap)
     for (int y = 0; y <= minMaxY; y++)
     {
         LabelRow *row = screenRows[y];
-        for (int i = 0; i < row->size(); i++)
+
+        for (auto &item : *row)
         {
-            delete row->at(i);
+            delete item;
         }
         row->clear();
     }
@@ -322,9 +324,9 @@ void SkyLabeler::reset(SkyMap *skyMap)
     m_marks = m_hits = m_misses = m_elements = 0;
 
     //----- Clear out labelList -----
-    for (int i = 0; i < labelList.size(); i++)
+    for (auto &item : labelList)
     {
-        labelList[i].clear();
+        item.clear();
     }
 }
 
@@ -621,18 +623,20 @@ void SkyLabeler::drawQueuedLabels()
     // Will just set it to Planet color since this is how it used to be!!
     m_p.setPen(QColor(data->colorScheme()->colorNamed("PNameColor")));
     LabelList list = labelList[RUDE_LABEL];
-    for (int i = 0; i < list.size(); i++)
+
+    for (const auto &item : list)
     {
-        drawRudeNameLabel(list.at(i).obj, list.at(i).o);
+        drawRudeNameLabel(item.obj, item.o);
     }
 }
 
 void SkyLabeler::drawQueuedLabelsType(SkyLabeler::label_t type)
 {
     LabelList list = labelList[type];
-    for (int i = 0; i < list.size(); i++)
+
+    for (const auto &item : list)
     {
-        drawNameLabel(list.at(i).obj, list.at(i).o);
+        drawNameLabel(item.obj, item.o);
     }
 }
 

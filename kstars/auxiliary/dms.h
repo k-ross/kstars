@@ -328,7 +328,7 @@ class dms
          *
          * This function converts the argument to degrees, then sets the angle
          * with setD().
-         * @param a angle in radians
+         * @param Rad an angle in radians
          */
     inline virtual void setRadians(const double &Rad)
     {
@@ -342,6 +342,13 @@ class dms
          * @warning does not change the value of the parent angle itself.
          */
     const dms reduce() const;
+
+    /**
+     * @brief deltaAngle Return the shortest difference (path) between this angle and the supplied angle. The range is normalized to [-180,+180]
+     * @param angle Angle to subtract from current angle.
+     * @return Normalized angle in the range [-180,+180]
+     */
+    const dms deltaAngle(dms angle) const;
 
     /**
          * @short an enum defining standard angle ranges
@@ -359,13 +366,16 @@ class dms
 
     /** @return a nicely-formatted string representation of the angle
          * in degrees, arcminutes, and arcseconds.
+         * @param forceSign if @c true then adds '+' or '-' to the string
          * @param machineReadable uses a colon separator and produces +/-dd:mm:ss format instead
+         * @param highPrecision adds milliseconds, if @c false the seconds will be shown as an integer
          */
     const QString toDMSString(const bool forceSign = false, const bool machineReadable = false, const bool highPrecision=false) const;
 
     /** @return a nicely-formatted string representation of the angle
          * in hours, minutes, and seconds.
          * @param machineReadable uses a colon separator and produces hh:mm:ss format instead
+         * @param highPrecision adds milliseconds, if @c false the seconds will be shown as an integer
          */
     const QString toHMSString(const bool machineReadable = false, const bool highPrecision=false) const;
 

@@ -264,19 +264,61 @@ const dms dms::reduce(void) const
     return dms(D - 360.0 * floor(D / 360.0));
 }
 
+const dms dms::deltaAngle(dms angle) const
+{
+    double angleDiff = D - angle.Degrees();
+
+    // Put in the range of [-360,360]
+    while (angleDiff > 360)
+        angleDiff -= 360;
+    while (angleDiff < -360)
+        angleDiff += 360;
+    // angleDiff in the range [180,360]
+    if (angleDiff > 180)
+        return dms(360 - angleDiff);
+    // angleDiff in the range [-360,-180]
+    else if (angleDiff < -180)
+        return dms(-(360 + angleDiff));
+    // angleDiff in the range [-180,180]
+    else
+        return dms(angleDiff);
+}
+
 const QString dms::toDMSString(const bool forceSign, const bool machineReadable, const bool highPrecision) const
 {
     QString dummy;
     char pm(' ');
+    QChar zero('0');
     int dd = abs(degree());
     int dm = abs(arcmin());
-    int ds = abs(arcsec());
+    int ds = abs(arcsec());    
 
     if (Degrees() < 0.0)
         pm = '-';
     else if (forceSign && Degrees() > 0.0)
         pm = '+';
 
+    if (machineReadable)
+        return QString("%1%2:%3:%4").arg(pm)
+                .arg(dd, 2, 10, QChar('0'))
+                .arg(dm, 2, 10, QChar('0'))
+                .arg(ds, 2, 10, QChar('0'));
+
+    if (highPrecision)
+    {
+        double sec = arcsec() + marcsec() / 1000.;
+        return QString("%1%2° %3\' %L4\"").arg(pm)
+                                         .arg(dd, 2, 10, zero)
+                                         .arg(dm, 2, 10, zero)
+                                         .arg(sec, 2,'f', 2, zero);
+    }
+
+    return QString("%1%2° %3\' %4\"").arg(pm)
+                                     .arg(dd, 2, 10, zero)
+                                     .arg(dm, 2, 10, zero)
+                                     .arg(ds, 2, 10, zero);
+
+#if 0
     if (!machineReadable && dd < 10)
     {
         if (highPrecision)
@@ -313,10 +355,30 @@ const QString dms::toDMSString(const bool forceSign, const bool machineReadable,
     }
     else
         return dummy.sprintf("%c%03d:%02d:%02d", pm, dd, dm, ds);
+#endif
 }
 
 const QString dms::toHMSString(const bool machineReadable, const bool highPrecision) const
 {
+    QChar zero('0');
+    if (machineReadable)
+        return QString("%1:%2:%3").arg(hour(), 2, 10, zero)
+                                  .arg(minute(), 2, 10, zero)
+                                  .arg(second(), 2, 10, zero);
+
+    if (highPrecision)
+    {
+        double sec = second() + msecond() / 1000.;
+        return QString("%1h %2m %L3s").arg(hour(), 2, 10, zero)
+                                     .arg(minute(), 2, 10, zero)
+                                     .arg(sec, 2, 'f', 2, zero);
+    }
+
+    return QString("%1h %2m %3s").arg(hour(), 2, 10, zero)
+                                 .arg(minute(), 2, 10, zero)
+                                 .arg(second(), 2, 10, zero);
+
+#if 0
     QString dummy;
     if (!machineReadable)
     {
@@ -330,6 +392,7 @@ const QString dms::toHMSString(const bool machineReadable, const bool highPrecis
     }
     else
         return dummy.sprintf("%02d:%02d:%02d", hour(), minute(), second());
+#endif
 }
 
 dms dms::fromString(const QString &st, bool deg)
@@ -360,11 +423,9 @@ void dms::reduceToRange(enum dms::AngleRanges range)
             D -= 360. * floor((D + 180.) / 360.);
             break;
         case ZERO_TO_2PI:
-        default:
             D -= 360. * floor(D / 360.);
     }
 }
-
 
 QDataStream &operator<<(QDataStream &out, const dms &d)
 {

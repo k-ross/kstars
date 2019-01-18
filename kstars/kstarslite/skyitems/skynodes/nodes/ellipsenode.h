@@ -25,7 +25,7 @@ class QSGGeometryNode;
 
 /**
  * @class EllipseNode
- * @short QSGTransformNode derrived node used to draw ellipses
+ * @short QSGTransformNode derived node used to draw ellipses
  *
  * @author Artem Fedoskin
  * @version 1.0
@@ -39,6 +39,10 @@ class EllipseNode : public QSGTransformNode
     void setLineWidth(int width);
     /**
      * @short Redraw ellipse with the given width, height and positions (x,y)
+     * @param x position by x
+     * @param y position by y
+     * @param width the width
+     * @param height the height
      * @param filled - if true the ellipse will be filled with color
      */
     void updateGeometry(float x, float y, int width, int height, bool filled);

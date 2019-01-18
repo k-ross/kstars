@@ -36,7 +36,6 @@
 #include <QNetworkReply>
 #include <QNetworkSession>
 #include <QQmlContext>
-#include <QSqlQuery>
 #include <QUrlQuery>
 #include <QPlainTextEdit>
 
@@ -126,7 +125,7 @@ LocationDialog::LocationDialog(QWidget *parent) : QDialog(parent), timer(nullptr
 // FIXME Disable this until Qt5 works with Geoclue2
 #ifdef HAVE_GEOCLUE_2
     nam = new QNetworkAccessManager(this);
-    connect(nam, SIGNAL(finished(QNetworkReply *)), this, SLOT(processLocationNameData(QNetworkReply *)));
+    connect(nam, SIGNAL(finished(QNetworkReply*)), this, SLOT(processLocationNameData(QNetworkReply*)));
 #endif
 
     initCityList();
@@ -230,13 +229,13 @@ void LocationDialog::filterCity()
 void LocationDialog::changeCity()
 {
     KStarsData *data = KStarsData::Instance();
+
     //when the selected city changes, set newCity, and redraw map
     SelectedCity = nullptr;
     if (ld->GeoBox->currentItem())
     {
-        for (int i = 0; i < filteredCityList.size(); ++i)
+        for (auto &loc : filteredCityList)
         {
-            GeoLocation *loc = filteredCityList.at(i);
             if (loc->fullName() == ld->GeoBox->currentItem()->text())
             {
                 SelectedCity = loc;
@@ -594,7 +593,7 @@ void LocationDialog::showTZRules()
     while (stream.atEnd() == false)
     {
         QString line = stream.readLine();
-        if (line.startsWith("#"))
+        if (line.startsWith('#'))
             textEdit->appendPlainText(line);
     }
     textEdit->moveCursor(QTextCursor::Start);
@@ -685,7 +684,7 @@ void LocationDialog::getNameFromCoordinates(double latitude, double longitude)
     qDebug() << "submitting request";
 
     nam->get(QNetworkRequest(url));
-    connect(nam, SIGNAL(finished(QNetworkReply *)), this, SLOT(processLocationNameData(QNetworkReply *)));
+    connect(nam, SIGNAL(finished(QNetworkReply*)), this, SLOT(processLocationNameData(QNetworkReply*)));
 }
 
 void LocationDialog::processLocationNameData(QNetworkReply *networkReply)

@@ -32,6 +32,7 @@
 #include "skycomponents/skiphashlist.h"
 #include "skycomponents/skymapcomposite.h"
 #include "skycomponents/solarsystemcomposite.h"
+#include "skycomponents/earthshadowcomponent.h"
 #include "skyobjects/constellationsart.h"
 #include "skyobjects/deepskyobject.h"
 #include "skyobjects/ksasteroid.h"
@@ -39,6 +40,7 @@
 #include "skyobjects/kssun.h"
 #include "skyobjects/satellite.h"
 #include "skyobjects/supernova.h"
+#include "skyobjects/ksearthshadow.h"
 #include "hips/hipsrenderer.h"
 
 namespace
@@ -78,7 +80,7 @@ int harvardToIndex(char c)
 
 // Total number of sizes of stars.
 const int nStarSizes = 15;
-// Total number of specatral classes
+// Total number of spectral classes
 // N.B. Must be in sync with harvardToIndex
 const int nSPclasses = 7;
 
@@ -352,9 +354,9 @@ void SkyQPainter::drawSkyPolygon(LineList *list, bool forceClip)
 
     if (forceClip == false)
     {
-        for (int i = 0; i < points->size(); ++i)
+        for (const auto &point : *points)
         {
-            polygon << m_proj->toScreen(points->at(i).get(), false, &isVisibleLast);
+            polygon << m_proj->toScreen(point.get(), false, &isVisibleLast);
             isVisible |= isVisibleLast;
         }
 
@@ -370,9 +372,9 @@ void SkyQPainter::drawSkyPolygon(LineList *list, bool forceClip)
     // & with the result of checkVisibility to clip away things below horizon
     isVisibleLast &= m_proj->checkVisibility(pLast);
 
-    for (int i = 0; i < points->size(); ++i)
+    for (const auto &point : *points)
     {
-        SkyPoint *pThis = points->at(i).get();
+        SkyPoint *pThis = point.get();
         QPointF oThis   = m_proj->toScreen(pThis, true, &isVisible);
         // & with the result of checkVisibility to clip away things below horizon
         isVisible &= m_proj->checkVisibility(pThis);
@@ -416,7 +418,7 @@ bool SkyQPainter::drawPlanet(KSPlanetBase *planet)
     if (fakeStarSize > 15.0)
         fakeStarSize = 15.0;
 
-    float size = planet->angSize() * dms::PI * Options::zoomFactor() / 10800.0;
+    double size = planet->angSize() * dms::PI * Options::zoomFactor() / 10800.0;
     if (size < fakeStarSize && planet->name() != "Sun" && planet->name() != "Moon")
     {
         // Draw them as bright stars of appropriate color instead of images
@@ -458,14 +460,38 @@ bool SkyQPainter::drawPlanet(KSPlanetBase *planet)
             save();
             translate(pos);
             rotate(m_proj->findPA(planet, pos.x(), pos.y()));
-            drawImage(QRect(-0.5 * size, -0.5 * size, size, size), planet->image());
+            drawImage(QRectF(-0.5 * size, -0.5 * size, size, size), planet->image());
             restore();
         }
         else //Otherwise, draw a simple circle.
         {
-            drawEllipse(pos, size, size);
+            drawEllipse(pos, size * .5, size * .5);
         }
     }
+    return true;
+}
+
+bool SkyQPainter::drawEarthShadow(KSEarthShadow *shadow)
+{
+    if (!m_proj->checkVisibility(shadow))
+            return false;
+
+    bool visible = false;
+    QPointF pos  = m_proj->toScreen(shadow, true, &visible);
+
+    if(!visible)
+        return false;
+
+    double umbra_size = shadow->getUmbraAngSize() * dms::PI * Options::zoomFactor() / 10800.0;
+    double penumbra_size = shadow->getPenumbraAngSize() * dms::PI * Options::zoomFactor() / 10800.0;
+
+    save();
+    setBrush(QBrush(QColor(255, 96, 38, 128)));
+    drawEllipse(pos, umbra_size, umbra_size);
+    setBrush(QBrush(QColor(255, 96, 38, 90)));
+    drawEllipse(pos, penumbra_size, penumbra_size);
+    restore();
+
     return true;
 }
 
@@ -474,14 +500,14 @@ bool SkyQPainter::drawComet(KSComet *com)
     if (!m_proj->checkVisibility(com))
         return false;
 
-    float size = com->angSize() * dms::PI * Options::zoomFactor() / 10800.0;
+    double size = com->angSize() * dms::PI * Options::zoomFactor() / 10800.0 / 2; // Radius
     if (size < 1)
         size = 1;
 
     bool visible = false;
     QPointF pos  = m_proj->toScreen(com, true, &visible);
 
-    // Draw the coma.
+    // Draw the coma. FIXME: Another Check??
     if (visible && m_proj->onScreen(pos))
     {
         // Draw the comet.
@@ -494,7 +520,7 @@ bool SkyQPainter::drawComet(KSComet *com)
         {
             KSSun *sun = KStarsData::Instance()->skyComposite()->solarSystemComposite()->sun();
 
-            // Find the anlge to the sun.
+            // Find the angle to the sun.
             double comaAngle = m_proj->findPA(sun, pos.x(), pos.y());
 
             const QVector<QPoint> coma = { QPoint(pos.x() - size, pos.y()), QPoint(pos.x() + size, pos.y()),
@@ -612,7 +638,7 @@ bool SkyQPainter::drawConstellationArtImage(ConstellationsArt *obj)
     translate(constellationmidpoint);
     rotate(positionangle);
     setOpacity(0.7);
-    drawImage(QRect(-0.5 * w, -0.5 * h, w, h), obj->image());
+    drawImage(QRectF(-0.5 * w, -0.5 * h, w, h), obj->image());
     setOpacity(1);
 
     setRenderHint(QPainter::SmoothPixmapTransform, false);
@@ -675,7 +701,7 @@ bool SkyQPainter::drawDeepSkyImage(const QPointF &pos, DeepSkyObject *obj, float
     save();
     translate(pos);
     rotate(positionAngle);
-    drawImage(QRect(-0.5 * w, -0.5 * h, w, h), obj->image());
+    drawImage(QRectF(-0.5 * w, -0.5 * h, w, h), obj->image());
     restore();
 
     return true;

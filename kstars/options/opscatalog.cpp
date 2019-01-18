@@ -82,10 +82,10 @@ OpsCatalog::OpsCatalog() : QFrame(KStars::Instance())
     connect(RemoveCatalog, SIGNAL(clicked()), this, SLOT(slotRemoveCatalog()));
 
     /*
-    connect( kcfg_MagLimitDrawStar, SIGNAL( valueChanged(double) ),
-             SLOT( slotSetDrawStarMagnitude(double) ) );
-    connect( kcfg_MagLimitDrawStarZoomOut, SIGNAL( valueChanged(double) ),
-             SLOT( slotSetDrawStarZoomOutMagnitude(double) ) );
+    connect( kcfg_MagLimitDrawStar, SIGNAL(valueChanged(double)),
+             SLOT(slotSetDrawStarMagnitude(double)) );
+    connect( kcfg_MagLimitDrawStarZoomOut, SIGNAL(valueChanged(double)),
+             SLOT(slotSetDrawStarZoomOutMagnitude(double)) );
     */
     connect(kcfg_ShowStars, SIGNAL(toggled(bool)), SLOT(slotStarWidgets(bool)));
     connect(kcfg_ShowDeepSky, SIGNAL(toggled(bool)), SLOT(slotDeepSkyWidgets(bool)));
@@ -123,7 +123,7 @@ void OpsCatalog::updateCustomCatalogs()
          * For every unchecked item, we check if the option CatalogNames does
          * not contain the name. If it does, we remove it.
         */
-        if (l.count() == 0)
+        if (l.isEmpty())
             continue; // skip the name if no match found
         if (l[0]->checkState() == Qt::Checked)
         {

@@ -27,12 +27,20 @@ namespace Ekos
  * @short Supports manual focusing and auto focusing using relative and absolute INDI focusers.
  *
  * @author Jasem Mutlaq
- * @version 1.3
+ * @version 1.5
  */
 class Focus : public QWidget, public Ui::Focus
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.kde.kstars.Ekos.Focus")
+    Q_PROPERTY(Ekos::FocusState status READ status NOTIFY newStatus)
+    Q_PROPERTY(QStringList logText READ logText NOTIFY newLog)
+    Q_PROPERTY(QString camera READ camera WRITE setCamera)
+    Q_PROPERTY(QString focuser READ focuser WRITE setFocuser)
+    Q_PROPERTY(QString filterWheel READ filterWheel WRITE setFilterWheel)
+    Q_PROPERTY(QString filter READ filter WRITE setFilter)
+    Q_PROPERTY(double HFR READ getHFR NOTIFY newHFR)
+    Q_PROPERTY(double exposure READ exposure WRITE setExposure)
 
   public:
     Focus();
@@ -53,7 +61,8 @@ class Focus : public QWidget, public Ui::Focus
          * @param device The CCD device name
          * @return Returns true if CCD device is found and set, false otherwise.
          */
-    Q_SCRIPTABLE bool setCCD(const QString &device);
+    Q_SCRIPTABLE bool setCamera(const QString &device);
+    Q_SCRIPTABLE QString camera();
 
     /** DBUS interface function.
          * select the focuser device from the available focuser drivers. The focuser device can be the same as the CCD driver if the focuser functionality was embedded within the driver.
@@ -61,18 +70,28 @@ class Focus : public QWidget, public Ui::Focus
          * @return Returns true if focuser device is found and set, false otherwise.
          */
     Q_SCRIPTABLE bool setFocuser(const QString &device);
+    Q_SCRIPTABLE QString focuser();
 
     /** DBUS interface function.
          * select the filter device from the available filter drivers. The filter device can be the same as the CCD driver if the filter functionality was embedded within the driver.
          * @param device The filter device name
          * @return Returns true if filter device is found and set, false otherwise.
          */
-    Q_SCRIPTABLE bool setFilter(QString device, int filterSlot);
+    Q_SCRIPTABLE bool setFilterWheel(const QString &device);
+    Q_SCRIPTABLE QString filterWheel();
+
+    /** DBUS interface function.
+         * select the filter from the available filters.
+         * @param filter The filter name
+         * @return Returns true if filter is found and set, false otherwise.
+         */
+    Q_SCRIPTABLE bool setFilter(const QString &filter);
+    Q_SCRIPTABLE QString filter();
 
     /** DBUS interface function.
          * @return Returns True if current focuser supports auto-focusing
          */
-    bool canAutoFocus() { return (focusType == FOCUS_AUTO); }
+    Q_SCRIPTABLE bool canAutoFocus() { return (focusType == FOCUS_AUTO); }
 
     /** DBUS interface function.
          * @return Returns Half-Flux-Radius in pixels.
@@ -84,6 +103,7 @@ class Focus : public QWidget, public Ui::Focus
          * @param value exposure value in seconds.
          */
     Q_SCRIPTABLE Q_NOREPLY void setExposure(double value);
+    Q_SCRIPTABLE double exposure() { return exposureIN->value(); }
 
     /** DBUS interface function.
          * Set CCD binning
@@ -129,7 +149,7 @@ class Focus : public QWidget, public Ui::Focus
         * Return state of Focuser modue (Ekos::FocusState)
         */
 
-    Q_SCRIPTABLE int getStatus() { return state; }
+    Q_SCRIPTABLE Ekos::FocusState status() { return state; }
 
     /** @}*/
 
@@ -160,7 +180,8 @@ class Focus : public QWidget, public Ui::Focus
     void setFilterManager(const QSharedPointer<FilterManager> &manager);
 
     void clearLog();
-    QString getLogText() { return logText.join("\n"); }
+    QStringList logText() { return m_LogText; }
+    QString getLogText() { return m_LogText.join("\n"); }
 
   public slots:
 
@@ -199,7 +220,7 @@ class Focus : public QWidget, public Ui::Focus
     /** @}*/
 
     /**
-         * @brief startFraming Begins continious capture of the CCD and calculates HFR every frame.
+         * @brief startFraming Begins continuous capture of the CCD and calculates HFR every frame.
          */
     void startFraming();
 
@@ -283,7 +304,13 @@ class Focus : public QWidget, public Ui::Focus
     void adjustFocusOffset(int value, bool useAbsoluteOffset);
 
     // Update Mount module status
-    void setMountStatus(ISD::Telescope::TelescopeStatus newState);
+    void setMountStatus(ISD::Telescope::Status newState);
+
+    /**
+     * @brief toggleVideo Turn on and off video streaming if supported by the camera.
+     * @param enabled Set to true to start video streaming, false to stop it if active.
+     */
+    void toggleVideo(bool enabled);
 
   private slots:
     /**
@@ -305,7 +332,7 @@ class Focus : public QWidget, public Ui::Focus
 
     void setThreshold(double value);
 
-    //void setFrames(int value);
+    void processCaptureTimeout();
 
     void setCaptureComplete();
 
@@ -313,17 +340,20 @@ class Focus : public QWidget, public Ui::Focus
 
     void toggleFocusingWidgetFullScreen();
 
+    void setVideoStreamEnabled(bool enabled);
+
   signals:
-    void newLog();
-    //void autoFocusFinished(bool status, double finalHFR);
-    void suspendGuiding();
-    void resumeGuiding();
+    void newLog(const QString &text);
     void newStatus(Ekos::FocusState state);
-    void newStarPixmap(QPixmap &);
-    void newProfilePixmap(QPixmap &);
-    void newHFR(double hfr);
+    void newHFR(double hfr, int position);
+
     void absolutePositionChanged(int value);
     void focusPositionAdjusted();
+
+    void suspendGuiding();
+    void resumeGuiding();
+    void newStarPixmap(QPixmap &);
+    void newProfilePixmap(QPixmap &);
 
   private:
     void drawHFRPlot();
@@ -449,7 +479,7 @@ class Focus : public QWidget, public Ui::Focus
     // CCD Exposure Looping
     bool rememberCCDExposureLooping = { false };
 
-    QStringList logText;
+    QStringList m_LogText;
     ITextVectorProperty *filterName { nullptr };
     INumberVectorProperty *filterSlot { nullptr };
 
@@ -475,7 +505,6 @@ class Focus : public QWidget, public Ui::Focus
     QVector<double> hfr_position, hfr_value;
 
     // Pixmaps
-    QPixmap starPixmap;
     QPixmap profilePixmap;
 
     /// State
@@ -512,6 +541,13 @@ class Focus : public QWidget, public Ui::Focus
     /// Polynomial fitting coefficients
     std::vector<double> coeff;
     int polySolutionFound { 0 };
+
+    // Capture timeout timer
+    QTimer captureTimeout;
+    uint8_t captureTimeoutCounter { 0 };
+
+    // Guide Suspend
+    bool m_GuidingSuspended { false };
 
     // Filter Manager
     QSharedPointer<FilterManager> filterManager;

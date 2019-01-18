@@ -47,7 +47,7 @@ using namespace Eigen;
 
 class KStarsData;
 
-/** This is just a container that holds infromation needed to do projections. */
+/** This is just a container that holds information needed to do projections. */
 class ViewParams
 {
   public:
@@ -142,7 +142,7 @@ class Projector
     /**
      * @short Determine RA, Dec coordinates of the pixel at (dx, dy), which are the
      * screen pixel coordinate offsets from the center of the Sky pixmap.
-     * @param the screen pixel position to convert
+     * @param p the screen pixel position to convert
      * @param LST pointer to the local sidereal time, as a dms object.
      * @param lat pointer to the current geographic laitude, as a dms object
      */
@@ -218,7 +218,7 @@ class Projector
      * of "North" at the position of the object (w.r.t. the screen Y-axis).
      * The latter is determined by constructing a test point with the same RA but
      * a slightly increased Dec as the object, and calculating the angle w.r.t. the
-     * Y-axis of the line connecing the object to its test point.
+     * Y-axis of the line connecting the object to its test point.
      */
     double findNorthPA(SkyPoint *o, float x, float y) const;
 
@@ -228,7 +228,7 @@ class Projector
      * of "North" at the position of the object (w.r.t. the screen Y-axis).
      * The latter is determined by constructing a test point with the same RA but
      * a slightly increased Dec as the object, and calculating the angle w.r.t. the
-     * Y-axis of the line connecing the object to its test point.
+     * Y-axis of the line connecting the object to its test point.
      */
     double findPA(SkyObject *o, float x, float y) const;
 

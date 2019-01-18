@@ -28,6 +28,7 @@ class ServerManager;
  * <li>Device label.</li>
  * <li>Driver version.</li>
  * <li>Device Family: Telescope, CCD, Focuser...etc</li>
+ * </ul>
  *
  * Dynamic information include associated Server and Client managers, port in use, associated devices...etc.
  * Most INDI drivers operate only one device, but some driver can present multiple devices simultaneously.
@@ -39,13 +40,14 @@ class ServerManager;
  * <li>Client DriverInfos: Users can add a new host/port combo in the Device Manager in order to connect to
  * to local or remote INDI servers.</li>
  * <li>Generated DriverInfos: DriverInfo can be created programatically to connect to local or remote INDI server with unknown
- * number of actual drivers/devices at the server side.
+ * number of actual drivers/devices at the server side.</li>
  * </ol>
  *
  * @author Jasem Mutlaq
  */
 class DriverInfo : public QObject
 {
+    Q_PROPERTY(QString manufacturer READ manufacturer WRITE setManufacturer)
     Q_OBJECT
 
   public:
@@ -57,48 +59,54 @@ class DriverInfo : public QObject
 
     void reset();
     void resetDevices() { devices.clear(); }
-    QString getServerBuffer();
+    QString getServerBuffer() const;
 
-    bool isEmpty() { return devices.isEmpty(); }
+    bool isEmpty() const { return devices.isEmpty(); }
 
-    const QString &getName() { return name; }
+    // Actual name of the driver
+    // i.e. what getDefaultName() returns
+    const QString &getName() const { return name; }
     void setName(const QString &newName) { name = newName; }
 
-    void setTreeLabel(const QString &inTreeLabel) { treeLabel = inTreeLabel; }
-    const QString &getTreeLabel() { return treeLabel; }
+    // Driver executable
+    void setExecutable(const QString &newDriver) { exec = newDriver; }
+    const QString &getExecutable() const { return exec; }
+
+    // Driver Label/Alias. We _rename_ the INDI driver in _runtime_ to the label
+    // Internally INDI server changes the actual driver "name" above to the label value
+    // It's a method of running multiple instances of the same driver with multiple names.
+    void setLabel(const QString &inlabel) { label = inlabel; }
+    const QString &getLabel() const { return label; }
 
     void setUniqueLabel(const QString &inUniqueLabel);
-    const QString &getUniqueLabel() { return uniqueLabel; }
-
-    void setDriver(const QString &newDriver) { driver = newDriver; }
-    const QString &getDriver() { return driver; }
+    const QString &getUniqueLabel() const { return uniqueLabel; }
 
     void setVersion(const QString &newVersion) { version = newVersion; }
-    const QString &getVersion() { return version; }
+    const QString &getVersion() const { return version; }
 
     void setType(DeviceFamily newType) { type = newType; }
-    DeviceFamily getType() { return type; }
+    DeviceFamily getType() const { return type; }
 
     void setDriverSource(DriverSource newDriverSource) { driverSource = newDriverSource; }
-    DriverSource getDriverSource() { return driverSource; }
+    DriverSource getDriverSource() const { return driverSource; }
 
     void setServerManager(ServerManager *newServerManager) { serverManager = newServerManager; }
-    ServerManager *getServerManager() { return serverManager; }
+    ServerManager *getServerManager() const { return serverManager; }
 
     void setClientManager(ClientManager *newClientManager) { clientManager = newClientManager; }
-    ClientManager *getClientManager() { return clientManager; }
+    ClientManager *getClientManager() const { return clientManager; }
 
     void setUserPort(const QString &inUserPort);
-    const QString &getUserPort() { return userPort; }
+    const QString &getUserPort() const { return userPort; }
 
     void setSkeletonFile(const QString &inSkeleton) { skelFile = inSkeleton; }
-    const QString &getSkeletonFile() { return skelFile; }
+    const QString &getSkeletonFile() const { return skelFile; }
 
     void setServerState(bool inState);
-    bool getServerState() { return serverState; }
+    bool getServerState() const { return serverState; }
 
     void setClientState(bool inState);
-    bool getClientState() { return clientState; }
+    bool getClientState() const { return clientState; }
 
     void setHostParameters(const QString &inHost, const QString &inPort)
     {
@@ -107,30 +115,38 @@ class DriverInfo : public QObject
     }
     void setPort(const QString &inPort) { port = inPort; }
     void setHost(const QString &inHost) { hostname = inHost; }
-    const QString &getHost() { return hostname; }
-    const QString &getPort() { return port; }
+    const QString &getHost() const { return hostname; }
+    const QString &getPort() const { return port; }
+
+    void setRemotePort(const QString &inPort) { remotePort = inPort; }
+    void setRemoteHost(const QString &inHost) { remoteHostname = inHost; }
+    const QString &getRemoteHost() const { return remoteHostname; }
+    const QString &getRemotePort() const { return remotePort; }
 
     //void setBaseDevice(INDI::BaseDevice *idv) { baseDevice = idv;}
     //INDI::BaseDevice* getBaseDevice() { return baseDevice; }
 
     void addDevice(DeviceInfo *idv);
     void removeDevice(DeviceInfo *idv);
-    DeviceInfo *getDevice(const QString &deviceName);
-    QList<DeviceInfo *> getDevices() { return devices; }
+    DeviceInfo *getDevice(const QString &deviceName) const;
+    QList<DeviceInfo *> getDevices() const { return devices; }
 
     QVariantMap getAuxInfo() const;
     void setAuxInfo(const QVariantMap &value);
     void addAuxInfo(const QString &key, const QVariant &value);
 
-  private:
+    QString manufacturer() const;
+    void setManufacturer(const QString &Manufacturer);
+
+private:
     /// Actual device name as defined by INDI server
     QString name;
     /// How it appears in the GUI initially as read from source
-    QString treeLabel;
+    QString label;
     /// How it appears in INDI Menu in case tree_label above is taken by another device
     QString uniqueLabel;
     /// Exec for the driver
-    QString driver;
+    QString exec;
     /// Version of the driver (optional)
     QString version;
     /// INDI server port as the user wants it.
@@ -141,6 +157,12 @@ class DriverInfo : public QObject
     QString port;
     /// INDI Host hostname
     QString hostname;
+    // INDI Remote Hostname (for remote drivers)
+    QString remoteHostname;
+    // INDI remote port (for remote drivers)
+    QString remotePort;
+    // Manufacturer
+    QString m_Manufacturer;
     /// Device type (Telescope, CCD..etc), if known (optional)
     DeviceFamily type { KSTARS_UNKNOWN };
     /// Is the driver in the server running?

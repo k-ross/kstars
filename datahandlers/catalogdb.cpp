@@ -25,9 +25,10 @@
 #include "deepskyobject.h"
 #include "skycomponent.h"
 
-#include <QSqlTableModel>
-#include <QSqlRecord>
+#include <QSqlField>
 #include <QSqlQuery>
+#include <QSqlRecord>
+#include <QSqlTableModel>
 
 #include <catalog_debug.h>
 
@@ -48,7 +49,7 @@ bool CatalogDB::Initialize()
     skydb_.setDatabaseName(dbfile);
     if (!skydb_.open())
     {
-        qCWarning(KSTARS_CATALOG) << i18n("Unable to open DSO database file!");
+        qCWarning(KSTARS_CATALOG) << "Unable to open DSO database file!";
         qCWarning(KSTARS_CATALOG) << LastError();
     }
     else
@@ -65,7 +66,7 @@ bool CatalogDB::Initialize()
 
 void CatalogDB::FirstRun()
 {
-    qCWarning(KSTARS_CATALOG) << i18n("Rebuilding Additional Sky Catalog Database");
+    qCWarning(KSTARS_CATALOG) << "Rebuilding Additional Sky Catalog Database";
     QVector<QString> tables;
     tables.append("CREATE TABLE Version ("
                   "Version CHAR DEFAULT NULL)");
@@ -397,6 +398,64 @@ bool CatalogDB::_AddEntry(const CatalogEntryData &catalog_entry, int catid)
     return retVal;
 }
 
+bool CatalogDB::CheckCustomEntry(const QString &entry_long_name, int catid)
+{
+    if (!skydb_.open())
+    {
+        qCWarning(KSTARS_CATALOG) << "Failed to open database to remove catalog entry!";
+        qCWarning(KSTARS_CATALOG) << LastError();
+        return false;
+    }
+    QSqlQuery query_od(skydb_);
+
+    query_od.prepare("SELECT LongName FROM ObjectDesignation WHERE LongName = :long_name AND id_Catalog = :catid;");
+    query_od.bindValue(":long_name", entry_long_name);
+    query_od.bindValue(":catid", catid);
+    if (!query_od.exec())
+    {
+        qWarning() << "Query exec failed:";
+        qWarning() << query_od.lastQuery();
+        qWarning() << skydb_.lastError();
+        skydb_.close();
+        return false;
+    }
+    query_od.next();
+    QSqlRecord result = query_od.record();
+
+    if (result.count() != 1 || result.value(0).toString().isEmpty())
+    {
+        skydb_.close();
+        return false;
+    }
+    skydb_.close();
+    return true;
+}
+
+bool CatalogDB::RemoveCustomEntry(const QString &entry_long_name, int catid)
+{
+    if (!skydb_.open())
+    {
+        qCWarning(KSTARS_CATALOG) << "Failed to open database to remove catalog entry!";
+        qCWarning(KSTARS_CATALOG) << LastError();
+        return false;
+    }
+    QSqlQuery remove_od(skydb_);
+
+    remove_od.prepare("DELETE FROM ObjectDesignation WHERE LongName = :long_name AND id_Catalog = :catid;");
+    remove_od.bindValue(":long_name", entry_long_name);
+    remove_od.bindValue(":catid", catid);
+    if (!remove_od.exec())
+    {
+        qWarning() << "Query exec failed:";
+        qWarning() << remove_od.lastQuery();
+        qWarning() << skydb_.lastError();
+        skydb_.close();
+        return false;
+    }
+    skydb_.close();
+    return true;
+}
+
 QString CatalogDB::GetCatalogName(const QString &fname)
 {
     QDir::setCurrent(QDir::homePath()); // for files with relative path
@@ -568,7 +627,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate name in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Delimiter field in header: %1."
+                    errs.append(i18n("Parsing header: extra Delimiter field in header: %1."
                                                                 "  Will be ignored",
                                                                 d.mid(idelimiter)));
             }
@@ -583,7 +642,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate name in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Name field in header: %1."
+                    errs.append(i18n("Parsing header: extra Name field in header: %1."
                                                                 "  Will be ignored",
                                                                 d.mid(iname)));
             }
@@ -598,7 +657,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate prefix in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Prefix field in header: %1."
+                    errs.append(i18n("Parsing header: extra Prefix field in header: %1."
                                                                 "  Will be ignored",
                                                                 d.mid(iprefix)));
             }
@@ -613,7 +672,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate prefix in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Color field in header: %1."
+                    errs.append(i18n("Parsing header: extra Color field in header: %1."
                                                                 "  Will be ignored",
                                                                 d.mid(icolor)));
             }
@@ -628,8 +687,8 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
                 if (!ok)
                 {
                     if (showerrs)
-                        errs.append(i18n("Parsing header: ") + i18n("Could not convert Epoch to float: "
-                                                                    "%1.  Using 2000. instead",
+                        errs.append(i18n("Parsing header: could not convert Epoch to float: "
+                                                                    "%1.  Using 2000 instead",
                                                                     d.mid(iepoch)));
                     catEpoch = 2000.; // adopt default value
                 }
@@ -645,7 +704,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate prefix in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Flux Frequency field in header:"
+                    errs.append(i18n("Parsing header: extra Flux Frequency field in header:"
                                                                 " %1.  Will be ignored",
                                                                 d.mid(ifluxfreq)));
             }
@@ -662,7 +721,7 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
             else // duplicate prefix in header
             {
                 if (showerrs)
-                    errs.append(i18n("Parsing header: ") + i18n("Extra Flux Unit field in "
+                    errs.append(i18n("Parsing header: extra Flux Unit field in "
                                                                 "header: %1.  Will be ignored",
                                                                 d.mid(ifluxunit)));
             }
@@ -703,16 +762,16 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
                 {
                     fields.append("Ig"); // ignore the duplicate column
                     if (showerrs)
-                        errs.append(i18n("Parsing header: ") + i18n("Duplicate data field descriptor "
-                                                                    "\"%1\" will be ignored",
+                        errs.append(i18n("Parsing header: duplicate data field descriptor "
+                                                                    "\"%1\".  Will be ignored",
                                                                     s));
                 }
                 else // Invalid field
                 {
                     fields.append("Ig"); // ignore the invalid column
                     if (showerrs)
-                        errs.append(i18n("Parsing header: ") + i18n("Invalid data field descriptor "
-                                                                    "\"%1\" will be ignored",
+                        errs.append(i18n("Parsing header: invalid data field descriptor "
+                                                                    "\"%1\".  Will be ignored",
                                                                     s));
                 }
             }
@@ -729,14 +788,14 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
     if (!foundDataColumns)
     {
         if (showerrs)
-            errs.append(i18n("Parsing header: ") + i18n("No valid column descriptors found.  Exiting"));
+            errs.append(i18n("Parsing header: no valid column descriptors found.  Exiting"));
         return false;
     }
 
     if (i == lines.size())
     {
         if (showerrs)
-            errs.append(i18n("Parsing header: ") + i18n("No data lines found after"
+            errs.append(i18n("Parsing header: no data lines found after"
                                                         " header.  Exiting."));
         return false;
     }
@@ -746,32 +805,32 @@ bool CatalogDB::ParseCatalogInfoToDB(const QStringList &lines, QStringList &colu
         if (catalog_name.isEmpty())
         {
             if (showerrs)
-                errs.append(i18n("Parsing header: ") + i18n("No Catalog Name specified;"
+                errs.append(i18n("Parsing header: no Catalog Name specified;"
                                                             " setting to \"Custom\""));
             catalog_name = i18n("Custom");
         }
         if (catPrefix.isEmpty())
         {
             if (showerrs)
-                errs.append(i18n("Parsing header: ") + i18n("No Catalog Prefix specified"
+                errs.append(i18n("Parsing header: no Catalog Prefix specified"
                                                             "; setting to \"CC\""));
             catPrefix = "CC";
         }
         if (catColor.isEmpty())
         {
             if (showerrs)
-                errs.append(i18n("Parsing header: ") + i18n("No Catalog Color specified"
+                errs.append(i18n("Parsing header: no Catalog Color specified"
                                                             "; setting to Red"));
             catColor = "#CC0000";
         }
         if (catEpoch == 0.)
         {
             if (showerrs)
-                errs.append(i18n("Parsing header: ") + i18n("No Catalog Epoch specified"
-                                                            "; assuming 2000."));
+                errs.append(i18n("Parsing header: no Catalog Epoch specified"
+                                                            "; assuming 2000"));
             catEpoch = 2000.;
         }
-#ifndef KSTARS_LITE
+#if !defined(ANDROID)
         // Detect a duplicate catalog name
         if (FindCatalog(catalog_name) != -1)
         {

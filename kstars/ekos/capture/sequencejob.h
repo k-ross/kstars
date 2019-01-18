@@ -46,6 +46,8 @@ class SequenceJob : public QObject
         ACTION_ROTATOR
     } PrepareActions;
 
+    static QString const & ISOMarker;
+
     SequenceJob();
     ~SequenceJob() = default;
 
@@ -60,7 +62,7 @@ class SequenceJob : public QObject
     bool isPreview() { return preview; }
     int getDelay() { return delay; }
     int getCount() { return count; }
-    unsigned int getCompleted() { return completed; }
+    int getCompleted() { return completed; }
     const QString &getRawPrefix() { return rawPrefix; }
     double getExposure() const { return exposure; }
 
@@ -78,6 +80,7 @@ class SequenceJob : public QObject
 
     void setLocalDir(const QString &dir) { localDirectory = dir; }
     const QString &getLocalDir() { return localDirectory; }
+    QString getSignature() { return QString(getLocalDir() + getDirectoryPostfix() + '/' + getFullPrefix()).remove(ISOMarker); }
 
     void setTargetFilter(int pos, const QString &name);
     int getTargetFilter() { return targetFilter; }
@@ -119,10 +122,11 @@ class SequenceJob : public QObject
     int getYBin() { return binY; }
 
     void setDelay(int in_delay) { delay = in_delay; }
-    void setCount(int in_count) { count = in_count; }
+    void setCount(int in_count);
     void setExposure(double duration) { exposure = duration; }
-    void setStatusCell(QTableWidgetItem *cell) { statusCell = cell; }
-    void setCompleted(unsigned int in_completed) { completed = in_completed; }
+    void setStatusCell(QTableWidgetItem *cell);
+    void setCountCell(QTableWidgetItem *cell);
+    void setCompleted(int in_completed);
     int getISOIndex() const;
     void setISOIndex(int value);
 
@@ -194,7 +198,10 @@ class SequenceJob : public QObject
     void setCustomProperties(const QMap<QString, QMap<QString, double> > &value);
 
     QString getDirectoryPostfix() const;
-    void setDirectoryPostfix(const QString &value);    
+    void setDirectoryPostfix(const QString &value);
+
+    bool getJobProgressIgnored() const;
+    void setJobProgressIgnored(bool JobProgressIgnored);
 
 signals:
     void prepareComplete();
@@ -204,6 +211,7 @@ signals:
 private:
     bool areActionsReady();
     void setAllActionsReady();
+    void setStatus(JOBStatus const);
 
     QStringList statusStrings;
     ISD::CCDChip *activeChip { nullptr };
@@ -229,6 +237,7 @@ private:
     bool preview { false };
     bool prepareReady { true };
     bool enforceTemperature { false };
+    bool m_JobProgressIgnored { false };
     int isoIndex { -1 };
     int captureRetires { 0 };
     unsigned int completed { 0 };
@@ -241,6 +250,7 @@ private:
     double currentRotation { 0 };
     FITSScale captureFilter { FITS_NONE };
     QTableWidgetItem *statusCell { nullptr };    
+    QTableWidgetItem *countCell { nullptr };
     QString postCaptureScript;
 
     ISD::CCD::UploadMode uploadMode { ISD::CCD::UPLOAD_CLIENT };

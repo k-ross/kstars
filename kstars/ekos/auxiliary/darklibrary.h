@@ -17,8 +17,8 @@ namespace Ekos
 {
 /**
  * @class DarkLibrary
- * @short Handles aquisition & loading of dark frames for cameras. If a suitable dark frame exists, it is loaded from disk, otherwise it gets captured and saved
- * for later use.
+ * @short Handles acquisition & loading of dark frames for cameras. If a suitable dark frame exists,
+ * it is loaded from disk, otherwise it gets captured and saved for later use.
  *
  * @author Jasem Mutlaq
  * @version 1.0
@@ -72,5 +72,7 @@ class DarkLibrary : public QObject
         FITSView *targetImage { nullptr };
         FITSScale filter;
     } subtractParams;
+
+    bool m_TelescopeCovered { false };
 };
 }

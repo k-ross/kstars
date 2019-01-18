@@ -82,12 +82,10 @@ bool FlagComponent::selected()
 void FlagComponent::loadFromFile()
 {
     bool imageFound = false;
-
     QList<QStringList> flagList = KStarsData::Instance()->userdb()->GetAllFlags();
-    for (int i = 0; i < flagList.size(); ++i)
-    {
-        QStringList flagEntry = flagList.at(i);
 
+    for (auto &flagEntry : flagList)
+    {
         // Read coordinates
         dms r(flagEntry.at(0));
         dms d(flagEntry.at(1));
@@ -118,7 +116,7 @@ void FlagComponent::loadFromFile()
             }
         }
 
-        // If the image sprecified in db does not exist,
+        // If the image specified in db does not exist,
         // use the default one
         if (!imageFound)
             m_FlagImages.append(0);

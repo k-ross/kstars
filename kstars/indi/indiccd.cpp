@@ -21,12 +21,14 @@
 #include "kstarsdata.h"
 #include "Options.h"
 #include "streamwg.h"
-#include "ekos/ekosmanager.h"
+//#include "ekos/manager.h"
 #ifdef HAVE_CFITSIO
 #include "fitsviewer/fitsdata.h"
 #endif
 
 #include <KNotifications/KNotification>
+#include <QImageReader>
+#include <QStatusBar>
 
 #include <basedevice.h>
 
@@ -52,26 +54,18 @@ FITSView *CCDChip::getImageView(FITSMode imageType)
     {
         case FITS_NORMAL:
             return normalImage;
-            break;
 
         case FITS_FOCUS:
             return focusImage;
-            break;
 
         case FITS_GUIDE:
             return guideImage;
-            break;
 
         case FITS_CALIBRATE:
             return calibrationImage;
-            break;
 
         case FITS_ALIGN:
             return alignImage;
-            break;
-
-        default:
-            break;
     }
 
     return nullptr;
@@ -99,9 +93,6 @@ void CCDChip::setImageView(FITSView *image, FITSMode imageType)
 
         case FITS_ALIGN:
             alignImage = image;
-            break;
-
-        default:
             break;
     }
 
@@ -608,16 +599,12 @@ bool CCDChip::setBinning(CCDBinType binType)
     {
         case SINGLE_BIN:
             return setBinning(1, 1);
-            break;
         case DOUBLE_BIN:
             return setBinning(2, 2);
-            break;
         case TRIPLE_BIN:
             return setBinning(3, 3);
-            break;
         case QUADRAPLE_BIN:
             return setBinning(4, 4);
-            break;
     }
 
     return false;
@@ -784,15 +771,24 @@ bool CCDChip::setBinning(int bin_x, int bin_y)
 CCD::CCD(GDInterface *iPtr) : DeviceDecorator(iPtr)
 {
     primaryChip.reset(new CCDChip(this, CCDChip::PRIMARY_CCD));
-}
 
-CCD::~CCD()
-{
-    delete fv;
+    readyTimer.reset(new QTimer());
+    readyTimer.get()->setInterval(250);
+    readyTimer.get()->setSingleShot(true);
+    connect(readyTimer.get(), &QTimer::timeout, this, &CCD::ready);
+
+    connect(clientManager, &ClientManager::newBLOBManager, [&](const char *device, INDI::Property *prop)
+    {
+       if (!strcmp(device, getDeviceName()))
+               emit newBLOBManager(prop);
+    });
 }
 
 void CCD::registerProperty(INDI::Property *prop)
 {
+    if (isConnected())
+        readyTimer.get()->start();
+
     if (!strcmp(prop->getName(), "GUIDER_EXPOSURE"))
     {
         HasGuideHead = true;
@@ -847,6 +843,7 @@ void CCD::registerProperty(INDI::Property *prop)
     {
         INumberVectorProperty *np = prop->getNumber();
         HasCooler                 = true;
+        CanCool                   = (np->p != IP_RO);
         if (np)
             emit newTemperatureValue(np->np[0].value);
     }
@@ -912,6 +909,7 @@ void CCD::registerProperty(INDI::Property *prop)
                 if (name == "gain" || label == "gain")
                 {
                     gainN = gainNP->np + i;
+                    gainPerm = gainNP->p;
                     break;
                 }
             }
@@ -1011,6 +1009,7 @@ void CCD::processSwitch(ISwitchVectorProperty *svp)
     {
         // Can turn cooling on/off
         HasCoolerControl = true;
+        emit coolerToggled(svp->sp[0].s == ISS_ON);
     }
     else if (QString(svp->name).endsWith("VIDEO_STREAM"))
     {
@@ -1036,7 +1035,7 @@ void CCD::processSwitch(ISwitchVectorProperty *svp)
             }
             else
             {
-                // Only use CCD dimensions if we are receing raw stream and not stream of images (i.e. mjpeg..etc)
+                // Only use CCD dimensions if we are receiving raw stream and not stream of images (i.e. mjpeg..etc)
                 IBLOBVectorProperty *rawBP = baseDevice->getBLOB("CCD1");
                 if (rawBP)
                 {
@@ -1055,7 +1054,8 @@ void CCD::processSwitch(ISwitchVectorProperty *svp)
 
         if (streamWindow.get() != nullptr)
         {
-            connect(streamWindow.get(), SIGNAL(hidden()), this, SLOT(StreamWindowHidden()), Qt::UniqueConnection);
+            connect(streamWindow.get(), &StreamWG::hidden, this, &CCD::StreamWindowHidden, Qt::UniqueConnection);
+            connect(streamWindow.get(), &StreamWG::imageChanged, this, &CCD::newVideoFrame, Qt::UniqueConnection);
 
             streamWindow->enableStream(svp->sp[0].s == ISS_ON);
             emit videoStreamToggled(svp->sp[0].s == ISS_ON);
@@ -1295,6 +1295,7 @@ void CCD::processBLOB(IBLOB *bp)
 
     // store file name
     strncpy(BLOBFilename, filename.toLatin1(), MAXINDIFILENAME);
+    bp->aux0 = targetChip;
     bp->aux1 = &BType;
     bp->aux2 = BLOBFilename;
 
@@ -1382,7 +1383,7 @@ void CCD::processBLOB(IBLOB *bp)
             filename = preview_filename;
 
 #else
-            // Silenty fail if KStars was not compiled with libraw
+            // Silently fail if KStars was not compiled with libraw
             //KStars::Instance()->statusBar()->showMessage(i18n("Unable to find dcraw and cjpeg. Please install the required tools to convert CR2/NEF to JPEG."));
             emit BLOBUpdated(bp);
             return;
@@ -1391,13 +1392,17 @@ void CCD::processBLOB(IBLOB *bp)
 
         // store file name in
         strncpy(BLOBFilename, filename.toLatin1(), MAXINDIFILENAME);
+        bp->aux0 = targetChip;
         bp->aux1 = &BType;
         bp->aux2 = BLOBFilename;
 
-        if (imageViewer.isNull())
-            imageViewer = new ImageViewer(getDeviceName(), KStars::Instance());
+        if (Options::useDSLRImageViewer() || targetChip->isBatchMode() == false)
+        {
+            if (m_ImageViewerWindow.isNull())
+                m_ImageViewerWindow = new ImageViewer(getDeviceName(), KStars::Instance());
 
-        imageViewer->loadImage(filename);
+            m_ImageViewerWindow->loadImage(filename);
+        }
     }
 // Unless we have cfitsio, we're done.
 #ifdef HAVE_CFITSIO
@@ -1410,18 +1415,31 @@ void CCD::processBLOB(IBLOB *bp)
         // this should be fixed in the future and should only use FITSData
         if (Options::useFITSViewer() || targetChip->isBatchMode() == false)
         {
-            if (fv.isNull() && targetChip->getCaptureMode() != FITS_GUIDE &&
+            if (m_FITSViewerWindows.isNull() && targetChip->getCaptureMode() != FITS_GUIDE &&
                 targetChip->getCaptureMode() != FITS_FOCUS && targetChip->getCaptureMode() != FITS_ALIGN)
             {
                 normalTabID = calibrationTabID = focusTabID = guideTabID = alignTabID = -1;
 
                 if (Options::singleWindowCapturedFITS())
-                    fv = KStars::Instance()->genericFITSViewer();
+                    m_FITSViewerWindows = KStars::Instance()->genericFITSViewer();
                 else
                 {
-                    fv = new FITSViewer(Options::independentWindowFITS() ? nullptr : KStars::Instance());
-                    KStars::Instance()->getFITSViewersList().append(fv);
+                    m_FITSViewerWindows = new FITSViewer(Options::independentWindowFITS() ? nullptr : KStars::Instance());
+                    KStars::Instance()->addFITSViewer(m_FITSViewerWindows);
                 }
+
+                connect(m_FITSViewerWindows, &FITSViewer::closed, [&](int tabIndex) {
+                   if (tabIndex == normalTabID)
+                       normalTabID = -1;
+                   else if (tabIndex == calibrationTabID)
+                       calibrationTabID = -1;
+                   else if (tabIndex == focusTabID)
+                       focusTabID = -1;
+                   else if (tabIndex == guideTabID)
+                       guideTabID = -1;
+                   else if (tabIndex == alignTabID)
+                       alignTabID = -1;
+                });
 
                 //connect(fv, SIGNAL(destroyed()), this, SLOT(FITSViewerDestroyed()));
                 //connect(fv, SIGNAL(destroyed()), this, SIGNAL(FITSViewerClosed()));
@@ -1429,6 +1447,7 @@ void CCD::processBLOB(IBLOB *bp)
         }
 
         FITSScale captureFilter = targetChip->getCaptureFilter();
+        FITSMode captureMode = targetChip->getCaptureMode();
 
         QString previewTitle;
 
@@ -1446,163 +1465,89 @@ void CCD::processBLOB(IBLOB *bp)
                 previewTitle = i18n("Preview");
         }
 
-        int tabRC = -1;
-
-        switch (targetChip->getCaptureMode())
+        switch (captureMode)
         {
             case FITS_NORMAL:
+            case FITS_CALIBRATE:
             {
-                // Get a pointer to the Ekos summary preview if it exsist
-                FITSView *summaryFITSPreview = KStars::Instance()->ekosManager()->getSummaryPreview();
-                // Only load preview in Ekos Summary screen if limited resources mode is off
-                // and if useSummaryPreview is enabled and if the target chip belongs to the primary chip of the camera
-                if (Options::useSummaryPreview() && Options::limitedResourcesMode() == false && targetChip == primaryChip.get() && summaryFITSPreview)
-                {
-                    summaryFITSPreview->setFilter(captureFilter);
-                    bool imageLoad = summaryFITSPreview->loadFITS(filename, true);
-                    if (imageLoad)
-                        summaryFITSPreview->updateFrame();
-                }
+                int *tabID = (captureMode == FITS_NORMAL) ? &normalTabID : &calibrationTabID;
+                // Check if we need to display the image
                 if (Options::useFITSViewer() || targetChip->isBatchMode() == false)
                 {
-                    if (normalTabID == -1 || Options::singlePreviewFITS() == false)
-                        tabRC = fv->addFITS(&fileURL, FITS_NORMAL, captureFilter, previewTitle);
-                    else if (fv->updateFITS(&fileURL, normalTabID, captureFilter) == false)
-                    {
-                        fv->removeFITS(normalTabID);
-                        tabRC = fv->addFITS(&fileURL, FITS_NORMAL, captureFilter, previewTitle);
-                    }
-                    else
-                        tabRC = normalTabID;
+                    m_FITSViewerWindows->disconnect(this);
+                    auto m_Loaded = std::make_shared<QMetaObject::Connection>();
+                    *m_Loaded = connect(m_FITSViewerWindows, &FITSViewer::loaded, [=](int tabIndex) {
+                        *tabID = tabIndex;
+                        targetChip->setImageView(m_FITSViewerWindows->getView(tabIndex), captureMode);
+                        if (Options::focusFITSOnNewImage())
+                            m_FITSViewerWindows->raise();
+                        QObject::disconnect(*m_Loaded);
+                        emit BLOBUpdated(bp);
+                    });
 
-                    if (tabRC >= 0)
-                    {
-                        normalTabID = tabRC;
-                        targetChip->setImageView(fv->getView(normalTabID), FITS_NORMAL);
-
-                        emit newImage(fv->getView(normalTabID)->getDisplayImage(), targetChip);
-                    }
-                    else
-                    {
+                    auto m_Failed = std::make_shared<QMetaObject::Connection>();
+                    *m_Failed = connect(m_FITSViewerWindows, &FITSViewer::failed, [=]() {
                         // If opening file fails, we treat it the same as exposure failure and recapture again if possible
                         emit newExposureValue(targetChip, 0, IPS_ALERT);
+                        QObject::disconnect(*m_Failed);
                         return;
-                    }
+                    });
+
+                    if (*tabID == -1 || Options::singlePreviewFITS() == false)
+                        m_FITSViewerWindows->addFITS(fileURL, captureMode, captureFilter, previewTitle);
+                    else
+                        m_FITSViewerWindows->updateFITS(fileURL, *tabID, captureFilter);
                 }
-                // If we used Ekos summary preview to load the FITS image
-                // Then set it as the default image view for the target chip
-                else if (summaryFITSPreview)
-                {
-                  targetChip->setImageView(summaryFITSPreview, FITS_NORMAL);
-                  emit newImage(summaryFITSPreview->getDisplayImage(), targetChip);
-                }
+                else
+                    // If not displayed in FITS Viewer then we just inform that a blob was received.
+                    emit BLOBUpdated(bp);
             }
             break;
 
             case FITS_FOCUS:
-                {
-                    FITSView *focusView = targetChip->getImageView(FITS_FOCUS);
-                    if (focusView)
-                    {
-                        focusView->setFilter(captureFilter);
-                        bool imageLoad = focusView->loadFITS(filename, true);
-                        if (imageLoad)
-                        {
-                            focusView->updateFrame();
-                            emit newImage(focusView->getDisplayImage(), targetChip);
-                        }
-                        else
-                        {
-                            emit newExposureValue(targetChip, 0, IPS_ALERT);
-                            return;
-                        }
-                    }
-                }
-                break;
-
             case FITS_GUIDE:
-                {
-                    FITSView *guideView = targetChip->getImageView(FITS_GUIDE);
-                    if (guideView)
-                    {
-                        guideView->setFilter(captureFilter);
-                        bool imageLoad = guideView->loadFITS(filename, true);
-                        if (imageLoad)
-                        {
-                            guideView->updateFrame();
-                            emit newImage(guideView->getDisplayImage(), targetChip);
-                        }
-                        else
-                        {
-                            emit newExposureValue(targetChip, 0, IPS_ALERT);
-                            return;
-                        }
-                    }
-                }
-                break;
-
-            case FITS_CALIBRATE:
-            // FIXME should use FITSData, no need for FITSView
-            //if (Options::useFITSViewer())
-                //{
-                    if (calibrationTabID == -1)
-                        tabRC = fv->addFITS(&fileURL, FITS_CALIBRATE, captureFilter);
-                    else if (fv->updateFITS(&fileURL, calibrationTabID, captureFilter) == false)
-                    {
-                        fv->removeFITS(calibrationTabID);
-                        tabRC = fv->addFITS(&fileURL, FITS_CALIBRATE, captureFilter);
-                    }
-                    else
-                        tabRC = calibrationTabID;
-
-                    if (tabRC >= 0)
-                    {
-                        calibrationTabID = tabRC;
-                        targetChip->setImageView(fv->getView(calibrationTabID), FITS_CALIBRATE);
-                    }
-                    else
-                    {
-                        emit newExposureValue(targetChip, 0, IPS_ALERT);
-                        return;
-                    }
-                //}
-                break;
-
             case FITS_ALIGN:
-                {
-                    FITSView *alignView = targetChip->getImageView(FITS_ALIGN);
-                    if (alignView)
-                    {
-                        alignView->setFilter(captureFilter);
-                        bool imageLoad = alignView->loadFITS(filename, true);
-                        if (imageLoad)
-                        {
-                            alignView->updateFrame();
-                            emit newImage(alignView->getDisplayImage(), targetChip);
-                        }
-                        else
-                        {
-                            emit newExposureValue(targetChip, 0, IPS_ALERT);
-                            return;
-                        }
-                    }
-                }
-                break;
-
-            default:
+                loadImageInView(bp, targetChip);
                 break;
         }
-
-        // FITSViewer is shown if:
-        // Image in preview mode, or useFITSViewre is true; AND
-        // Image type is either NORMAL or CALIBRATION since the rest have their dedicated windows.
-        // NORMAL is used for raw INDI drivers without Ekos.
-        if ( (Options::useFITSViewer() || targetChip->isBatchMode() == false) && (targetChip->getCaptureMode() == FITS_NORMAL || targetChip->getCaptureMode() == FITS_CALIBRATE))
-                fv->show();
     }
+    else
+        emit BLOBUpdated(bp);
 #endif
+}
 
-    emit BLOBUpdated(bp);
+void CCD::loadImageInView(IBLOB *bp, ISD::CCDChip *targetChip)
+{
+    FITSMode mode = targetChip->getCaptureMode();
+    FITSView *view = targetChip->getImageView(mode);
+    QString filename = QString(static_cast<const char *>(bp->aux2));
+
+    if (view)
+    {
+        auto m_Loaded = std::make_shared<QMetaObject::Connection>();
+        *m_Loaded = connect(view, &FITSView::loaded, [=]() {
+            //view->updateFrame();
+            // FITSViewer is shown if:
+            // Image in preview mode, or useFITSViewre is true; AND
+            // Image type is either NORMAL or CALIBRATION since the rest have their dedicated windows.
+            // NORMAL is used for raw INDI drivers without Ekos.
+            if ( (Options::useFITSViewer() || targetChip->isBatchMode() == false) && (mode == FITS_NORMAL || mode == FITS_CALIBRATE))
+                    m_FITSViewerWindows->show();
+
+            QObject::disconnect(*m_Loaded);
+            emit BLOBUpdated(bp);
+        });
+        auto m_Failed = std::make_shared<QMetaObject::Connection>();
+        *m_Failed = connect(view, &FITSView::failed, [=]() {
+            QObject::disconnect(*m_Failed);
+            emit newExposureValue(targetChip, 0, IPS_ALERT);
+            return;
+        });
+
+        view->setFilter(targetChip->getCaptureFilter());
+        view->loadFITS(filename, true);
+    }
+
 }
 
 void CCD::addFITSKeywords(const QString& filename)
@@ -1664,7 +1609,7 @@ void CCD::setTargetTransferFormat(const TransferFormat &value)
 
 void CCD::FITSViewerDestroyed()
 {
-    fv          = nullptr;
+    m_FITSViewerWindows          = nullptr;
     normalTabID = calibrationTabID = focusTabID = guideTabID = alignTabID = -1;
 }
 
@@ -2322,21 +2267,12 @@ bool CCD::getGainMinMaxStep(double *min, double *max, double *step)
 
 bool CCD::isBLOBEnabled()
 {
-    return (clientManager->getBLOBMode(getDeviceName(), "CCD1") != B_NEVER);
+    return (clientManager->isBLOBEnabled(getDeviceName(), "CCD1"));
 }
 
-bool CCD::setBLOBEnabled(bool enable)
+bool CCD::setBLOBEnabled(bool enable, const QString &prop)
 {
-    if (enable)
-    {
-        clientManager->setBLOBMode(B_ALSO, getDeviceName(), "CCD1");
-        clientManager->setBLOBMode(B_ALSO, getDeviceName(), "CCD2");
-    }
-    else
-    {
-        clientManager->setBLOBMode(B_NEVER, getDeviceName(), "CCD1");
-        clientManager->setBLOBMode(B_NEVER, getDeviceName(), "CCD2");
-    }
+    clientManager->setBLOBEnabled(enable, getDeviceName(), prop);
 
     return true;
 }
@@ -2371,4 +2307,41 @@ bool CCD::setExposureLoopCount(uint32_t count)
 
     return true;
 }
+
+bool CCD::setStreamExposure(double duration)
+{
+    INumberVectorProperty *nvp = baseDevice->getNumber("STREAMING_EXPOSURE");
+
+    if (nvp == nullptr)
+        return false;
+
+    nvp->np[0].value = duration;
+
+    clientManager->sendNewNumber(nvp);
+
+    return true;
+}
+
+bool CCD::getStreamExposure(double *duration)
+{
+    INumberVectorProperty *nvp = baseDevice->getNumber("STREAMING_EXPOSURE");
+
+    if (nvp == nullptr)
+        return false;
+
+    *duration = nvp->np[0].value;
+
+    return true;
+}
+
+bool CCD::isCoolerOn()
+{
+    ISwitchVectorProperty *svp = baseDevice->getSwitch("CCD_COOLER");
+
+    if (svp == nullptr)
+        return false;
+
+    return (svp->sp[0].s == ISS_ON);
+}
+
 }

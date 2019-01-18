@@ -233,12 +233,11 @@ void SkyMapComposite::updateSolarSystemBodies(KSNumbers *num)
     m_SolarSystem->updateSolarSystemBodies(num);
 }
 
-/*
+
 void SkyMapComposite::updateMoons(KSNumbers *num )
 {
     m_SolarSystem->updateMoons( num );
 }
-*/
 
 //Reimplement draw function so that we have control over the order of
 //elements, and we can add object labels
@@ -305,7 +304,7 @@ void SkyMapComposite::draw(SkyPainter *skyp)
             for (auto &obj_clone : obsList)
             {
                 // Find the "original" obj
-                SkyObject *o = findByName(obj_clone->name()); // FIXME: This is sloww.... and can also fail!!!
+                SkyObject *o = findByName(obj_clone->name()); // FIXME: This is slow.... and can also fail!!!
                 if (!o)
                     continue;
                 SkyLabeler::AddLabel(o, SkyLabeler::RUDE_LABEL);
@@ -361,12 +360,7 @@ void SkyMapComposite::draw(SkyPainter *skyp)
     m_DeepSky->drawLabels();
 
     m_ObservingList->pen = QPen(QColor(data->colorScheme()->colorNamed("ObsListColor")), 1.);
-    if (KStars::Instance() && !m_ObservingList->list)
-        m_ObservingList->list.reset(new SkyObjectList(KSUtils::makeVanillaPointerList(
-            KStarsData::Instance()
-                ->observingList()
-                ->sessionList()))); // Make sure we never delete the pointers in m_ObservingList->list!
-
+    m_ObservingList->list2 = KStarsData::Instance()->observingList()->sessionList();
     m_ObservingList->draw(skyp);
 
     m_Flags->draw(skyp);
@@ -444,10 +438,10 @@ SkyObject *SkyMapComposite::objectNearest(SkyPoint *p, double &maxrad)
         oBest = oTry;
     }    
 
-    for (int i = 0; i < m_DeepStars.size(); ++i)
+    for (auto &star : m_DeepStars)
     {
         rTry = maxrad;
-        oTry = m_DeepStars.at(i)->objectNearest(p, rTry);
+        oTry = star->objectNearest(p, rTry);
         if (rTry < rBest)
         {
             rBest = rTry;

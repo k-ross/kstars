@@ -32,6 +32,8 @@ ProfileEditor::ProfileEditor(QWidget *w) : QDialog(w)
 
     pi = nullptr;
 
+    m_MountModel = new QStandardItemModel(this);
+
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->addWidget(ui);
     setLayout(mainLayout);
@@ -52,11 +54,13 @@ ProfileEditor::ProfileEditor(QWidget *w) : QDialog(w)
         QDesktopServices::openUrl(url);
     });
 
-    connect(ui->INDIWebManagerCheck, SIGNAL(toggled(bool)), ui->openWebManagerB, SLOT(setEnabled(bool)));
+    connect(ui->INDIWebManagerCheck, &QCheckBox::toggled, [&](bool enabled) {
+        ui->openWebManagerB->setEnabled(enabled);
+        ui->remoteDrivers->setEnabled(enabled || ui->localMode->isChecked());
+    });
 
     connect(ui->guideTypeCombo, SIGNAL(activated(int)), this, SLOT(updateGuiderSelection(int)));
 
-    ui->addScopeB->setIcon(QIcon::fromTheme("list-add"));
     connect(ui->addScopeB, &QPushButton::clicked, this, [this]()
     {
         QPointer<EquipmentWriter> equipmentdlg = new EquipmentWriter();
@@ -136,7 +140,7 @@ void ProfileEditor::saveProfile()
 
     if (ui->profileIN->text().isEmpty())
     {
-        KMessageBox::error(this, i18n("Cannot save an empty profile!"));
+        KMessageBox::error(this, i18n("Cannot save an empty profile."));
         return;
     }
 
@@ -279,6 +283,8 @@ void ProfileEditor::saveProfile()
     else
         pi->drivers["Aux4"] = ui->aux4Combo->currentText();
 
+    pi->remotedrivers = ui->remoteDrivers->text();
+
     KStarsData::Instance()->userdb()->SaveProfile(pi);
 
     // Ekos manager will reload and new profiles will be created
@@ -312,6 +318,8 @@ void ProfileEditor::setRemoteMode(bool enable)
     ui->aux2Combo->setEditable(enable);
     ui->aux3Combo->setEditable(enable);
     ui->aux4Combo->setEditable(enable);
+
+    ui->remoteDrivers->setEnabled(!enable);
 
     ui->loadSiteCheck->setEnabled(enable);
 
@@ -357,6 +365,9 @@ void ProfileEditor::setPi(ProfileInfo *value)
             ui->INDIWebManagerPort->setText("8624");
         }
     }
+
+    if (pi->remotedrivers.isEmpty() == false)
+        ui->remoteDrivers->setText(pi->remotedrivers);
 
     ui->guideTypeCombo->setCurrentIndex(pi->guidertype);
     updateGuiderSelection(ui->guideTypeCombo->currentIndex());
@@ -508,8 +519,27 @@ void ProfileEditor::setPi(ProfileInfo *value)
     loadScopeEquipment();
 }
 
+QString ProfileEditor::getTooltip(DriverInfo *dv)
+{
+    bool locallyAvailable = false;
+    if (dv->getAuxInfo().contains("LOCALLY_AVAILABLE"))
+        locallyAvailable = dv->getAuxInfo().value("LOCALLY_AVAILABLE", false).toBool();
+    QString toolTipText;
+    if (!locallyAvailable)
+        toolTipText = i18n(
+            "<nobr>Available as <b>Remote</b> Driver. To use locally, install the corresponding driver.<nobr/>");
+    else
+        toolTipText = i18n("<nobr><b>Label</b>: %1 &#9473; <b>Driver</b>: %2 &#9473; <b>Exec</b>: %3<nobr/>",
+                           dv->getLabel(), dv->getName(), dv->getExecutable());
+
+    return toolTipText;
+}
+
 void ProfileEditor::loadDrivers()
 {
+    // We need to save this now since we have two models for the mounts
+    QString selectedMount = ui->mountCombo->currentText();
+
     QVector<QComboBox *> boxes;
     boxes.append(ui->mountCombo);
     boxes.append(ui->ccdCombo);
@@ -526,7 +556,7 @@ void ProfileEditor::loadDrivers()
 
     QVector<QString> selectedItems;
 
-    foreach (QComboBox *box, boxes)
+    for (QComboBox *box : boxes)
     {
         selectedItems.append(box->currentText());
         box->clear();
@@ -536,7 +566,86 @@ void ProfileEditor::loadDrivers()
 
     QIcon remoteIcon = QIcon::fromTheme("network-modem");
 
-    foreach (DriverInfo *dv, DriverManager::Instance()->getDrivers())
+    // Create the mount model
+    delete (m_MountModel);
+    m_MountModel = new QStandardItemModel(this);
+
+    if (ui->localMode->isChecked())
+    {
+        QStandardItem *selectedMountItem = nullptr;
+        m_MountModel->appendRow(new QStandardItem("--"));
+        for (DriverInfo *dv : DriverManager::Instance()->getDrivers())
+        {
+            if (dv->getType() != KSTARS_TELESCOPE)
+                continue;
+
+            QString manufacturer = dv->manufacturer();
+            QList<QStandardItem*> manufacturers = m_MountModel->findItems(manufacturer);
+
+             QStandardItem *parentItem = nullptr;
+            if (m_MountModel->findItems(manufacturer).empty())
+            {
+                parentItem = new QStandardItem(manufacturer);
+                parentItem->setSelectable(false);
+                m_MountModel->appendRow(parentItem);
+            }
+            else
+            {
+                parentItem = manufacturers.first();
+            }
+
+            QStandardItem *mount = new QStandardItem(dv->getLabel());
+            mount->setData(getTooltip(dv), Qt::ToolTipRole);
+            parentItem->appendRow(mount);
+            if (selectedMount == dv->getLabel())
+                selectedMountItem = mount;
+        }
+        QTreeView *view = new QTreeView(this);
+        view->setModel(m_MountModel);
+        view->sortByColumn(0, Qt::AscendingOrder);
+        ui->mountCombo->setView(view);
+        ui->mountCombo->setModel(m_MountModel);
+        if (selectedMountItem)
+        {
+            // JM: Only way to make it the QTreeView sets the current index
+            // in the combo way
+
+            QModelIndex index = m_MountModel->indexFromItem(selectedMountItem);
+
+            // First set current index to the child
+            ui->mountCombo->setRootModelIndex(index.parent());
+            ui->mountCombo->setModelColumn(index.column());
+            ui->mountCombo->setCurrentIndex(index.row());
+
+            // Now reset
+            ui->mountCombo->setRootModelIndex(QModelIndex());
+            view->setCurrentIndex(index);
+        }
+    }
+    else
+    {
+        ui->mountCombo->setView(new QListView(this));
+        m_MountModel->appendRow(new QStandardItem("--"));
+        QIcon icon;
+        for (DriverInfo *dv : DriverManager::Instance()->getDrivers())
+        {
+            if (dv->getType() != KSTARS_TELESCOPE)
+                continue;
+
+            bool locallyAvailable = false;
+            if (dv->getAuxInfo().contains("LOCALLY_AVAILABLE"))
+                locallyAvailable = dv->getAuxInfo().value("LOCALLY_AVAILABLE", false).toBool();
+            icon = locallyAvailable ? QIcon() : remoteIcon;
+
+            QStandardItem *mount = new QStandardItem(icon, dv->getLabel());
+            mount->setData(getTooltip(dv), Qt::ToolTipRole);
+            m_MountModel->appendRow(mount);
+        }
+        ui->mountCombo->setModel(m_MountModel);
+        ui->mountCombo->setCurrentText(selectedMount);
+    }
+
+    for (DriverInfo *dv : DriverManager::Instance()->getDrivers())
     {
         bool locallyAvailable = false;
         QIcon icon;
@@ -550,141 +659,135 @@ void ProfileEditor::loadDrivers()
                 icon = remoteIcon;
         }
 
-        QString toolTipText;
-        if (!locallyAvailable)
-            toolTipText = i18n(
-                "<nobr>Available as <b>Remote</b> Driver. To use locally, install the corresponding driver.<nobr/>");
-        else
-            toolTipText = i18n("<nobr><b>Label</b>: %1 &#9473; <b>Driver</b>: %2 &#9473; <b>Exec</b>: %3<nobr/>",
-                               dv->getTreeLabel(), dv->getName(), dv->getDriver());
+        QString toolTipText = getTooltip(dv);
 
         switch (dv->getType())
         {
-            case KSTARS_TELESCOPE:
-            {
-                ui->mountCombo->addItem(icon, dv->getTreeLabel());
-                ui->mountCombo->setItemData(ui->mountCombo->count() - 1, toolTipText, Qt::ToolTipRole);
-            }
-            break;
+//            case KSTARS_TELESCOPE:
+//            {
+//                ui->mountCombo->addItem(icon, dv->getLabel());
+//                ui->mountCombo->setItemData(ui->mountCombo->count() - 1, toolTipText, Qt::ToolTipRole);
+//            }
+//            break;
 
             case KSTARS_CCD:
             {
-                ui->ccdCombo->addItem(icon, dv->getTreeLabel());
+                ui->ccdCombo->addItem(icon, dv->getLabel());
                 ui->ccdCombo->setItemData(ui->ccdCombo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->guiderCombo->addItem(icon, dv->getTreeLabel());
+                ui->guiderCombo->addItem(icon, dv->getLabel());
                 ui->guiderCombo->setItemData(ui->guiderCombo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux1Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux1Combo->addItem(icon, dv->getLabel());
                 ui->aux1Combo->setItemData(ui->aux1Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux2Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux2Combo->addItem(icon, dv->getLabel());
                 ui->aux2Combo->setItemData(ui->aux2Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux3Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux3Combo->addItem(icon, dv->getLabel());
                 ui->aux3Combo->setItemData(ui->aux3Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux4Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux4Combo->addItem(icon, dv->getLabel());
                 ui->aux4Combo->setItemData(ui->aux4Combo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_ADAPTIVE_OPTICS:
             {
-                ui->AOCombo->addItem(icon, dv->getTreeLabel());
+                ui->AOCombo->addItem(icon, dv->getLabel());
                 ui->AOCombo->setItemData(ui->AOCombo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_FOCUSER:
             {
-                ui->focuserCombo->addItem(icon, dv->getTreeLabel());
+                ui->focuserCombo->addItem(icon, dv->getLabel());
                 ui->focuserCombo->setItemData(ui->focuserCombo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux1Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux1Combo->addItem(icon, dv->getLabel());
                 ui->aux1Combo->setItemData(ui->aux1Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux2Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux2Combo->addItem(icon, dv->getLabel());
                 ui->aux2Combo->setItemData(ui->aux2Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux3Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux3Combo->addItem(icon, dv->getLabel());
                 ui->aux3Combo->setItemData(ui->aux3Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux4Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux4Combo->addItem(icon, dv->getLabel());
                 ui->aux4Combo->setItemData(ui->aux4Combo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_FILTER:
             {
-                ui->filterCombo->addItem(icon, dv->getTreeLabel());
+                ui->filterCombo->addItem(icon, dv->getLabel());
                 ui->filterCombo->setItemData(ui->filterCombo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux1Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux1Combo->addItem(icon, dv->getLabel());
                 ui->aux1Combo->setItemData(ui->aux1Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux2Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux2Combo->addItem(icon, dv->getLabel());
                 ui->aux2Combo->setItemData(ui->aux2Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux3Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux3Combo->addItem(icon, dv->getLabel());
                 ui->aux3Combo->setItemData(ui->aux3Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux4Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux4Combo->addItem(icon, dv->getLabel());
                 ui->aux4Combo->setItemData(ui->aux4Combo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_DOME:
             {
-                ui->domeCombo->addItem(icon, dv->getTreeLabel());
+                ui->domeCombo->addItem(icon, dv->getLabel());
                 ui->domeCombo->setItemData(ui->domeCombo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_WEATHER:
             {
-                ui->weatherCombo->addItem(icon, dv->getTreeLabel());
+                ui->weatherCombo->addItem(icon, dv->getLabel());
                 ui->weatherCombo->setItemData(ui->weatherCombo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux1Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux1Combo->addItem(icon, dv->getLabel());
                 ui->aux1Combo->setItemData(ui->aux1Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux2Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux2Combo->addItem(icon, dv->getLabel());
                 ui->aux2Combo->setItemData(ui->aux2Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux3Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux3Combo->addItem(icon, dv->getLabel());
                 ui->aux3Combo->setItemData(ui->aux3Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux4Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux4Combo->addItem(icon, dv->getLabel());
                 ui->aux4Combo->setItemData(ui->aux4Combo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             case KSTARS_AUXILIARY:
+            case KSTARS_SPECTROGRAPHS:
+            case KSTARS_DETECTORS:
             {
-                ui->aux1Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux1Combo->addItem(icon, dv->getLabel());
                 ui->aux1Combo->setItemData(ui->aux1Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux2Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux2Combo->addItem(icon, dv->getLabel());
                 ui->aux2Combo->setItemData(ui->aux2Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux3Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux3Combo->addItem(icon, dv->getLabel());
                 ui->aux3Combo->setItemData(ui->aux3Combo->count() - 1, toolTipText, Qt::ToolTipRole);
 
-                ui->aux4Combo->addItem(icon, dv->getTreeLabel());
+                ui->aux4Combo->addItem(icon, dv->getLabel());
                 ui->aux4Combo->setItemData(ui->aux4Combo->count() - 1, toolTipText, Qt::ToolTipRole);
             }
             break;
 
             default:
                 continue;
-                break;
         }
     }
 
-    //ui->mountCombo->setCurrentIndex(-1);
-
-    for (int i = 0; i < boxes.count(); i++)
+    // Skip mount since we handled it above
+    for (int i = 1; i < boxes.count(); i++)
     {
         QComboBox *box           = boxes.at(i);
         QString selectedItemText = selectedItems.at(i);
@@ -702,7 +805,7 @@ void ProfileEditor::loadDrivers()
         }
 
         box->model()->sort(0);
-    }    
+    }
 }
 
 void ProfileEditor::setProfileName(const QString &name)
@@ -774,6 +877,7 @@ void ProfileEditor::setConnectionOptionsEnabled(bool enable)
     ui->INDIWebManagerPortLabel->setEnabled(enable);
     ui->guidingTypeLabel->setEnabled(enable);
     ui->guideTypeCombo->setEnabled(enable);
+    ui->remoteDrivers->setEnabled(enable);
 
     updateGuiderSelection(ui->guideTypeCombo->currentIndex());
 

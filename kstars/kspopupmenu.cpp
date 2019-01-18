@@ -22,6 +22,7 @@
 #include "kstars.h"
 #include "kstarsdata.h"
 #include "skymap.h"
+#include "syncedcatalogcomponent.h"
 #include "skyobjects/skyobject.h"
 #include "skyobjects/starobject.h"
 #include "skyobjects/trailobject.h"
@@ -357,6 +358,9 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
     //Insert item for Showing details dialog
     if (showDetails)
         addAction(i18nc("Show Detailed Information Dialog", "Details"), map, SLOT(slotDetail()));
+
+    addAction(i18n("Copy Coordinates"), map, SLOT(slotCopyCoordinates()));
+
     //Insert "Add/Remove Label" item
     if (showLabel)
     {
@@ -394,16 +398,14 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
         obj->type() !=
             SkyObject::COMET) // FIXME: We now have asteroids -- so should this not be isMajorPlanet() || Pluto?
     {
-        //QMenu *xplanetSubmenu = new QMenu();
-        //xplanetSubmenu->setTitle( i18n( "Print Xplanet view" ) );
-        addAction(i18n("View in XPlanet"), map, SLOT(slotXplanetToWindow()));
-        //xplanetSubmenu->addAction( i18n( "To file..." ), map, SLOT( slotXplanetToFile() ) );
-        //addMenu( xplanetSubmenu );
+        addAction(i18n("View in XPlanet"), map, SLOT(slotStartXplanetViewer()));
     }
     addSeparator();
     addINDI();
 
     addAction(i18n("View in What's Interesting"), this, SLOT(slotViewInWI()));
+
+
 }
 
 void KSPopupMenu::initFlagActions(SkyObject *obj)
@@ -412,7 +414,7 @@ void KSPopupMenu::initFlagActions(SkyObject *obj)
 
     QList<int> flags = ks->data()->skyComposite()->flags()->getFlagsNearPix(obj, 5);
 
-    if (flags.size() == 0)
+    if (flags.isEmpty())
     {
         // There is no flag around clicked SkyObject
         addAction(i18n("Add flag..."), ks->map(), SLOT(slotAddFlag()));
@@ -498,6 +500,12 @@ void KSPopupMenu::addLinksToMenu(SkyObject *obj, bool showDSS)
             ++itTitle;
         }
         addMenu(imageLinkSubMenu);
+    }
+
+    // Look for a custom object
+    if (KStarsData::Instance()->skyComposite()->internetResolvedComponent()->hasObject(*obj))
+    {
+        addAction(i18n("Remove From Local Catalog"), ks->map(), SLOT(slotRemoveCustomObject()));
     }
 
     if (showDSS)

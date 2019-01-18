@@ -307,7 +307,7 @@ void KSNumbers::updateValues(long double jd)
     double MMRad = 2.3555559 + 8328.6914289 * T; // Moon
     double FRad  = 1.6279052 + 8433.4661601 * T;
 
-    /** Contibutions to the velocity of the Earth referred to the barycenter of the solar system
+    /** Contributions to the velocity of the Earth referred to the barycenter of the solar system
         in the J2000 equatorial system
         Velocities 10^{-8} AU/day
         Ron & Vondrak method
@@ -361,20 +361,20 @@ void KSNumbers::updateValues(long double jd)
     // Vearth Z component
     vearth[2] = 0.;
 
-    for (unsigned int i = 0; i < 36; i++)
+    for (auto &item : vondrak)
     {
-        anglev.setRadians(vondrak[i][0]);
+        anglev.setRadians(item[0]);
         anglev.SinCos(sa, ca);
         for (unsigned int j = 0; j < 3; j++)
         {
-            vearth[j] += vondrak[i][2 * j + 1] * sa + vondrak[i][2 * j + 2] * ca;
+            vearth[j] += item[2 * j + 1] * sa + item[2 * j + 2] * ca;
         }
     }
 
     const double UA2km = 1.49597870 / 86400.; // 10^{-8}*UA/dia -> km/s
 
-    for (unsigned int j = 0; j < 3; j++)
+    for (double &item : vearth)
     {
-        vearth[j] = vearth[j] * UA2km;
+        item *= UA2km;
     }
 }

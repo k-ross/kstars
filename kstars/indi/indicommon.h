@@ -10,6 +10,9 @@
 #ifndef INDICOMMON_H
 #define INDICOMMON_H
 
+#include <QString>
+#include <QMap>
+
 /*!
 \page INDI "INDI Overview"
 \tableofcontents
@@ -48,7 +51,7 @@ The user may also choose to only start an INDI server without a client manager a
 <li>GUIManager: Handles creation of GUI interface for devices (INDI_D) and their properties and updates the interface in accord with any data emitted by the associated ClientManager. The GUI manager supports
 multiple ClientManagers and consolidate all devices from all the ClientManagers into a single INDI Control Panel where each device is created as a tab.</li>
 <li>INDIListener: Once a ClientManager is created in DriverManager after successfully connecting to an INDI server, it is added to INDIListener where it monitors any new devices and if a new
-device is detected, it creates an ISD::GenericDevice to hold the data of the device. It also moniters new properties and registers them. If it detects an INDI standard property associated with a particular device family
+device is detected, it creates an ISD::GenericDevice to hold the data of the device. It also monitors new properties and registers them. If it detects an INDI standard property associated with a particular device family
 (e.g. Property EQUATORIAL_EOD_COORD is a standard property of a Telescope device), then it extends the ISD::GenericDevice to the particular specialized device type using the <a href="http://en.wikipedia.org/wiki/Decorator_pattern">
 Decorator Pattern</a>. All updated properties from INDI server are delegated to their respective devices.</li>
 <li>ServerManager</li> Manages establishment and shutdown of local INDI servers.</li>
@@ -79,15 +82,15 @@ in INDIListener. Upon detection of this key signature property, INDIListener cre
 Now suppose an updated Number property arrives from INDI server, the ClientManager emits a signal indicating a number property has a new updated value and INDIListener delegates the INDI Number
 property to the device, which is now of type ISD::Telescope. The ISD::Telescope overridden the processNumber(INumberVectorProperty *nvp) function in ISD::DeviceDecorator because it wants to handle some telescope
 specific numbers such as EQUATORIAL_EOD_COORD in order to move the telescope marker on the sky map as it changes. If the received property was indeed EQUATORIAL_EOD_COORD or any property handled
-by the ISD::Telescope ProcessNumber() function, then there is no futher action needed. But what if the property is not processed in ISD::Telescope ProcessNumber() function? In this case, the
+by the ISD::Telescope ProcessNumber() function, then there is no further action needed. But what if the property is not processed in ISD::Telescope ProcessNumber() function? In this case, the
 ProcessNumber() function simply calls DeviceDecorator::ProcessNumber() and it will delgate the call to ISD::GenericDevice ProcessNumber() to process. This is how the Decorator pattern work,
-the decorator classes implements extended functionlity, but the basic class is still responsible for handling all of the basic functions.
+the decorator classes implements extended functionality, but the basic class is still responsible for handling all of the basic functions.
 
 */
 
 #define INDIVERSION 1.7 /* we support this or less */
 
-typedef enum { PRIMARY_XML, THIRD_PARTY_XML, EM_XML, HOST_SOURCE, GENERATED_SOURCE } DriverSource;
+typedef enum { PRIMARY_XML, THIRD_PARTY_XML, EM_XML, HOST_SOURCE, CUSTOM_SOURCE, GENERATED_SOURCE } DriverSource;
 
 typedef enum { SERVER_CLIENT, SERVER_ONLY } ServerMode;
 
@@ -107,9 +110,6 @@ typedef enum { NO_DIR = 0, RA_INC_DIR, RA_DEC_DIR, DEC_INC_DIR, DEC_DEC_DIR } Gu
 #define MAX_SET_WIDTH        110
 #define MED_INDI_FONT        2
 #define MAX_LABEL_LENGTH     20
-
-// Pulse tracking
-#define INDI_PULSE_TRACKING 15000
 
 typedef enum { PG_NONE = 0, PG_TEXT, PG_NUMERIC, PG_BUTTONS, PG_RADIO, PG_MENU, PG_LIGHTS, PG_BLOB } PGui;
 
@@ -151,20 +151,36 @@ enum stdProperties
 
 /* Devices families that we explicitly support (i.e. with std properties) */
 typedef enum {
-    KSTARS_TELESCOPE,
+    KSTARS_ADAPTIVE_OPTICS,
+    KSTARS_AGENT,
+    KSTARS_AUXILIARY,
     KSTARS_CCD,
+    KSTARS_DETECTORS,
+    KSTARS_DOME,
     KSTARS_FILTER,
-    KSTARS_VIDEO,
     KSTARS_FOCUSER,
     KSTARS_ROTATOR,
-    KSTARS_DOME,
-    KSTARS_ADAPTIVE_OPTICS,
-    KSTARS_RECEIVERS,
-    KSTARS_GPS,
+    KSTARS_SPECTROGRAPHS,
+    KSTARS_TELESCOPE,
     KSTARS_WEATHER,
-    KSTARS_AUXILIARY,
     KSTARS_UNKNOWN
 } DeviceFamily;
+
+const QMap<DeviceFamily, QString> DeviceFamilyLabels = {
+    {KSTARS_ADAPTIVE_OPTICS, "Adaptive Optics"},
+    {KSTARS_AGENT, "Agent"},
+    {KSTARS_AUXILIARY, "Auxiliary"},
+    {KSTARS_CCD, "CCDs"},
+    {KSTARS_DETECTORS, "Detectors"},
+    {KSTARS_DOME, "Domes"},
+    {KSTARS_FILTER, "Filter Wheels"},
+    {KSTARS_FOCUSER, "Focusers"},
+    {KSTARS_ROTATOR, "Rotators"},
+    {KSTARS_SPECTROGRAPHS, "Spectrographs"},
+    {KSTARS_TELESCOPE, "Telescopes"},
+    {KSTARS_WEATHER, "Weather"},
+    {KSTARS_UNKNOWN, "Unknown"},
+};
 
 typedef enum { FRAME_LIGHT, FRAME_BIAS, FRAME_DARK, FRAME_FLAT } CCDFrameType;
 

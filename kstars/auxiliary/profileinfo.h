@@ -12,6 +12,7 @@
 
 #include <QMap>
 #include <QString>
+#include <QJsonObject>
 
 class ProfileInfo
 {
@@ -21,6 +22,10 @@ class ProfileInfo
 
     // Is connection local or remote
     bool isLocal() { return host.isEmpty(); }
+    QJsonObject toJson() const
+    {
+        return {{"name", name}, {"isLocal", host.isEmpty()}};
+    }
 
     QString mount();
     QString ccd();
@@ -34,6 +39,7 @@ class ProfileInfo
     QString aux2();
     QString aux3();
     QString aux4();
+    QString remoteDrivers();
 
     QString name;
     QString host;
@@ -44,10 +50,12 @@ class ProfileInfo
     int guiderport { 0 };
     int primaryscope { 0 };
     int guidescope { 0 };
+    QString remotedrivers;
     QString guiderhost;
     int id { 0 };
     int port { -1 };
     bool autoConnect { false };
+    bool isStellarMate { false };
     int INDIWebManagerPort { -1 };
     // driver[role] = label
     QMap<QString, QString> drivers;

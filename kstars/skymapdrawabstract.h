@@ -63,7 +63,8 @@ class SkyMapDrawAbstract
         	*The overlays can be updated rapidly, without having to recompute the entire SkyMap.
         	*The stored Sky image is simply blitted onto the SkyMap widget, and then we call
         	*drawOverlays() to refresh the overlays.
-        	*@param pm pointer to the Sky pixmap
+        	*@param p pointer to the Sky pixmap
+        	*@param drawFov determines if the FOV should be drawn
         	*/
     void drawOverlays(QPainter &p, bool drawFov = true);
 
@@ -93,6 +94,7 @@ class SkyMapDrawAbstract
     /** @short Draw the current Sky map to a pixmap which is to be printed or exported to a file.
         	*
         	*@param pd pointer to the QPaintDevice on which to draw.
+        	*@param scale defines if the Sky map should be scaled.
         	*@see KStars::slotExportImage()
         	*@see KStars::slotPrint()
         	*/
@@ -112,7 +114,6 @@ class SkyMapDrawAbstract
          * the right-click popup menu.  Also adds a label to the FocusObject if the Option UseAutoLabel
          * is true.
          * @param labelObjects QList of pointers to the objects which need labels (excluding the centered object)
-         * @param psky painter for the sky
          * @note the labelObjects list is managed by the SkyMapComponents class
          */
     void drawObjectLabels(QList<SkyObject *> &labelObjects);
@@ -129,7 +130,7 @@ class SkyMapDrawAbstract
 
     // *********************** PURE VIRTUAL METHODS ******************* //
     // NOTE: The following methods differ between GL and QPainter backends
-    //       Thus, they are pure virtual and must be implemented by the sublcass
+    //       Thus, they are pure virtual and must be implemented by the subclass
 
   protected:
     /**

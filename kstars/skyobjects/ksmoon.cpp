@@ -17,17 +17,6 @@
 
 #include "ksmoon.h"
 
-#include <typeinfo>
-
-#include <cstdlib>
-#include <cmath>
-#if defined(_MSC_VER)
-#include <float.h>
-#endif
-
-#include <QFile>
-#include <QTextStream>
-
 #include "ksnumbers.h"
 #include "ksutils.h"
 #include "kssun.h"
@@ -36,7 +25,19 @@
 #include "kspopupmenu.h"
 #endif
 #include "skycomponents/skymapcomposite.h"
+#include "skycomponents/solarsystemcomposite.h"
 #include "texturemanager.h"
+
+#include <QFile>
+#include <QTextStream>
+
+#include <cstdlib>
+#include <cmath>
+#if defined(_MSC_VER)
+#include <float.h>
+#endif
+
+#include <typeinfo>
 
 using namespace std;
 
@@ -197,11 +198,10 @@ bool KSMoon::findGeocentricPosition(const KSNumbers *num, const KSPlanetBase *)
     if (!loadData())
         return false;
 
-    for (int i = 0; i < LRData.size(); ++i)
+    for (const auto &mlrd : LRData)
     {
-        const MoonLRData &mlrd = LRData[i];
-
         double E = 1.0;
+
         if (mlrd.nm) //if M != 0, include changing eccentricity of Earth's orbit
         {
             E = Et;
@@ -213,11 +213,10 @@ bool KSMoon::findGeocentricPosition(const KSNumbers *num, const KSPlanetBase *)
     }
 
     sumB = 0.0;
-    for (int i = 0; i < BData.size(); ++i)
+    for (const auto &mbd : BData)
     {
-        const MoonBData &mbd = BData[i];
-
         double E = 1.0;
+
         if (mbd.nm) //if M != 0, include changing eccentricity of Earth's orbit
         {
             E = Et;
@@ -278,12 +277,14 @@ void KSMoon::findPhase(const KSSun *Sun)
     if (Sun == nullptr)
     {
         if (defaultSun == nullptr)
-            defaultSun = dynamic_cast<KSSun*>(KStarsData::Instance()->skyComposite()->findByName("Sun"));
+            defaultSun = KStarsData::Instance()->skyComposite()->solarSystemComposite()->sun();
         Sun = defaultSun;
     }
 
     Q_ASSERT(Sun != nullptr);
 
+    // This is an approximation justified by the small Earth-Moon distance in relation
+    // to the great Earth-Sun distance
     Phase           = (ecLong() - Sun->ecLong()).Degrees(); // Phase is obviously in degrees
     double DegPhase = dms(Phase).reduce().Degrees();
     iPhase          = int(0.1 * DegPhase + 0.5) % 36; // iPhase must be in [0,36) range

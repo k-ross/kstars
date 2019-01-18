@@ -106,7 +106,7 @@ void DetailDialogLite::createGeneralTab()
                             (i18nc("number in parsecs", "%1 pc", QLocale().toString(s->distance(), 'f', 2))));
             }
 
-            //Note multiplicity/variablility in angular size label
+            //Note multiplicity/variability in angular size label
             setProperty("angSize", QString());
             if (s->isMultiple() && s->isVariable())
             {
@@ -572,7 +572,7 @@ void DetailDialogLite::createLogTab()
     }
 
     /*//Automatically save the log contents when the widget loses focus
-    connect( Log->UserLog, SIGNAL( focusOut() ), this, SLOT( saveLogData() ) );*/
+    connect( Log->UserLog, SIGNAL(focusOut()), this, SLOT(saveLogData()) );*/
 }
 
 void DetailDialogLite::createLinksTab()

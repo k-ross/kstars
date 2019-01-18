@@ -20,20 +20,20 @@
 
 #include "hipsmanager.h"
 
+#include "auxiliary/kspaths.h"
+#include "auxiliary/ksuserdb.h"
+#include "kstars.h"
+#include "kstarsdata.h"
+#include "kstars_debug.h"
+#include "Options.h"
+#include "skymap.h"
+
+#include <KConfigDialog>
+
 #include <QTime>
 #include <QHash>
 #include <QNetworkDiskCache>
 #include <QPainter>
-#include <KConfigDialog>
-
-#include "auxiliary/kspaths.h"
-#include "auxiliary/ksuserdb.h"
-#include "skymap.h"
-#include "kstarsdata.h"
-#include "kstars.h"
-#include "Options.h"
-
-#include "kstars_debug.h"
 
 static QNetworkDiskCache *g_discCache = nullptr;
 static UrlFileDownload *g_download = nullptr;
@@ -217,7 +217,9 @@ QImage *HIPSManager::getPix(bool allsky, int level, int pix, bool &freeImage)
   if (!allsky)
   {
     int dir = (pix / 10000) * 10000;
-    path = "/Norder" + QString::number(level) + "/Dir" + QString::number(dir) + "/Npix" + QString::number(pix) + "." + m_currentFormat;
+
+    path = "/Norder" + QString::number(level) + "/Dir" + QString::number(dir) + "/Npix" + QString::number(pix) +
+           '.' + m_currentFormat;
   }
   else
   {

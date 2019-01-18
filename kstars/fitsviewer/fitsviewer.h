@@ -48,7 +48,7 @@ class FITSView;
 /**
  * @class FITSViewer
  * @short Primary window to view monochrome and color FITS images.
- * The FITSviewer can open multiple images each in a separate. It supports simple filters, histogram transforms, flip and roration operations, and star detection.
+ * The FITSviewer can open multiple images each in a separate. It supports simple filters, histogram transforms, flip and rotation operations, and star detection.
  *
  * @author Jasem Mutlaq
  * @version 1.0
@@ -62,14 +62,15 @@ class FITSViewer : public KXmlGuiWindow
     explicit FITSViewer(QWidget *parent);
     ~FITSViewer();
 
-    int addFITS(const QUrl *imageName, FITSMode mode = FITS_NORMAL, FITSScale filter = FITS_NONE,
+    void addFITS(const QUrl &imageName, FITSMode mode = FITS_NORMAL, FITSScale filter = FITS_NONE,
                 const QString &previewText = QString(), bool silent = true);
 
-    bool updateFITS(const QUrl *imageName, int fitsUID, FITSScale filter = FITS_NONE, bool silent = true);
+    void updateFITS(const QUrl &imageName, int fitsUID, FITSScale filter = FITS_NONE, bool silent = true);
     bool removeFITS(int fitsUID);
 
     bool isStarsMarked() { return markStars; }
 
+    bool empty() const { return fitsTabs.empty(); }
     QList<FITSTab *> getTabs() { return fitsTabs; }
     FITSView *getView(int fitsUID);
     FITSView *getCurrentView();
@@ -107,6 +108,7 @@ class FITSViewer : public KXmlGuiWindow
     void toggleObjects();
     void togglePixelGrid();
     void toggle3DGraph();
+    void starProfileButtonOff();
     void centerTelescope();
     void updateWCSFunctions();
     void applyFilter(int ftype);
@@ -120,7 +122,7 @@ class FITSViewer : public KXmlGuiWindow
   private:
     void updateButtonStatus(const QString &action, const QString &item, bool showing);
 
-    QTabWidget *fitsTab { nullptr };
+    QTabWidget *fitsTabWidget { nullptr };
     QUndoGroup *undoGroup { nullptr };
     FITSDebayer *debayerDialog { nullptr };
     KLed led;
@@ -135,4 +137,7 @@ class FITSViewer : public KXmlGuiWindow
 
   signals:
     void trackingStarSelected(int x, int y);
+    void loaded(int tabUID);
+    void closed(int tabUID);
+    void failed();
 };

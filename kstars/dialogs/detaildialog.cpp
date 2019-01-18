@@ -121,7 +121,7 @@ void DetailDialog::createGeneralTab()
                 Data->Names->setText(s->longname());
             }
 
-            objecttyp = s->sptype() + ' ' + i18n("star");
+            objecttyp = i18n("%1 star", s->sptype());
             Data->Magnitude->setText(i18nc("number in magnitudes", "%1 mag",
                                            QLocale().toString(s->mag(), 'f', 2))); //show to hundredth place
 
@@ -155,7 +155,7 @@ void DetailDialog::createGeneralTab()
                 Data->Distance->setText(i18nc("number in parsecs", "%1 pc", QLocale().toString(s->distance(), 'f', 2)));
             }
 
-            //Note multiplicity/variablility in angular size label
+            //Note multiplicity/variability in angular size label
             Data->AngSizeLabel->setText(QString());
             Data->AngSize->setText(QString());
             Data->AngSizeLabel->setFont(Data->AngSize->font());
@@ -1076,7 +1076,7 @@ void DetailDialog::populateADVTree()
     QTreeWidgetItem *parent = nullptr;
     QTreeWidgetItem *temp   = nullptr;
 
-    // We populate the tree iterativley, keeping track of parents as we go
+    // We populate the tree iteratively, keeping track of parents as we go
     // This solution is more efficient than the previous recursion algorithm.
     foreach (ADVTreeData *item, KStarsData::Instance()->avdTree())
     {
@@ -1250,7 +1250,7 @@ void DetailDialog::showThumbnail()
     //Try to load the object's image from disk
     //If no image found, load "no image" image
     QFile file;
-    QString fname = "thumb-" + selectedObject->name().toLower().remove(' ') + ".png";
+    QString fname = "thumb-" + selectedObject->name().toLower().remove(' ').remove('/') + ".png";
     if (KSUtils::openDataFile(file, fname))
     {
         file.close();
@@ -1272,7 +1272,7 @@ void DetailDialog::updateThumbnail()
     if (tp->exec() == QDialog::Accepted)
     {
         QString fname = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + "thumb-" +
-                        selectedObject->name().toLower().remove(' ') + ".png";
+                        selectedObject->name().toLower().remove(' ').remove('/') + ".png";
 
         Data->Image->setPixmap(*(tp->image()));
 
@@ -1283,7 +1283,7 @@ void DetailDialog::updateThumbnail()
             bool rc = Data->Image->pixmap()->save(fname, "PNG");
             if (rc == false)
             {
-                KMessageBox::error(nullptr, i18n("Error: Unable to save image to %1", fname), i18n("Save Thumbnail"));
+                KMessageBox::error(nullptr, i18n("Unable to save image to %1", fname), i18n("Save Thumbnail"));
             }
             else
                 *Thumbnail = *(Data->Image->pixmap());

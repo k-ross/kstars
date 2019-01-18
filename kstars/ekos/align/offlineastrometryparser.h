@@ -24,7 +24,7 @@ class Align;
  * @class  OfflineAstrometryParser
  * OfflineAstrometryParser invokes the offline astrometry.net solver to find solutions to captured images.
  *
- * @authro Jasem Mutlaq
+ * @author Jasem Mutlaq
  */
 
 class OfflineAstrometryParser : public AstrometryParser
@@ -35,11 +35,11 @@ class OfflineAstrometryParser : public AstrometryParser
     OfflineAstrometryParser();
     virtual ~OfflineAstrometryParser() override = default;
 
-    virtual void setAlign(Align *_align) { align = _align; }
-    virtual bool init();
-    virtual void verifyIndexFiles(double fov_x, double fov_y);
-    virtual bool startSovler(const QString &filename, const QStringList &args, bool generated = true);
-    virtual bool stopSolver();
+    virtual void setAlign(Align *_align) override { align = _align; }
+    virtual bool init() override;
+    virtual void verifyIndexFiles(double fov_x, double fov_y) override;
+    virtual bool startSovler(const QString &filename, const QStringList &args, bool generated = true) override;
+    virtual bool stopSolver() override;
 
   public slots:
     void solverComplete(int exist_status);
@@ -48,6 +48,7 @@ class OfflineAstrometryParser : public AstrometryParser
 
   private:
     bool astrometryNetOK();
+    bool createLocalAstrometryConf();
     bool getAstrometryDataDir(QString &dataDir);
 
     QMap<float, QString> astrometryIndex;

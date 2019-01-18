@@ -26,6 +26,7 @@
 
 namespace ISD
 {
+
 GDSetCommand::GDSetCommand(INDI_PROPERTY_TYPE inPropertyType, const QString &inProperty, const QString &inElement,
                            QVariant qValue, QObject *parent)
     : QObject(parent)
@@ -44,6 +45,22 @@ GenericDevice::GenericDevice(DeviceInfo &idv)
     clientManager = driverInfo->getClientManager();
 
     dType = KSTARS_UNKNOWN;
+
+    registerDBusType();
+}
+
+void GenericDevice::registerDBusType()
+{
+#ifndef KSTARS_LITE
+    static bool isRegistered = false;
+
+    if (isRegistered == false)
+    {
+        qRegisterMetaType<ISD::ParkStatus>("ISD::ParkStatus");
+        qDBusRegisterMetaType<ISD::ParkStatus>();
+        isRegistered = true;
+    }
+#endif
 }
 
 const char *GenericDevice::getDeviceName()
@@ -96,6 +113,24 @@ void GenericDevice::registerProperty(INDI::Property *prop)
             IText *tp = IUFindText(tvp, "DRIVER_INTERFACE");
             if (tp)
                 driverInterface = static_cast<uint32_t>(atoi(tp->text));
+        }
+    }
+    else if (!strcmp(prop->getName(), "SYSTEM_PORTS"))
+    {
+        // Check if our current port is set to one of the system ports. This indicates that the port
+        // is not mapped yet to a permenant designation
+        ISwitchVectorProperty *svp = prop->getSwitch();
+        ITextVectorProperty *port = baseDevice->getText("DEVICE_PORT");
+        if (svp && port)
+        {
+            for (int i=0; i < svp->nsp; i++)
+            {
+                if (!strcmp(port->tp[0].text, svp->sp[i].name))
+                {
+                    emit systemPortDetected();
+                    break;
+                }
+            }
         }
     }
     else if (!strcmp(prop->getName(), "TIME_UTC") && Options::useTimeUpdate() && Options::useKStarsSource())
@@ -221,6 +256,7 @@ void GenericDevice::processNumber(INumberVectorProperty *nvp)
             elev = np->value;
 
         GeoLocation *geo = KStars::Instance()->data()->geo();
+        std::unique_ptr<GeoLocation> tempGeo;
 
         QString newLocationName;
         if (getDriverInterface() & INDI::BaseDevice::GPS_INTERFACE)
@@ -232,7 +268,8 @@ void GenericDevice::processNumber(INumberVectorProperty *nvp)
         {
             double TZ0 = geo->TZ0();
             TimeZoneRule *rule = geo->tzrule();
-            geo = new GeoLocation(lng, lat, newLocationName, "", "", TZ0, rule, elev);
+            tempGeo.reset(new GeoLocation(lng, lat, newLocationName, "", "", TZ0, rule, elev));
+            geo = tempGeo.get();
         }
         else
         {
@@ -240,7 +277,7 @@ void GenericDevice::processNumber(INumberVectorProperty *nvp)
             geo->setLat(lat);
         }
 
-        qCInfo(KSTARS_INDI) << "Setting location from device:" << getDeviceName() << "Longitude:" << lng.toDMSString() << "Latitude:" << lat.toDMSString();
+        qCInfo(KSTARS_INDI) << "Setting location from device:" << deviceName << "Longitude:" << lng.toDMSString() << "Latitude:" << lat.toDMSString();
 
         KStars::Instance()->data()->setLocation(*geo);
     }
@@ -276,23 +313,28 @@ void GenericDevice::processText(ITextVectorProperty *tvp)
         float utcOffset;
         QDate indiDate;
         QTime indiTime;
-        KStarsDateTime indiDateTime;
 
         tp = IUFindText(tvp, "UTC");
 
         if (!tp)
+        {
+            qCWarning(KSTARS_INDI) << "UTC property missing from TIME_UTC";
             return;
+        }
 
         sscanf(tp->text, "%d%*[^0-9]%d%*[^0-9]%dT%d%*[^0-9]%d%*[^0-9]%d", &y, &m, &d, &hour, &min, &sec);
         indiDate.setDate(y, m, d);
         indiTime.setHMS(hour, min, sec);
-        indiDateTime.setDate(indiDate);
-        indiDateTime.setTime(indiTime);
+
+        KStarsDateTime indiDateTime(QDateTime(indiDate, indiTime, Qt::UTC));
 
         tp = IUFindText(tvp, "OFFSET");
 
         if (!tp)
+        {
+            qCWarning(KSTARS_INDI) << "Offset property missing from TIME_UTC";
             return;
+        }
 
         sscanf(tp->text, "%f", &utcOffset);
 
@@ -1015,3 +1057,23 @@ bool ST4::doPulse(GuideDirection dir, int msecs)
     return true;
 }
 }
+
+#ifndef KSTARS_LITE
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::ParkStatus& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, ISD::ParkStatus &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<ISD::ParkStatus>(a);
+    return argument;
+}
+#endif

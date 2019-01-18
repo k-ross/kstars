@@ -20,7 +20,7 @@
 #include <QTime>
 #include <QTimer>
 #include <QUrl>
-#include <QtDBus/QtDBus>
+#include <QtDBus>
 
 #include <cstdint>
 
@@ -44,16 +44,11 @@ class Scheduler : public QWidget, public Ui::Scheduler
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.kde.kstars.Ekos.Scheduler")
+    Q_PROPERTY(Ekos::SchedulerState status READ status NOTIFY newStatus)
+    Q_PROPERTY(QStringList logText READ logText NOTIFY newLog)
+    Q_PROPERTY(QString profile READ profile WRITE setProfile)
 
   public:
-    typedef enum {
-        SCHEDULER_IDLE,
-        SCHEDULER_STARTUP,
-        SCHEDULER_RUNNIG,
-        SCHEDULER_PAUSED,
-        SCHEDULER_SHUTDOWN,
-        SCHEDULER_ABORTED
-    } SchedulerState;
     typedef enum { EKOS_IDLE, EKOS_STARTING, EKOS_STOPPING, EKOS_READY } EkosState;
     typedef enum { INDI_IDLE, INDI_CONNECTING, INDI_DISCONNECTING, INDI_PROPERTY_CHECK, INDI_READY } INDIState;
     typedef enum {
@@ -97,10 +92,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
         SCHEDCOL_NAME = 0,
         SCHEDCOL_STATUS,
         SCHEDCOL_CAPTURES,
+        SCHEDCOL_ALTITUDE,
         SCHEDCOL_SCORE,
         SCHEDCOL_STARTTIME,
         SCHEDCOL_ENDTIME,
         SCHEDCOL_DURATION,
+        SCHEDCOL_LEADTIME,
         SCHEDCOL_COUNT
     } SchedulerColumns;
 
@@ -109,7 +106,8 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
     QString getCurrentJobName();
     void appendLogText(const QString &);
-    QString getLogText() { return logText.join("\n"); }
+    QStringList logText() { return m_LogText; }
+    QString getLogText() { return m_LogText.join("\n"); }
     void clearLog();
 
     void addObject(SkyObject *object);
@@ -138,8 +136,10 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
     /**
          * @brief startCapture The current job file name is solved to an url which is fed to ekos. We then start the capture process
+         * @param restart Set to true if the goal to restart an existing sequence. The only difference is that when a sequence is restarted, sequence file
+         * is not loaded from disk again since that results in erasing all the history of the capture process.
          */
-    void startCapture();
+    void startCapture(bool restart = false);
 
     /**
          * @brief getNextAction Checking for the next appropriate action regarding the current state of the scheduler  and execute it
@@ -171,9 +171,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
          * @brief findAltitude Find altitude given a specific time
          * @param target Target
          * @param when date time to find altitude
+         * @param is_setting whether target is setting at the argument time (optional).
+         * @param debug outputs calculation to log file (optional).
          * @return Altitude of the target at the specific date and time given.
+         * @warning This function uses the current KStars geolocation.
          */
-    static double findAltitude(const SkyPoint &target, const QDateTime &when);
+    static double findAltitude(const SkyPoint &target, const QDateTime &when, bool *is_setting = nullptr, bool debug = false);
 
     /** @defgroup SchedulerDBusInterface Ekos DBus Interface - Scheduler Module
          * Ekos::Align interface provides primary functions to run and stop the scheduler.
@@ -203,9 +206,65 @@ class Scheduler : public QWidget, public Ui::Scheduler
          */
     Q_SCRIPTABLE void resetAllJobs();
 
+    /** DBUS interface function.
+         * @brief Resets all jobs to IDLE
+         */
+    Q_SCRIPTABLE void sortJobsPerAltitude();
+
+    Ekos::SchedulerState status() { return state; }
+
+    void setProfile(const QString &profile) {schedulerProfileCombo->setCurrentText(profile);}
+    QString profile() {return schedulerProfileCombo->currentText();}
+
     /** @}*/
 
+    /** @{ */
+  private:
+    /** @internal Safeguard flag to avoid registering signals from widgets multiple times.
+     */
+    bool jobChangesAreWatched { false };
+
+  protected:
+    /** @internal Enables signal watch on SchedulerJob form values in order to apply changes to current job.
+      * @param enable is the toggle flag, true to watch for changes, false to ignore them.
+      */
+    void watchJobChanges(bool enable);
+
+    /** @internal Marks the currently selected SchedulerJob as modified change.
+     *
+     * This triggers job re-evaluation.
+     * Next time save button is invoked, the complete content is written to disk.
+      */
+    void setDirty();
+    /** @} */
+
+  protected:
+    /** @internal Associate job table cells on a row to the corresponding SchedulerJob.
+     * @param row is an integer indexing the row to associate cells from, and also the index of the job in the job list..
+     */
+    void setJobStatusCells(int row);
+
   protected slots:
+
+    /**
+     * @brief registerNewModule Register an Ekos module as it arrives via DBus
+     * and create the appropriate DBus interface to communicate with it.
+     * @param name of module
+     */
+    void registerNewModule(const QString &name);
+
+    /**
+     * @brief syncProperties Sync startup properties from the various device to enable/disable features in the scheduler
+     * like the ability to park/unpark..etc
+     */
+    void syncProperties();
+
+    void setAlignStatus(Ekos::AlignState status);
+    void setGuideStatus(Ekos::GuideState status);
+    void setCaptureStatus(Ekos::CaptureState status);
+    void setFocusStatus(Ekos::FocusState status);
+    void setMountStatus(ISD::Telescope::Status status);
+    void setWeatherStatus(uint32_t status);
 
     /**
          * @brief select object from KStars's find dialog.
@@ -254,20 +313,56 @@ class Scheduler : public QWidget, public Ui::Scheduler
          */
     void removeJob();
 
+    /**
+         * @brief setJobAddApply Set first button state to add new job or apply changes.
+         */
+    void setJobAddApply(bool add_mode);
+
+    /**
+         * @brief setJobManipulation Enable or disable job manipulation buttons.
+         */
+    void setJobManipulation(bool can_reorder, bool can_delete);
+
+    /**
+         * @brief jobSelectionChanged Update UI state when the job list is clicked once.
+         */
+    void clickQueueTable(QModelIndex index);
+
+    /**
+         * @brief reorderJobs Change the order of jobs in the UI based on a subset of its jobs.
+         */
+    bool reorderJobs(QList<SchedulerJob*> reordered_sublist);
+
+    /**
+         * @brief moveJobUp Move the selected job up in the job list.
+         */
+    void moveJobUp();
+
+    /**
+        * @brief moveJobDown Move the selected job down in the list.
+        */
+    void moveJobDown();
+
+    /**
+     * @brief shouldSchedulerSleep Check if the scheduler needs to sleep until the job is ready
+     * @param job Job to check
+     * @return True if we set the scheduler to sleep mode. False, if not required and we need to execute now
+     */
+    bool shouldSchedulerSleep(SchedulerJob *currentJob);
+
     void toggleScheduler();
     void pause();
     void save();
     void saveAs();
     void load();
 
-    void resetJobState(QModelIndex i);
-
     void resetJobEdit();
 
     /**
-         * @brief checkJobStatus Check the overall state of the scheduler, Ekos, and INDI. When all is OK, it call evaluateJobs();
+         * @brief checkJobStatus Check the overall state of the scheduler, Ekos, and INDI. When all is OK, it calls evaluateJobs() when no job is current or executeJob() if a job is selected.
+         * @return False if this function needs to be called again later, true if situation is stable and operations may continue.
          */
-    void checkStatus();
+    bool checkStatus();
 
     /**
          * @brief checkJobStage Check the progress of the job states and make DBUS call to start the next stage until the job is complete.
@@ -285,6 +380,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
     void stopCurrentJobAction();
 
     /**
+         * @brief manageConnectionLoss Mitigate loss of connection with the INDI server.
+         * @return true if connection to Ekos/INDI should be attempted again, false if not mitigation is available or needed.
+         */
+    bool manageConnectionLoss();
+
+    /**
          * @brief readProcessOutput read running script process output and display it in Ekos
          */
     void readProcessOutput();
@@ -296,16 +397,6 @@ class Scheduler : public QWidget, public Ui::Scheduler
     void checkProcessExit(int exitCode);
 
     /**
-         * @brief watchJobChanges Watch any changes in form values and apply changes to current job selection or ignore any changes
-         * @param enable True to watch changes and apply them to current job, false to ignore changes
-         */
-    void watchJobChanges(bool enable);
-    /**
-         * @brief setDirty Call it to mark the Ekos Scheduler List for change. Next time save button is invoked, the complete content is written to disk.
-         */
-    void setDirty();
-
-    /**
          * @brief resumeCheckStatus If the scheduler primary loop was suspended due to weather or sleep event, resume it again.
          */
     void resumeCheckStatus();
@@ -313,7 +404,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
     /**
          * @brief checkWeather Check weather status and act accordingly depending on the current status of the scheduler and running jobs.
          */
-    void checkWeather();
+    //void checkWeather();
 
     /**
          * @brief wakeUpScheduler Wake up scheduler from sleep state
@@ -341,8 +432,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
     void runShutdownProcedure();
     void checkShutdownProcedure();
 
+    void setINDICommunicationStatus(Ekos::CommunicationStatus status);
+    void setEkosCommunicationStatus(Ekos::CommunicationStatus status);
+
   signals:
-    void newLog();
+    void newLog(const QString &text);
+    void newStatus(Ekos::SchedulerState state);
     void weatherChanged(IPState state);
     void newTarget(const QString &);
 
@@ -362,53 +457,61 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
     void executeScript(const QString &filename);
 
-    int16_t getDarkSkyScore(const QDateTime &observationDateTime);
+    /**
+         * @brief getDarkSkyScore Get the dark sky score of a date and time. The further from dawn the better.
+         * @param when date and time to check the dark sky score, now if omitted
+         * @return Dark sky score. Daylight get bad score, as well as pre-dawn to dawn.
+         */
+    int16_t getDarkSkyScore(QDateTime const &when = QDateTime()) const;
 
     /**
          * @brief getAltitudeScore Get the altitude score of an object. The higher the better
-         * @param job Active job
-         * @param when At what time to check the target altitude
-         * @return Altitude score. Altitude below minimum default of 15 degrees but above horizon get -20 score. Bad altitude below minimum required altitude or below horizon get -1000 score.
+         * @param job Target job
+         * @param when date and time to check the target altitude, now if omitted.
+         * @return Altitude score. Target altitude below minimum altitude required by job or setting target under 3 degrees below minimum altitude get bad score.
          */
-    int16_t getAltitudeScore(SchedulerJob *job, QDateTime when);
+    int16_t getAltitudeScore(SchedulerJob const *job, QDateTime const &when = QDateTime()) const;
 
     /**
          * @brief getMoonSeparationScore Get moon separation score. The further apart, the better, up a maximum score of 20.
          * @param job Target job
-         * @param when What time to check the moon separation?
+         * @param when date and time to check the moon separation, now if omitted.
          * @return Moon separation score
          */
-    int16_t getMoonSeparationScore(SchedulerJob *job, QDateTime when);
+    int16_t getMoonSeparationScore(SchedulerJob const *job, QDateTime const &when = QDateTime()) const;
 
     /**
          * @brief calculateJobScore Calculate job dark sky score, altitude score, and moon separation scores and returns the sum.
-         * @param job job to evaluate
-         * @param when time to evaluate constraints
+         * @param job Target
+         * @param when date and time to evaluate constraints, now if omitted.
          * @return Total score
          */
-    int16_t calculateJobScore(SchedulerJob *job, QDateTime when);
+    int16_t calculateJobScore(SchedulerJob const *job, QDateTime const &when = QDateTime()) const;
 
     /**
-         * @brief getWeatherScore Get weather condition score.
-         * @return If weather condition OK, return 0, if warning return -500, if alert return -1000
+         * @brief getWeatherScore Get current weather condition score.
+         * @return If weather condition OK, return score 0, else bad score.
          */
-    int16_t getWeatherScore();
+    int16_t getWeatherScore() const;
 
     /**
          * @brief calculateAltitudeTime calculate the altitude time given the minimum altitude given.
          * @param job active target
          * @param minAltitude minimum altitude required
          * @param minMoonAngle minimum separation from the moon. -1 to ignore.
-         * @return True if found a time in the night where the object is at or above the minimum altitude, false otherise.
+         * @param when date and time to start searching from, now if omitted.
+         * @return The date and time the target is at or above the argument altitude, valid if found, invalid if not achievable (always under altitude).
          */
-    bool calculateAltitudeTime(SchedulerJob *job, double minAltitude, double minMoonAngle = -1);
+    QDateTime calculateAltitudeTime(SchedulerJob const *job, double minAltitude, double minMoonAngle = -1, QDateTime const &when = QDateTime()) const;
 
     /**
          * @brief calculateCulmination find culmination time adjust for the job offset
-         * @param job Active job
-         * @return True if culmination time adjust for offset is a valid time in the night
+         * @param job active target
+         * @param offset_minutes offset in minutes before culmination to search for.
+         * @param when date and time to start searching from, now if omitted
+         * @return The date and time the target is in entering the culmination interval, valid if found, invalid if not achievable (currently always valid).
          */
-    bool calculateCulmination(SchedulerJob *job);
+    QDateTime calculateCulmination(SchedulerJob const *job, int offset_minutes, QDateTime const &when = QDateTime()) const;
 
     /**
          * @brief calculateDawnDusk Get dawn and dusk times for today
@@ -420,6 +523,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
          * @return True if Ekos is running, false if Ekos start up is in progress.
          */
     bool checkEkosState();
+
+    /**
+         * @brief isINDIConnected Determines the status of the INDI connection.
+         * @return True if INDI connection is up and usable, else false.
+         */
+    bool isINDIConnected();
 
     /**
          * @brief checkINDIState Check INDI startup stages and take whatever action necessary to get INDI devices connected.
@@ -519,7 +628,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
          * @param job scheduler job
          * @return Separation in degrees
          */
-    double getCurrentMoonSeparation(SchedulerJob *job);
+    double getCurrentMoonSeparation(SchedulerJob const *job) const;
 
     /**
          * @brief updatePreDawn Update predawn time depending on current time and user offset
@@ -553,7 +662,11 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
     bool isWeatherOK(SchedulerJob *job);
 
-    void updateCompletedJobsCount();
+    /**
+        * @brief updateCompletedJobsCount For each scheduler job, examine sequence job storage and count captures.
+        * @param forced forces recounting captures unconditionally if true, else only IDLE, EVALUATION or new jobs are examined.
+        */
+    void updateCompletedJobsCount(bool forced = false);
 
     SequenceJob *processJobInfo(XMLEle *root, SchedulerJob *schedJob);
     bool loadSequenceQueue(const QString &fileURL, SchedulerJob *schedJob, QList<SequenceJob *> &jobs,
@@ -562,15 +675,15 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
     Ekos::Scheduler *ui { nullptr };
     //DBus interfaces
-    QDBusInterface *focusInterface { nullptr };
-    QDBusInterface *ekosInterface { nullptr };
-    QDBusInterface *captureInterface { nullptr };
-    QDBusInterface *mountInterface { nullptr };
-    QDBusInterface *alignInterface { nullptr };
-    QDBusInterface *guideInterface { nullptr };
-    QDBusInterface *domeInterface { nullptr };
-    QDBusInterface *weatherInterface { nullptr };
-    QDBusInterface *capInterface { nullptr };
+    QPointer<QDBusInterface> focusInterface { nullptr };
+    QPointer<QDBusInterface> ekosInterface { nullptr };
+    QPointer<QDBusInterface> captureInterface { nullptr };
+    QPointer<QDBusInterface> mountInterface { nullptr };
+    QPointer<QDBusInterface> alignInterface { nullptr };
+    QPointer<QDBusInterface> guideInterface { nullptr };
+    QPointer<QDBusInterface> domeInterface { nullptr };
+    QPointer<QDBusInterface> weatherInterface { nullptr };
+    QPointer<QDBusInterface> capInterface { nullptr };
     // Scheduler and job state and stages
     SchedulerState state { SCHEDULER_IDLE };
     EkosState ekosState { EKOS_IDLE };
@@ -578,6 +691,8 @@ class Scheduler : public QWidget, public Ui::Scheduler
     StartupState startupState { STARTUP_IDLE };
     ShutdownState shutdownState { SHUTDOWN_IDLE };
     ParkWaitStatus parkWaitState { PARKWAIT_IDLE };
+    Ekos::CommunicationStatus m_EkosCommunicationStatus { Ekos::Idle };
+    Ekos::CommunicationStatus m_INDICommunicationStatus { Ekos::Idle };
     /// List of all jobs as entered by the user or file
     QList<SchedulerJob *> jobs;
     /// Active job
@@ -593,7 +708,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
     /// Shutdown script URL
     QUrl shutdownScriptURL;
     /// Store all log strings
-    QStringList logText;
+    QStringList m_LogText;
     /// Busy indicator widget
     QProgressIndicator *pi { nullptr };
     /// Are we editing a job right now? Job row index
@@ -630,6 +745,8 @@ class Scheduler : public QWidget, public Ui::Scheduler
     bool autofocusCompleted { false };
     /// Keep track of INDI connection failures
     uint8_t indiConnectFailureCount { 0 };
+    /// Keep track of Ekos connection failures
+    uint8_t ekosConnectFailureCount { 0 };
     /// Keep track of Ekos focus module failures
     uint8_t focusFailureCount { 0 };
     /// Keep track of Ekos guide module failures
@@ -639,7 +756,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
     /// Keep track of Ekos capture module failures
     uint8_t captureFailureCount { 0 };
     /// Call checkWeather when weatherTimer time expires. It is equal to the UpdatePeriod time in INDI::Weather device.
-    QTimer weatherTimer;
+    //QTimer weatherTimer;
     /// Timer to put the scheduler into sleep mode until a job is ready
     QTimer sleepTimer;
     /// To call checkStatus
@@ -653,5 +770,19 @@ class Scheduler : public QWidget, public Ui::Scheduler
     QUrl dirPath;
 
     QMap<QString,uint16_t> capturedFramesCount;
+
+    bool m_MountReady { false };
+    bool m_CaptureReady { false };
+    bool m_DomeReady { false };
+    bool m_CapReady { false };
+
+    // When a module is commanded to perform an action, wait this many milliseconds
+    // before check its state again. If State is still IDLE, then it either didn't received the command
+    // or there is another problem.
+    static const uint32_t ALIGN_INACTIVITY_TIMEOUT      = 120000;
+    static const uint32_t FOCUS_INACTIVITY_TIMEOUT      = 120000;
+    static const uint32_t CAPTURE_INACTIVITY_TIMEOUT    = 120000;
+    static const uint16_t GUIDE_INACTIVITY_TIMEOUT      = 60000;
+
 };
 }

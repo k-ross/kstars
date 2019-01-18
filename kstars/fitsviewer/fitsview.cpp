@@ -8,9 +8,8 @@
     version 2 of the License, or (at your option) any later version.
 */
 
-#include "fitsview.h"
-
 #include "config-kstars.h"
+#include "fitsview.h"
 
 #include "fitsdata.h"
 #include "fitslabel.h"
@@ -29,6 +28,11 @@
 #include <KActionCollection>
 
 #include <QtConcurrent>
+#include <QScrollBar>
+#include <QToolBar>
+#include <QGraphicsOpacityEffect>
+#include <QApplication>
+#include <QGestureEvent>
 
 #define BASE_OFFSET    50
 #define ZOOM_DEFAULT   100.0
@@ -57,6 +61,8 @@ FITSView::FITSView(QWidget *parent, FITSMode fitsMode, FITSScale filterType) : Q
     connect(image_frame.get(), SIGNAL(markerSelected(int,int)), this, SLOT(processMarkerSelection(int,int)));
     connect(&wcsWatcher, SIGNAL(finished()), this, SLOT(syncWCSState()));
 
+    connect(&fitsWatcher, &QFutureWatcher<bool>::finished, this, &FITSView::loadInFrame);
+
     image_frame->setMouseTracking(true);
     setCursorMode(
         selectCursor); //This is the default mode because the Focus and Align FitsViews should not be in dragMouse mode
@@ -79,10 +85,9 @@ FITSView::FITSView(QWidget *parent, FITSMode fitsMode, FITSScale filterType) : Q
 
 FITSView::~FITSView()
 {
+    fitsWatcher.waitForFinished();
     wcsWatcher.waitForFinished();
-
     delete (imageData);
-    delete (display_image);
 }
 
 /**
@@ -152,10 +157,7 @@ void FITSView::resizeEvent(QResizeEvent *event)
     QScrollArea::resizeEvent(event);
 }
 
-/*void FITSView::setLoadWCSEnabled(bool value)
-{
-    loadWCSEnabled = value;
-}*/
+#if 0
 
 bool FITSView::loadFITS(const QString &inFilename, bool silent)
 {
@@ -216,7 +218,8 @@ bool FITSView::loadFITS(const QString &inFilename, bool silent)
 
     emit debayerToggled(imageData->hasDebayer());
 
-    imageData->getDimensions(&currentWidth, &currentHeight);
+    currentWidth = imageData->width();
+    currentHeight = imageData->height();
 
     image_width  = currentWidth;
     image_height = currentHeight;
@@ -273,7 +276,147 @@ bool FITSView::loadFITS(const QString &inFilename, bool silent)
         QTimer::singleShot(100 , this , SLOT(viewStarProfile()));  //Need to wait till the Focus module finds stars, if its the Focus module.
     }
 
+    updateFrame();
+
+    emit imageLoaded();
+
     return true;
+}
+#endif
+
+void FITSView::loadFITS(const QString &inFilename, bool silent)
+{
+    if (floatingToolBar != nullptr)
+    {
+        floatingToolBar->setVisible(true);
+    }
+
+    bool setBayerParams = false;
+
+    BayerParams param;
+    if ((imageData != nullptr) && imageData->hasDebayer())
+    {
+        setBayerParams = true;
+        imageData->getBayerParams(&param);
+    }
+
+    // In case loadWCS is still running for previous image data, let's wait until it's over
+    wcsWatcher.waitForFinished();
+
+    delete imageData;
+    imageData = nullptr;
+
+    filterStack.clear();
+    filterStack.push(FITS_NONE);
+    if (filter != FITS_NONE)
+        filterStack.push(filter);
+
+    imageData = new FITSData(mode);
+
+    if (setBayerParams)
+        imageData->setBayerParams(&param);
+
+    fitsWatcher.setFuture(imageData->loadFITS(inFilename, silent));
+}
+
+void FITSView::loadInFrame()
+{
+    // Check if the loading was OK
+    if (fitsWatcher.result() == false)
+    {
+        m_LastError = imageData->getLastError();
+        emit failed();
+        return;
+    }
+
+    // Notify if there is debayer data.
+    emit debayerToggled(imageData->hasDebayer());
+
+    // Set current width and height
+    currentWidth = imageData->width();
+    currentHeight = imageData->height();
+
+    image_width  = currentWidth;
+    image_height = currentHeight;
+
+    image_frame->setSize(image_width, image_height);
+
+    // Init the display image
+    initDisplayImage();
+
+    uint8_t *ASImageBuffer = nullptr;
+
+    if (Options::autoStretch() && (filter == FITS_NONE || (filter >= FITS_ROTATE_CW && filter <= FITS_FLIP_V)))
+    {
+         // If we perform autostretch, we need to create a buffer to save the raw image data before
+         // autostretch filter operation changes the data.
+         // After rescaling is done, we
+         uint32_t totalBytes = image_width * image_height *imageData->channels() * imageData->getBytesPerPixel();
+         ASImageBuffer = new uint8_t[totalBytes];
+         memcpy(ASImageBuffer, imageData->getImageBuffer(), totalBytes);
+         imageData->applyFilter(FITS_AUTO_STRETCH);
+    }
+    else
+        imageData->applyFilter(filter);
+
+    // Rescale to fits window on first load
+    if (firstLoad)
+    {
+        currentZoom = 100;
+
+        if (rescale(ZOOM_FIT_WINDOW) == false)
+        {
+            m_LastError = i18n("Rescaling image failed.");
+            delete [] ASImageBuffer;
+            emit failed();
+            return;
+        }
+
+        firstLoad = false;
+    }
+    else
+    {
+        if (rescale(ZOOM_KEEP_LEVEL) == false)
+        {
+            m_LastError = i18n("Rescaling image failed.");
+            delete [] ASImageBuffer;
+            emit failed();
+            return;
+        }
+    }
+
+    // Restore original raw buffer after Autostretch if applicable
+    if (ASImageBuffer)
+    {
+        imageData->setImageBuffer(ASImageBuffer);
+    }
+
+    setAlignment(Qt::AlignCenter);
+
+    // Load WCS data now if selected and image contains valid WCS header
+    if (imageData->hasWCS() && Options::autoWCS() && (mode == FITS_NORMAL || mode == FITS_ALIGN) && !wcsWatcher.isRunning())
+    {
+        QFuture<bool> future = QtConcurrent::run(imageData, &FITSData::loadWCS);
+        wcsWatcher.setFuture(future);
+    }
+    else
+        syncWCSState();
+
+    if (isVisible())
+        emit newStatus(QString("%1x%2").arg(image_width).arg(image_height), FITS_RESOLUTION);
+
+    if (showStarProfile)
+    {
+        if(floatingToolBar != nullptr)
+            toggleProfileAction->setChecked(true);
+        //Need to wait till the Focus module finds stars, if its the Focus module.
+        QTimer::singleShot(100 , this , SLOT(viewStarProfile()));
+    }
+
+    scaledImage = QImage();
+    updateFrame();
+
+    emit loaded();
 }
 
 int FITSView::saveFITS(const QString &newFilename)
@@ -281,47 +424,39 @@ int FITSView::saveFITS(const QString &newFilename)
     return imageData->saveFITS(newFilename);
 }
 
-int FITSView::rescale(FITSZoom type)
+bool FITSView::rescale(FITSZoom type)
 {
-    switch (imageData->getDataType())
+    switch (imageData->property("dataType").toInt())
     {
         case TBYTE:
             return rescale<uint8_t>(type);
-            break;
 
         case TSHORT:
             return rescale<int16_t>(type);
-            break;
 
         case TUSHORT:
             return rescale<uint16_t>(type);
-            break;
 
         case TLONG:
             return rescale<int32_t>(type);
-            break;
 
         case TULONG:
             return rescale<uint32_t>(type);
-            break;
 
         case TFLOAT:
             return rescale<float>(type);
-            break;
 
         case TLONGLONG:
             return rescale<int64_t>(type);
-            break;
 
         case TDOUBLE:
             return rescale<double>(type);
-            break;
 
         default:
             break;
     }
 
-    return 0;
+    return false;
 }
 
 FITSView::CursorMode FITSView::getCursorMode()
@@ -335,9 +470,9 @@ void FITSView::enterEvent(QEvent *event)
 
     if ((floatingToolBar != nullptr) && (imageData != nullptr))
     {
-        auto *eff = new QGraphicsOpacityEffect(this);
+        QPointer<QGraphicsOpacityEffect> eff = new QGraphicsOpacityEffect(this);
         floatingToolBar->setGraphicsEffect(eff);
-        QPropertyAnimation *a = new QPropertyAnimation(eff, "opacity");
+        QPointer<QPropertyAnimation> a = new QPropertyAnimation(eff, "opacity");
         a->setDuration(500);
         a->setStartValue(0.2);
         a->setEndValue(1);
@@ -352,9 +487,9 @@ void FITSView::leaveEvent(QEvent *event)
 
     if ((floatingToolBar != nullptr) && (imageData != nullptr))
     {
-        auto *eff = new QGraphicsOpacityEffect(this);
+        QPointer<QGraphicsOpacityEffect> eff = new QGraphicsOpacityEffect(this);
         floatingToolBar->setGraphicsEffect(eff);
-        QPropertyAnimation *a = new QPropertyAnimation(eff, "opacity");
+        QPointer<QPropertyAnimation> a = new QPropertyAnimation(eff, "opacity");
         a->setDuration(500);
         a->setStartValue(1);
         a->setEndValue(0.2);
@@ -364,25 +499,22 @@ void FITSView::leaveEvent(QEvent *event)
 }
 
 template <typename T>
-int FITSView::rescale(FITSZoom type)
+bool FITSView::rescale(FITSZoom type)
 {    
-    double min, max;
-    bool displayBuffer = false;
-
-    if (display_image == nullptr)
-        return -1;
+    if (rawImage.isNull())
+        return false;
 
     uint8_t *image_buffer = imageData->getImageBuffer();
+    uint32_t size = imageData->width() * imageData->height();
 
-    uint32_t size = imageData->getSize();
-    int BBP       = imageData->getBytesPerPixel();
-
+#if 0
+    int BBP= imageData->getBytesPerPixel();
     filter = filterStack.last();
 
     if (Options::autoStretch() && (filter == FITS_NONE || (filter >= FITS_ROTATE_CW && filter <= FITS_FLIP_V)))
     {
-        image_buffer = new uint8_t[imageData->getSize() * imageData->getNumOfChannels() * BBP];
-        memcpy(image_buffer, imageData->getImageBuffer(), imageData->getSize() * imageData->getNumOfChannels() * BBP);
+        image_buffer = new uint8_t[size * imageData->channels() * BBP];
+        memcpy(image_buffer, imageData->getImageBuffer(), size * imageData->channels() * BBP);
 
         displayBuffer = true;
 
@@ -399,23 +531,23 @@ int FITSView::rescale(FITSZoom type)
         imageData->applyFilter(filter);
         imageData->getMinMax(&min, &max);
     }
+#endif
+
+    scaledImage = QImage();
 
     auto *buffer = reinterpret_cast<T *>(image_buffer);
 
-    if (min == max)
+    if (imageData->getMin(0) == imageData->getMax(0))
     {
-        display_image->fill(Qt::white);
-        emit newStatus(i18n("Image is saturated!"), FITS_MESSAGE);
+        rawImage.fill(Qt::white);
+        emit newStatus(i18n("Image is saturated."), FITS_MESSAGE);
     }
     else
     {
-        double bscale = 255. / (max - min);
-        double bzero  = (-min) * (255. / (max - min));
-
-        if (image_height != imageData->getHeight() || image_width != imageData->getWidth())
+        if (image_height != imageData->height() || image_width != imageData->width())
         {
-            image_width  = imageData->getWidth();
-            image_height = imageData->getHeight();
+            image_width  = imageData->width();
+            image_height = imageData->height();
 
             initDisplayImage();
 
@@ -424,20 +556,24 @@ int FITSView::rescale(FITSZoom type)
         }
 
         image_frame->setScaledContents(true);
-        currentWidth  = display_image->width();
-        currentHeight = display_image->height();
+        currentWidth  = rawImage.width();
+        currentHeight = rawImage.height();
 
-        if (imageData->getNumOfChannels() == 1)
+        if (imageData->channels() == 1)
         {
-            QList<QFuture<void>> futures;
+            double range = imageData->getMax(0) - imageData->getMin(0);
+            double bscale = 255. / range;
+            double bzero  = (-imageData->getMin(0)) * (255. / range);
+
+            QVector<QFuture<void>> futures;
 
             /* Fill in pixel values using indexed map, linear scale */
             for (uint32_t j = 0; j < image_height; j++)
-            {                
+            {
                 futures.append(QtConcurrent::run([=]()
                 {
                     T *runningBuffer = buffer +j*image_width;
-                    uint8_t *scanLine = display_image->scanLine(j);
+                    uint8_t *scanLine = rawImage.scanLine(j);
                     for (uint32_t i = 0; i < image_width; i++)
                     {
                         //scanLine[i] = qBound(0, static_cast<uint8_t>(runningBuffer[i] * bscale + bzero), 255);
@@ -451,22 +587,29 @@ int FITSView::rescale(FITSZoom type)
         }
         else
         {
-            QList<QFuture<void>> futures;
+            QVector<QFuture<void>> futures;
+            double bscaleR = 255. / (imageData->getMax(0) - imageData->getMin(0));
+            double bzeroR  = (-imageData->getMin(0)) * (255. / (imageData->getMax(0) - imageData->getMin(0)));
+            double bscaleG = 255. / (imageData->getMax(1) - imageData->getMin(1));
+            double bzeroG  = (-imageData->getMin(1)) * (255. / (imageData->getMax(1) - imageData->getMin(1)));
+            double bscaleB = 255. / (imageData->getMax(2) - imageData->getMin(2));
+            double bzeroB  = (-imageData->getMin(2)) * (255. / (imageData->getMax(2) - imageData->getMin(2)));
+
             /* Fill in pixel values using indexed map, linear scale */
             for (uint32_t j = 0; j < image_height; j++)
-            {                
+            {
                 futures.append(QtConcurrent::run([=]()
                 {
-                    auto *scanLine = reinterpret_cast<QRgb *>((display_image->scanLine(j)));
+                    auto *scanLine = reinterpret_cast<QRgb *>((rawImage.scanLine(j)));
                     T *runningBufferR = buffer + j*image_width;
                     T *runningBufferG = buffer + j*image_width + size;
                     T *runningBufferB = buffer + j*image_width + size*2;
 
                     for (uint32_t i = 0; i < image_width; i++)
                     {
-                        scanLine[i] = qRgb(runningBufferR[i] * bscale + bzero,
-                                           runningBufferG[i] * bscale + bzero,
-                                           runningBufferB[i] * bscale + bzero);;
+                        scanLine[i] = qRgb(runningBufferR[i] * bscaleR + bzeroR,
+                                           runningBufferG[i] * bscaleG + bzeroG,
+                                           runningBufferB[i] * bscaleB + bzeroB);
                     }
                 }));
             }
@@ -512,15 +655,12 @@ int FITSView::rescale(FITSZoom type)
                    }
                }
 #endif
-    }
-
-    if (displayBuffer)
-        delete[] image_buffer;
+    }    
 
     switch (type)
     {
         case ZOOM_FIT_WINDOW:
-            if ((display_image->width() > width() || display_image->height() > height()))
+            if ((rawImage.width() > width() || rawImage.height() > height()))
             {
                 double w = baseSize().width() - BASE_OFFSET;
                 double h = baseSize().height() - BASE_OFFSET;
@@ -568,7 +708,7 @@ int FITSView::rescale(FITSZoom type)
     if (type != ZOOM_KEEP_LEVEL)
         emit newStatus(QString("%1%").arg(currentZoom), FITS_ZOOM);
 
-    return 0;
+    return true;
 }
 
 void FITSView::ZoomIn()
@@ -624,7 +764,7 @@ void FITSView::ZoomOut()
 
 void FITSView::ZoomToFit()
 {
-    if (display_image != nullptr)
+    if (rawImage.isNull() == false)
     {
         rescale(ZOOM_FIT_WINDOW);
         updateFrame();
@@ -633,17 +773,21 @@ void FITSView::ZoomToFit()
 
 void FITSView::updateFrame()
 {
-    QPixmap displayPixmap;
     bool ok = false;
 
-    if (display_image == nullptr)
-        return;
-
     if (currentZoom != ZOOM_DEFAULT)
-        ok = displayPixmap.convertFromImage(
-            display_image->scaled(currentWidth, currentHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    {
+        // Only scale when necessary
+        if (scaledImage.isNull() || currentWidth != lastWidth || currentHeight != lastHeight)
+        {
+            scaledImage = rawImage.scaled(currentWidth, currentHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            lastWidth = currentWidth;
+            lastHeight = currentHeight;
+        }
+        ok = displayPixmap.convertFromImage(scaledImage);
+    }
     else
-        ok = displayPixmap.convertFromImage(*display_image);
+        ok = displayPixmap.convertFromImage(rawImage);
 
     if (!ok)
         return;
@@ -653,6 +797,7 @@ void FITSView::updateFrame()
     drawOverlay(&painter);
 
     image_frame->setPixmap(displayPixmap);
+
     image_frame->resize(currentWidth, currentHeight);
 }
 
@@ -979,7 +1124,7 @@ void FITSView::drawEQGrid(QPainter *painter)
                         if (maxDec > 50 || maxDec < -50)
                             painter->drawText(pt.x(), pt.y(),
                                               QString::number(dms(target).hour()) + "h " +
-                                                  QString::number(dms(target).minute()) + "'");
+                                                  QString::number(dms(target).minute()) + '\'');
                         else
                             painter->drawText(pt.x() - 20, pt.y(),
                                               QString::number(dms(target).hour()) + "h " +
@@ -1018,7 +1163,7 @@ void FITSView::drawEQGrid(QPainter *painter)
                     if (pt.x() != -100)
                         painter->drawText(pt.x(), pt.y(),
                                           QString::number(dms(target).degree()) + "° " +
-                                              QString::number(dms(target).arcmin()) + "'");
+                                              QString::number(dms(target).arcmin()) + '\'');
                 }
             }
 
@@ -1101,7 +1246,7 @@ QPointF FITSView::getPointForGridLabel()
             minYPt = p;
     }
 
-    //This gives preferene to points that are on the right hand side and bottom.
+    //This gives preference to points that are on the right hand side and bottom.
     //But if the line doesn't intersect the right or bottom, it then tries for the top and left.
     //If no points are found in the image, it returns a point off the screen
     //If all else fails, like in the case of a circle on the image, it returns the far right point.
@@ -1138,15 +1283,15 @@ void FITSView::setFirstLoad(bool value)
     firstLoad = value;
 }
 
-QPixmap &FITSView::getTrackingBoxPixmap()
+QPixmap &FITSView::getTrackingBoxPixmap(uint8_t margin)
 {
     if (trackingBox.isNull())
         return trackingBoxPixmap;
 
-    int x1 = trackingBox.x() * (currentZoom / ZOOM_DEFAULT);
-    int y1 = trackingBox.y() * (currentZoom / ZOOM_DEFAULT);
-    int w  = trackingBox.width() * (currentZoom / ZOOM_DEFAULT);
-    int h  = trackingBox.height() * (currentZoom / ZOOM_DEFAULT);
+    int x1 = (trackingBox.x() - margin) * (currentZoom / ZOOM_DEFAULT);
+    int y1 = (trackingBox.y() - margin) * (currentZoom / ZOOM_DEFAULT);
+    int w  = (trackingBox.width() + margin*2) * (currentZoom / ZOOM_DEFAULT);
+    int h  = (trackingBox.height() + margin*2) * (currentZoom / ZOOM_DEFAULT);
 
     trackingBoxPixmap = image_frame->grab(QRect(x1, y1, w, h));
 
@@ -1249,13 +1394,12 @@ void FITSView::toggleStarProfile()
         {
             setCursorMode(selectCursor);
             connect(this, SIGNAL(trackingStarSelected(int,int)), this, SLOT(move3DTrackingBox(int,int)));
-            if(floatingToolBar && starProfileWidget)
+            if(starProfileWidget)
                 connect(starProfileWidget, SIGNAL(rejected()) , this, SLOT(toggleStarProfile()));
             if(starProfileWidget)
                 connect(starProfileWidget, SIGNAL(sampleSizeUpdated(int)) , this, SLOT(resizeTrackingBox(int)));
             trackingBox = QRect(0, 0, 128, 128);
-            trackingBoxEnabled = true;
-            updateFrame();
+            setTrackingBoxEnabled(true);
         }
         else
         {
@@ -1263,10 +1407,14 @@ void FITSView::toggleStarProfile()
                 setCursorMode(dragCursor);
             disconnect(this, SIGNAL(trackingStarSelected(int,int)), this, SLOT(move3DTrackingBox(int,int)));
             disconnect(starProfileWidget, SIGNAL(sampleSizeUpdated(int)) , this, SLOT(resizeTrackingBox(int)));
-            if(floatingToolBar)
-                disconnect(starProfileWidget, SIGNAL(rejected()) , this, SLOT(toggleStarProfile()));
+            disconnect(starProfileWidget, SIGNAL(rejected()) , this, SLOT(toggleStarProfile()));
             setTrackingBoxEnabled(false);
+            if(starProfileWidget)
+                starProfileWidget->close();
+            starProfileWidget = nullptr;
+            emit starProfileWindowClosed();
         }
+        updateFrame();
     }
     #endif
 }
@@ -1299,8 +1447,7 @@ void FITSView::viewStarProfile()
         superParent->setCursor(Qt::ArrowCursor);
         //This is the end of the band-aid
 
-        if(floatingToolBar)
-            connect(starProfileWidget, SIGNAL(rejected()) , this, SLOT(toggleStarProfile()));
+        connect(starProfileWidget, SIGNAL(rejected()) , this, SLOT(toggleStarProfile()));
         if(mode == FITS_ALIGN || mode == FITS_NORMAL)
         {
             starProfileWidget->enableTrackingBox(true);
@@ -1388,7 +1535,7 @@ void FITSView::setTrackingBoxEnabled(bool enable)
     if (enable != trackingBoxEnabled)
     {
         trackingBoxEnabled = enable;
-        updateFrame();
+        //updateFrame();
     }
 }
 
@@ -1462,20 +1609,17 @@ QPoint FITSView::getImagePoint(QPoint viewPortPoint)
 
 void FITSView::initDisplayImage()
 {
-    delete display_image;
-    display_image = nullptr;
-
-    if (imageData->getNumOfChannels() == 1)
+    if (imageData->channels() == 1)
     {
-        display_image = new QImage(image_width, image_height, QImage::Format_Indexed8);
+        rawImage = QImage(image_width, image_height, QImage::Format_Indexed8);
 
-        display_image->setColorCount(256);
+        rawImage.setColorCount(256);
         for (int i = 0; i < 256; i++)
-            display_image->setColor(i, qRgb(i, i, i));
+            rawImage.setColor(i, qRgb(i, i, i));
     }
     else
     {
-        display_image = new QImage(image_width, image_height, QImage::Format_RGB32);
+        rawImage = QImage(image_width, image_height, QImage::Format_RGB32);
     }
 }
 

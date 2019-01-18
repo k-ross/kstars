@@ -4,6 +4,553 @@ To produce log below, use:
 
 $ git log --date=short --pretty=format:"%h %ad %<(20)%an %<(150,trunc)%s"
 
+3.0.0 (Algol):
+369e30d4e 2018-12-19 Jasem Mutlaq         Improve the naming of objects in the history find list
+4ba2aa4e4 2018-12-19 Jasem Mutlaq         Improve find dialog further
+ab70395e0 2018-12-18 Jasem Mutlaq         Move FindDialog to a singleton and improve its interface
+322e7703d 2018-12-18 Jasem Mutlaq         Send initial state on startup
+8696bd1a8 2018-12-18 Jasem Mutlaq         Fix radio box state
+09376e5ff 2018-12-17 Jasem Mutlaq         Automatically set prefix as currently mount tracking target if capture state is IDLE
+908655c54 2018-12-17 Jasem Mutlaq         Add clear button to prefix and script
+54dade3a8 2018-12-17 Jasem Mutlaq         Minor fix for manual dither
+a3e3b2c7c 2018-12-16 Jasem Mutlaq         Fix scheduler light frame check
+1f3a925d0 2018-12-16 Jasem Mutlaq         Improve progressive manual dithering
+85a767406 2018-12-16 Jasem Mutlaq         Minimize spaces
+7fe72fc98 2018-12-16 Jasem Mutlaq         Add switch for EkosLive connection mode
+b9e6fb141 2018-12-14 Jasem Mutlaq         Reduce minimum FOV for PAH to 10 arcmins since folks like to solve narrow field images and fail
+dad9c9af3 2018-12-14 Jasem Mutlaq         Do not change CCD settings if it is capturing now
+ece6c0a36 2018-12-14 Jasem Mutlaq         Add auto start support for EkosLive
+d95035176 2018-12-13 Jasem Mutlaq         1. Fix LightFrameRequired flag. Calculated ALL required light frames for the job and then find if the overall job requires them. 2. Reset job stage ..
+261fefea2 2018-12-13 Jasem Mutlaq         Do not include FOV in KStars Lite
+2c2a6c5dc 2018-12-13 Aleix Pol            Add missing file to integrate with arcanist
+6d6aaee0f 2018-12-11 Jasem Mutlaq         Loaded and Closed signals should communicate FITS UID, not raw index in the widget
+dfa010479 2018-12-11 l10n daemon script   SVN_SILENT made messages (.desktop file) - always resolve ours
+d5fc9b5ca 2018-12-10 Jasem Mutlaq         Fix FOV shape
+46618f648 2018-12-10 Jasem Mutlaq         Remove duplicate property
+3afe6b00a 2018-12-10 Jasem Mutlaq         SOlve compiling error
+ac129a3d1 2018-12-10 Jasem Mutlaq         Add DBus support for FOVs
+cfd401e80 2018-12-10 Jasem Mutlaq         When deleting DSLR info, immediately fire up the DSLR info dialog
+4cd008811 2018-12-09 Jasem Mutlaq         Display DSLR image if preview always
+946db550b 2018-12-09 l10n daemon script   GIT_SILENT made messages (after extraction)
+2fa7b9f54 2018-12-08 Yuri Chornoivan      Add missing space
+0ec215d69 2018-12-08 Jasem Mutlaq         Only display serial port assistant when stellarmate is detected
+e0d84250b 2018-12-07 Jasem Mutlaq         Added shouldSchedulerSleep function to check if the current job is far away from lead time that necessate scheduler sleep. Some white spaces cleanups
+58829bb13 2018-12-07 Eric Dejouhanet      Rewrite of Scheduler planning
+f1c5776a4 2018-12-06 Jasem Mutlaq         Reversing DEC alone is not sufficient when pier side is switched so we clear calibration
+bb78146cc 2018-12-06 Jasem Mutlaq         Remove unnecessary header
+d5b1b353c 2018-12-06 Jasem Mutlaq         Add flag for when telescope is covered to uncover it in case of shutterless cameras.
+9e855fa21 2018-12-05 Yuri Chornoivan      Try to fix the build on Jenkins
+7a31d2a68 2018-12-05 Yuri Chornoivan      Remove property duplication
+5d40881da 2018-12-05 Yuri Chornoivan      Trying to fix the rest of minor doxygen issues
+52090a6d0 2018-12-05 Yuri Chornoivan      Fix minor typo
+a3a2c6589 2018-12-05 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+129230c64 2018-12-04 Jasem Mutlaq         Serial port assistant is operational now but needs testing
+033e1046b 2018-12-04 Jasem Mutlaq         1. If we are reacquiring a star when we are subframed, reset the frame. 2. Make guide module aware of mount pier side to switch DEC swap so that rec..
+415690fdc 2018-12-04 Jasem Mutlaq         Fix settling time for PAH and regular astrometry
+f8409f85e 2018-12-04 Robert Lancaster     Improvements to histogram
+c69c8bf35 2018-12-04 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+86bc697d3 2018-12-04 Yuri Chornoivan      Fix minor typo
+480965d33 2018-12-03 Jasem Mutlaq         MOre progress on serial port assistant
+0821ae6cd 2018-12-03 Jasem Mutlaq         Add guide settle time for focus module when resuming guide
+66b6aa507 2018-12-03 l10n daemon script   GIT_SILENT made messages (after extraction)
+ee5d35bbd 2018-12-02 Jasem Mutlaq         Add icon for Serial Port Assistant
+e85653c20 2018-12-02 Jasem Mutlaq         Limit the serial port assistant to selected devices and do not show it just yet
+cbe804508 2018-12-02 Jasem Mutlaq         Adding support to loading and remove rules from serial port assistant
+f020d0971 2018-12-02 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+19effbebf 2018-12-02 Yuri Chornoivan      Fix minor EBN doxygen issues
+9a75874a4 2018-12-02 Yuri Chornoivan      Fix minor typos
+6213a7abb 2018-12-02 Jasem Mutlaq         Add checkbox to drivers group
+92c556a35 2018-12-01 Jasem Mutlaq         Initial work for Serial Port Assistant integration
+e8cbcc835 2018-12-01 Jasem Mutlaq         Add a function to execute focus steps whether in-sequence or timed. This could run after image capture or after a dither operation is complete, so m..
+0fff8ebf0 2018-12-01 Jasem Mutlaq         Read and set focuser MAX position
+8807679e1 2018-12-01 Jasem Mutlaq         Set default solver action to slew to target since this is what new users expect
+edcb4bae3 2018-11-30 Yuri Chornoivan      Fix minor EBN doxygen issues
+f8c2bf8c6 2018-11-29 Jasem Mutlaq         Fix compile error with star profile widget
+de5eb0259 2018-11-29 Robert Lancaster     Fixing a crash caused by QCustomPlot's replot method in a concurrent thread
+32b15d9ba 2018-11-28 Robert Lancaster     Fixing StarProfileViewer and Adding Sliders to Histogram
+1c78ec1c9 2018-11-28 Csaba Kertesz        Fix Android build
+b0d4dd0fc 2018-11-28 Jasem Mutlaq         Honor settling time in Polar Alignment Assistant tool
+5c39c2da8 2018-11-27 Robert Lancaster     Creating the FitsTools Panel and Histogram Fixes
+d60eefc6b 2018-11-26 Jasem Mutlaq         Fix Degree to Hours error in finding next scope RA in Polar Alignment Assistant tool
+a8073c844 2018-11-25 Yuri Chornoivan      Make Star Profile Viewer localizable
+40c9bfb99 2018-11-25 Yuri Chornoivan      Get rid of zorder
+39f75c049 2018-11-25 Jasem Mutlaq         Add Pegasus Ultimate Power Box
+2cc8ac8cd 2018-11-22 Jasem Mutlaq         Updating INDI drivers list
+9da689ccd 2018-11-22 Jasem Mutlaq         Improving performance of star profile viewer
+d98bd207d 2018-11-21 Jasem Mutlaq         Do not get stuck if ekos status is idle
+2eb72d97b 2018-11-21 l10n daemon script   SVN_SILENT made messages (.desktop file) - always resolve ours
+63edb18d3 2018-11-19 Yuri Chornoivan      More EBN fixes in API docs
+66257a011 2018-11-19 l10n daemon script   GIT_SILENT made messages (after extraction)
+aabb94a97 2018-11-18 Yuri Chornoivan      Fix minor EBN issues in API docs
+de7f74bae 2018-11-18 Yuri Chornoivan      Remove duplicate includes
+0c981ffd5 2018-11-18 l10n daemon script   GIT_SILENT made messages (after extraction)
+a4e6023d8 2018-11-17 Yuri Chornoivan      Minor fixes to API docs
+9b984ce39 2018-11-16 l10n daemon script   GIT_SILENT made messages (after extraction)
+f14f3db38 2018-11-15 Yuri Chornoivan      Fix minor typos
+4a7823826 2018-11-15 l10n daemon script   GIT_SILENT made messages (after extraction)
+e3a79c8c9 2018-11-14 Yuri Chornoivan      Minor fixes to the API docs
+28eed04fc 2018-11-14 l10n daemon script   GIT_SILENT made messages (after extraction)
+7590627f4 2018-11-14 Jasem Mutlaq         Fix compile error
+ae1dcd9c7 2018-11-13 Jasem Mutlaq         For Refocus Every X time method, reset the focus frame if the last time we ran focus is >= 30 minutes
+415f3dff8 2018-11-13 Yuri Chornoivan      Fix typo: hasDeails -> hasDetails
+5c81d1dd1 2018-11-13 Yuri Chornoivan      Fix Appstreamercli minor issues
+e5a12ee6d 2018-11-13 Yuri Chornoivan      Add missing includes
+27d10e4f9 2018-11-13 Yuri Chornoivan      Fix minor typos
+c56d24dda 2018-11-10 Jasem Mutlaq         Fix enabling & disabling of BLOBs in the BLOB manager
+92fe9a48d 2018-11-10 Jasem Mutlaq         Add option to toggle using Focus median value
+99834103c 2018-11-07 Jasem Mutlaq         Add timeout to capture module
+5efb79241 2018-11-06 Yuri Chornoivan      Remove extra semicolons
+e1f970517 2018-11-06 Jasem Mutlaq         CHeck for targetChip which is a better indicator of disk vs non-disk darks
+cb66fb188 2018-11-06 Jasem Mutlaq         DO not ask to remove cover if data is loaded from disk
+d59c6deaa 2018-11-06 Jasem Mutlaq         Fix autostretch handling
+984211e81 2018-11-04 Jasem Mutlaq         Disable mount tracking if supported by driver after slewing to a wall
+03e2c20d2 2018-11-04 Jasem Mutlaq         Look in system path for drivers as well
+fd915e011 2018-11-04 Jasem Mutlaq         Bump to 1.3
+4add977d7 2018-11-04 l10n daemon script   GIT_SILENT made messages (after extraction)
+da7539930 2018-11-03 Jasem Mutlaq         Fix slewing to wall when not in calibration mode.
+92c8491ea 2018-11-03 Jasem Mutlaq         For shutterless cameras, ask user to remove cover from scope before continuing
+afc33f675 2018-10-27 Jasem Mutlaq         Add support for Dust Cap and Light panel control from EkosLive. Just light switch is now controllable plus parking
+7189bb67c 2018-10-27 Jasem Mutlaq         Use the common INVALID_VALUE constant
+351bd4c32 2018-10-27 Jasem Mutlaq         Send frames to EkosLive media whenever an image is captured and not necessairly depending on Summary View behavior. This would only work if the FITS..
+1934c012c 2018-10-27 Jasem Mutlaq         Add support for gain
+87be20f17 2018-10-27 Jasem Mutlaq         Use common INVALID_VALUE. Set gain from EkosLive is supported by camera by adjusting custom properties
+9863db4e2 2018-10-25 Jasem Mutlaq         Send domes and dustcaps when initialized
+2aebdaaf4 2018-10-24 Jasem Mutlaq         Store park status variable when updated
+3c1643402 2018-10-24 Jasem Mutlaq         Disconnect all _other_ CCDs when the CCD is switched, not the current CCD
+720b6badb 2018-10-24 Jasem Mutlaq         Do not crash if there are no sorted job in the 2nd run
+026689b41 2018-10-24 Jasem Mutlaq         Check if the file is temporary .. this was removed due to a regression
+86db271f3 2018-10-24 Jasem Mutlaq         Do not update frame when tracking box is enabled or disabled, let the calling function handles this
+2abf84cfe 2018-10-24 Jasem Mutlaq         Let the calling function handle calling updateFrame when necessary
+a78a7c805 2018-10-24 Jasem Mutlaq         Delete all component before clearing them
+8bb0ac4d9 2018-10-24 Jasem Mutlaq         No need to use pointer for QImage since the data is stored on the heap and is implicitly shared
+f98492f2b 2018-10-24 Jasem Mutlaq         Free background buffer
+dfd0a7267 2018-10-22 Jasem Mutlaq         QOverload not supported in Qt 5.6 which we use for 16.04
+3f2726186 2018-10-22 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+fa6ff04bf 2018-10-22 Jasem Mutlaq         Add new function deltaAngle to DMS class to calculate the shortest angle between two angles.
+4bc6befa6 2018-10-22 Jasem Mutlaq         If object is not in the list, default to Saturn
+be63dda4f 2018-10-22 Jasem Mutlaq         Completely disconnect the server process when shutting down
+39f1287b1 2018-10-21 Jasem Mutlaq         Fix regression that caused job aborted due to twilight loop forever
+0ed0f5771 2018-10-21 Jasem Mutlaq         Remove extra option that is no longer required
+9f0d41c3e 2018-10-20 Jasem Mutlaq         Small improvements to icons to make them consistent with the rest of Ekos
+aafd6adf3 2018-10-20 Jasem Mutlaq         Fix layout stretch for observatory scripts
+16e301823 2018-10-20 Pino Toscano         fixuifiles
+14528eeef 2018-10-20 l10n daemon script   SVN_SILENT made messages (.desktop file) - always resolve ours
+119e9a4ab 2018-10-19 Jasem Mutlaq         Add earth shadow + lunar eclipse finder
+ca52b659a 2018-10-18 Jasem Mutlaq         Always emit resumeGuiding even on focus failure
+16dfe2afc 2018-10-18 Jasem Mutlaq         Add detailed comments for workflow. Fix issue with timeout in case of minimum required HFR is requested
+3d2a77317 2018-10-18 Jasem Mutlaq         Add Qt version to info
+47c741ac2 2018-10-17 Jasem Mutlaq         Remove duplicate alignTimer slot
+cdd741910 2018-10-17 Yuri Chornoivan      Fix minor typos
+b436e426c 2018-10-16 Jasem Mutlaq         Only run polynomial fitting after 5th data point to improve reliability.
+eee4c4606 2018-10-16 Jasem Mutlaq         Improve flat calibration algorithm by checking out of range and saturated images
+66c1622b7 2018-10-15 Jasem Mutlaq         Revert change from mass replacement. androiddeployqt should not have a packaging prefix
+c1b04a0a8 2018-10-15 Jasem Mutlaq         Complete the support for dome control in EkosLive
+8fb96ad4f 2018-10-15 Jasem Mutlaq         Fix Focus --> Align state
+0b0834fce 2018-10-15 Jasem Mutlaq         Update few timesouts to be more relaxed
+f2a2f88d5 2018-10-14 Jasem Mutlaq         Make loadAndSlew return a boolean value to solve async problem. More DBus functions need to be migrated to this pattern
+53a13eb7e 2018-10-13 Jasem Mutlaq         Only target SDK needs to be 26. Minimum SDK can remain at 17
+025d23caa 2018-10-13 Jasem Mutlaq         Google Store now requires minimum API to be 26 even for updates
+678c96d23 2018-10-12 Eric Dejouhanet      Use "Remember Job Progress" in Scheduler and "Always Reset Sequence When Starting" in Capture.
+47b3a3633 2018-10-13 Eric Dejouhanet      Fix regression on job deletion when sorting jobs based on altitude and priority is enabled.
+a2b6a9aec 2018-10-12 Jasem Mutlaq         For FITS images only emit BLOBUpdated after the frame is loaded to allow dependent modules to process the captured FITS after it is loaded
+e4aa750af 2018-10-12 Jasem Mutlaq         Add capture timeout watchdog to ensure focus does not timeout waiting for captured images
+a5955d2cb 2018-10-11 Jasem Mutlaq         Fix few issue with displaying capture progress when FITS Viewer is disabled
+199051955 2018-10-11 Jasem Mutlaq         Simplify image capture signaling
+fcee7f64f 2018-10-11 Jasem Mutlaq         Fix crash when opening FITS
+e02f376f5 2018-10-10 Eric Dejouhanet      Do not alter the state of the Scheduler while evaluating
+9157a6fda 2018-10-10 l10n daemon script   SVN_SILENT made messages (.desktop file) - always resolve ours
+d6278a000 2018-10-10 l10n daemon script   GIT_SILENT made messages (after extraction)
+787ec001b 2018-10-09 Jasem Mutlaq         Fix focus in and out
+f0e9bd5e6 2018-10-08 Jasem Mutlaq         Remove redundant vars
+b24c2ed8c 2018-10-08 Jasem Mutlaq         Adding dome and dust cap controls to dbus and ekoslive
+a04c0c605 2018-10-08 Yuri Chornoivan      Fix minor typo
+d6d79c8e7 2018-10-08 Jasem Mutlaq         Try to connect guider before guiding in the case of an external guider that got disconnected. For internal guider it makes no difference
+1e03ff016 2018-10-08 Jasem Mutlaq         Add inactivity checks in scheduler to make sure that modules do not timeout when they are commanded to do certain actions
+fb875282e 2018-10-07 Yuri Chornoivan      Fix minor EBN issues
+6f347684f 2018-10-07 Jasem Mutlaq         Call stop first before start and add a bit of delay in between. Restart timeout timer
+998e57aa6 2018-10-07 Jasem Mutlaq         Do not start Ekos if Ekos is already in pending mode or already online
+5f8d20ded 2018-10-07 Jasem Mutlaq         Make messages more consistent. Clean up old code
+a777d1506 2018-10-06 Jasem Mutlaq         Add warning when slewing to Sun. Adjust tracking rate if supported by the mount depending on the object type
+2db493c09 2018-10-05 Pino Toscano         remove extra return
+2c94bce5f 2018-10-04 Jasem Mutlaq         Add option to control DSLR image viewer. It can now be turned off
+e92e7e59e 2018-10-04 Jasem Mutlaq         Read driver manufacturer into DriverInfo class
+4e6b8ed26 2018-10-04 Jasem Mutlaq         Summary View now loaded sequence images properly
+15e734753 2018-10-04 Jasem Mutlaq         When polynomial next predicted exposure flat is invalid, discard the last point and recapture again
+2308878a9 2018-10-03 Jasem Mutlaq         Fix installation of translations files. po should be merged into source tree for this to work
+7e1f63acf 2018-10-03 Eric Dejouhanet      Update job completion counts, and fix regression on job rescheduling.
+40d755591 2018-10-03 Jasem Mutlaq         Add QFuture to fitsdata.h header since it is required on Android
+1de7e4130 2018-10-03 Jasem Mutlaq         KStars Lite should always fetch translations regardless
+645540da1 2018-10-03 Jasem Mutlaq         Add Zulu postfix to the DATE-OBS
+ee82d0767 2018-10-02 Jasem Mutlaq         Add option to fetch translations
+cf0476591 2018-10-02 Jasem Mutlaq         Add live view support to focus module and rework existing one in capture to be icon based
+f07eff116 2018-10-02 Jasem Mutlaq         Limit stack size change to Qt v5.10+
+9cfccbc9e 2018-10-02 Jasem Mutlaq         Merge branch 'async_fits'
+332e25e19 2018-10-02 Jasem Mutlaq         Fixing issue with updating list of running FITSViewers. They are now properly removed once closed
+7740e042a 2018-10-02 Jasem Mutlaq         More progress for async FITS operations
+c0c1fe0d1 2018-10-01 Jasem Mutlaq         More work on async loading
+6528ab561 2018-10-01 Jasem Mutlaq         Migrating the rest of the code to support the asynchronous nature of FITS loading now
+2b3679a37 2018-10-01 Jasem Mutlaq         Add helpful tip to location dialog
+6bfa75846 2018-10-01 Jasem Mutlaq         Merge branch 'master' into async_fits
+c7dbd94c5 2018-10-01 Eric Dejouhanet      Use system locale to display numbers in the scheduler.
+ab320a1ec 2018-10-01 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+4adf0ed41 2018-10-01 Jasem Mutlaq         Fix issue with subframed calibration when auto-select star is not enabled. Now subframed star position is set properly in the internal guider before..
+a2930512b 2018-10-01 Jasem Mutlaq         Remove unnecessary break
+fe758c72c 2018-09-30 Jasem Mutlaq         Update star profile viewer to new property system
+d572d63ed 2018-09-30 Jasem Mutlaq         Starting work on asynchronous FITS operations
+183d1758c 2018-09-30 Jasem Mutlaq         Refactoring FITSData to migrate to Q_PROPERTY framework and to prepare to asynchronous loading
+4daf63e55 2018-09-29 Jasem Mutlaq         Fix wrong XML and indentation
+07bf0ce7d 2018-09-29 Eric Dejouhanet      Fix Scheduler slewing stage and dome interaction.
+0ae972bbd 2018-09-28 Jasem Mutlaq         Fix cooler logic issues
+da1dd33e0 2018-09-28 Jasem Mutlaq         Reduce code duplication and include SLEWING stage in the check since the mount could be on that object when the scheduler starts and therefore a sle..
+fd13e74ac 2018-09-27 Jasem Mutlaq         Fix QSharedPointer error
+115c0d0cd 2018-09-27 Jasem Mutlaq         Create a separate dedicated client to handle only BLOB properties to increase efficiency
+68352b8b4 2018-09-27 Jasem Mutlaq         Minor fixes
+18dee7544 2018-09-27 Jasem Mutlaq         Fix reconnect issues
+15ae755c9 2018-09-27 Jasem Mutlaq         Fix options and reintroduce INDI Control Panel button
+808573c0d 2018-09-27 Jasem Mutlaq         Minor cast fixes
+6535358b6 2018-09-27 Jasem Mutlaq         Missed ISD::ParkStatus change
+5f73c086e 2018-09-27 Jasem Mutlaq         Support older Qt versions format in 16.04
+e2b179abe 2018-09-26 Jasem Mutlaq         Encode the QDbus vars with ifdefs for KSTARS LITE
+8bdd3ecd9 2018-09-26 Jasem Mutlaq         Bump version to 1.2.0 for Android
+ae29d544e 2018-09-26 Eric Dejouhanet      Do not abort a job that is repeating because it started long ago, that delay is expected.
+b97920405 2018-09-26 Jasem Mutlaq         Capture module: fixes for decimal numbers in various locales, and fix for CCD selection
+b17a8a3d4 2018-09-26 Jasem Mutlaq         Disable KAuth due to reliability issues. We are now saving the config and files locally if not found on the system
+7236760aa 2018-09-26 Jasem Mutlaq         Send escaped text elements to prevent breaking XML
+091e3fa69 2018-09-25 Jasem Mutlaq         Cooler and clearing camera configuration buttons added
+90fd88cbc 2018-09-24 Jasem Mutlaq         Preliminary support for controlling cooler in capture module
+fa000c136 2018-09-24 Jasem Mutlaq         Fix target name property. Also, do not clear sequence queue as it called internally by capture module. When restarting a sequence, no need to reload..
+2ae3ff3cb 2018-09-24 Jasem Mutlaq         Fix jobs always starting at zero counts by dividing jobs checks into scheduler-aware and regular types along with the option to ignore job progress ..
+1895fe59f 2018-09-24 Jasem Mutlaq         Remove extra signal that was causing issues since it was already declared in guiderinterface
+c4acb9c8d 2018-09-23 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+25958fa4f 2018-09-23 Eric Dejouhanet      Remove prevention of autofocus when no prior focus was done, add warnings.
+82b5ba276 2018-09-23 Robert Lancaster     Fix exposure spinbox and MacOS compile problem
+cfe494a8c 2018-09-16 Jasem Mutlaq         Removing duplicated enum
+f007c9e69 2018-09-16 Jasem Mutlaq         Fix wrong enum value
+f928a5d92 2018-09-16 Jasem Mutlaq         STATUS_PENDING is reserved in Windows so we are using different enum values
+62c885a73 2018-09-15 Jasem Mutlaq         Preliminary support for flatpak paths
+b88bfe91d 2018-09-14 Jasem Mutlaq         Scheduler event-driven work is nearly completely
+37483f059 2018-09-13 Jasem Mutlaq         Create ready signal to continue event-driven migration of scheduler
+0602776d3 2018-09-13 Jasem Mutlaq         More process in dbus migration. dbusInterface->property() is not working now. Need to investigate
+a7d692958 2018-09-13 Jasem Mutlaq         Fix DST rule for Terre Haute
+5e8fe0d4b 2018-09-12 Jasem Mutlaq         Dome, mount and dustcap DBus interface updated
+8653d9c0a 2018-09-12 Jasem Mutlaq         Fix compile issues
+042e91922 2018-09-12 Jasem Mutlaq         Merge branch 'dbus_work' of git://anongit.kde.org/kstars into dbus_work
+830e749d5 2018-09-12 Jasem Mutlaq         More work on DBus update and migration
+6049fdae0 2018-09-12 Jasem Mutlaq         Merge branch 'master' into dbus_work
+7d1295998 2018-09-12 Jasem Mutlaq         Improve timeout behavior for astrometry download with KAuth
+f2560079d 2018-09-12 Jasem Mutlaq         QString sprintf is deprecated so using arg() instead, but it still does not produce correct locale-aware fractions
+fe3782719 2018-09-11 Eric Dejouhanet      Fix cache discrepancy when a job is complete.
+a9cd4c67e 2018-09-11 Eric Dejouhanet      Fix mount not unparking after scheduler stops
+daaddeb30 2018-09-11 Jasem Mutlaq         More work on converting Signal/Slot to new Qt Style
+f4f940677 2018-09-10 Jasem Mutlaq         Migrate to new Qt connection style
+10c893568 2018-09-10 Jasem Mutlaq         Migrate to new Qt connection style
+a4d380764 2018-09-10 Jasem Mutlaq         Align and Guide modules DBus is updated
+17f917917 2018-09-07 Wolfgang Reissenberger Restarting looping schedule continues capturing
+edb8bb0ae 2018-09-07 Jasem Mutlaq         Fix remaining warnings in fpackutil.c
+1b7c748ab 2018-09-06 Jasem Mutlaq         Fix warnings in fitsviewer code in fpack and fpackutil due to const qualifier and unused variables
+708d796df 2018-09-06 Jasem Mutlaq         Fix warning: content-type missing in HTTP POST, defaulting to application/x-www-form-urlencoded. Use QNetworkRequest::setHeader() to fix this problem.
+d086573e0 2018-09-06 Jasem Mutlaq         Update focus module DBus interface
+e0d63f01c 2018-09-04 Csaba Kertesz        Fix a crash and storing INDI settings in KStars Lite
+e057aa064 2018-09-03 Jasem Mutlaq         Few J2000/JNow fixes
+d625b2b6c 2018-09-02 Jasem Mutlaq         Minor refactoring
+7d6d6d386 2018-09-02 Jasem Mutlaq         Capture module DBus migration first pass is complete. All connections migrated to new Qt style
+4e8b61f53 2018-09-01 Robert Lancaster     Adding XPlanet Recenter ability Making left mouse button change position and right mouse chane location Adding Reset Recenter button Adding Reset Lo..
+f055309dd 2018-09-01 Jasem Mutlaq         Remove / from thumbnail file names
+38edb83ea 2018-09-01 Jasem Mutlaq         Reimplement compute altitude at a specific time
+b03bbbb39 2018-08-31 Jasem Mutlaq         Do not add any camera or ST4 devices to guide module if guider is external. Instead put guider type in guider dropdown and disable it
+eee184547 2018-08-31 Jasem Mutlaq         Fix crash and add support to J2000 mounts
+36476b0a7 2018-08-31 Jasem Mutlaq         Add another check that state is not suspended
+8afa2bc4f 2018-08-31 Jasem Mutlaq         Show loaded coords in sexigesimal format and in high precision when possible
+e6eca7cf2 2018-08-31 Jasem Mutlaq         Do not cast DSO coords seconds to int as we lose important precision. Use full resolution as double
+8fd3d9e10 2018-08-31 Jasem Mutlaq         Fix J2000 coordinates in Align and Capture
+f3705f1c9 2018-08-31 Robert Lancaster     Support for xplanet on Windows
+ca5a604f9 2018-08-31 Jasem Mutlaq         Add new state to capture SUSPENDED. This is triggered once the sequence needs to be aborted, but capture module has the ability to resume itself aut..
+0a5d10188 2018-08-29 Jasem Mutlaq         android --> packaging/android
+5c24fac29 2018-08-29 Jasem Mutlaq         Add dbus log property and signal for Ekos Manager
+5825ccb6c 2018-08-29 Eric Dejouhanet      Proper silencing for the switch-case fall-through warning
+be3948ed5 2018-08-29 Jasem Mutlaq         Refactoring old style connect to new style. DBus signals working now via structure which is not ideal but the only way to use enums in signals and r..
+aeaa325a0 2018-08-29 l10n daemon script   SVN_SILENT made messages (.desktop file) - always resolve ours
+8a1bd75ba 2018-08-28 Jasem Mutlaq         Adding packaging directory to include all KStars multiplatform packaging scripts and resources
+8491cc25b 2018-08-28 Jasem Mutlaq         Detect coordinates epoch once from property registeration
+6798c1d0c 2018-08-28 Jasem Mutlaq         Account for JNow vs J2000 coords in the mount and capture modules. Telescope class should report which epoch is in use
+1e299fdf5 2018-08-28 Eric Dejouhanet      Fix parking engine, and make observatory startup job-centric
+85bf46276 2018-08-28 Wolfgang Reissenberger Bugfix for #397650 flat creation failed
+9294e4f03 2018-08-27 Jasem Mutlaq         DBus signals are working now
+12278209f 2018-08-26 Jasem Mutlaq         More progress in refactoring
+30c99f686 2018-08-26 Jasem Mutlaq         Refactoring EkosManager to Ekos::Manager and updating DBus structure for all modules
+9de71fb7b 2018-08-26 Jasem Mutlaq         Reset properties when filter is disconnected
+6d1297e8f 2018-08-25 Yuri Chornoivan      Fix minor EBN issues
+00c6861b9 2018-08-25 Robert Lancaster     Summary: Using specified FOV's for each planet so the user can zoom. Adding a button to select FOV from the KStars FOV list. Adding another decimal ..
+a6510ac67 2018-08-23 Robert Lancaster     Making more recommended xplanet changes and fixing bugs:
+0fa94d809 2018-08-23 Eric Dejouhanet      Improve Scheduler robustness against INDI disconnections
+e3bec03e2 2018-08-22 Jasem Mutlaq         Use apparentCoord to immediately process the J2000 coordinates to JNow
+87be05656 2018-08-21 Jasem Mutlaq         Q_FALLTHROUGH() requires Qt 5.8 while we support 5.4 still so disabling
+d695b9ef6 2018-08-21 Csaba Kertesz        Fix the Android build
+19ec89274 2018-08-21 Csaba Kertesz        Add missing icons by automerge
+99d5b93fe 2018-08-21 Csaba Kertesz        Fix some item colors in KStars Lite
+a11fd36b0 2018-08-21 Jasem Mutlaq         Add telescope joystick controls to KStars Lite
+e47d07dea 2018-08-20 Eric Dejouhanet      Proper silencing for the switch-case fall-through warning
+0b33b9aea 2018-08-20 Jasem Mutlaq         Use more sane default when hitting enter key in Ekos modules.
+279e64a11 2018-08-20 Yuri Chornoivan      Fix minor EBN issues
+b9eb26e4d 2018-08-18 Jasem Mutlaq         Add warnings for missing properties
+5bb40f285 2018-08-18 Jasem Mutlaq         Explicitly set timespec to UTC
+6256a1993 2018-08-18 Jasem Mutlaq         FIx on 16.04 build
+80c7784ec 2018-08-18 Robert Lancaster     Adding XPlanet Viewer
+5823021b2 2018-08-18 Jasem Mutlaq         KStars GIT is now 3.0.0
+02e875e9e 2018-08-17 Jasem Mutlaq         Increase maximum dark library temperature thresold to 30
+afcfeb55c 2018-08-17 Jasem Mutlaq         Astrometry WCS should be enabled by default
+a4698d9e4 2018-08-16 Jasem Mutlaq         Comment C++17 feature
+4192037d2 2018-08-16 Jasem Mutlaq         Use IAU preferred names. While Tsih seems the most common name for Gamma Cassiopeiae, Navi is also associated from old space missions.
+996935f9f 2018-08-16 Eric Dejouhanet      Fix sequence boundary index regression.
+e416273aa 2018-08-16 Eric Dejouhanet      Fix unexpected signature folder creation, fix logs.
+
+2.9.8 (Pelican):
+=================================================================================================
+eb4aa89dc 2018-08-13 Jasem Mutlaq         Fix upper limits for some guide settings
+b7e3810b1 2018-08-13 Eric Dejouhanet      Fixes for the Scheduler and Capture modules
+27ae34f2b 2018-08-12 Jasem Mutlaq         Bit of code refactoring. Keep track of axis distance when reversing guide calibration direction. If we are still not moving toward the starting poin..
+e8cb5f3a9 2018-08-12 Jasem Mutlaq         Revert "Remove prefix from test to be the same for all"
+c2fef9880 2018-08-12 Jasem Mutlaq         Remove prefix from test to be the same for all
+6dfb66d01 2018-08-11 Jasem Mutlaq         Fix J2000 in sendCoords
+054fb21cd 2018-08-11 Jasem Mutlaq         Handle EQUATORIAL_COORD when the property is updated
+2587c4f6f 2018-08-11 Jasem Mutlaq         Draw J2000 coords
+d1cb70fbe 2018-08-11 Jasem Mutlaq         ALso accept EQUATORIAL_COORD for telescope coordinates
+b455bd581 2018-08-10 Yuri Chornoivan      Fix minor EBN issues
+9816f3521 2018-08-10 Jasem Mutlaq         In guiding deviation handler, search for aborted jobs and resume one since activeJob is always nullptr when abort is now called
+cb856ddf5 2018-08-09 Yuri Chornoivan      Fix minor typo
+9cd9341e0 2018-08-09 Jasem Mutlaq         Reset RMS value when reacquiring a star
+0d65fa060 2018-08-08 Jasem Mutlaq         Add complex job test
+23ec2283e 2018-08-08 Jasem Mutlaq         Fix message using the wrong variable
+ac502664b 2018-08-08 Jasem Mutlaq         Add helpful tooltip for guide settle
+e1a3f1369 2018-08-07 Eric Dejouhanet      Add RA/DEC fields to the list of controls which trigger a save.
+da7c8a6bc 2018-08-07 Csaba Kertesz        Fix the custom sky object removal
+9c7bebf84 2018-08-07 Jasem Mutlaq         Fix typo
+7f915094e 2018-08-07 Jasem Mutlaq         Check if telescope is connected before accepting sync
+6da8bb68e 2018-08-07 Jasem Mutlaq         Add Copy Coordinates action to the popup menu
+1d45a9c07 2018-08-07 Eric Dejouhanet      Edit scheduler jobs with double-click and update icon to match Capture module.
+610a79ed9 2018-08-06 Jasem Mutlaq         Fix typo
+068ef057a 2018-08-05 Csaba Kertesz        Fix for touch support to avoid closing popups in the skymap
+a5e515663 2018-08-05 Jasem Mutlaq         IDLE --> ABORTED so that scheduler acknowleged that. Disabling GuideStep --> Guiding transition since we have a case now where the transition is inc..
+617703f09 2018-08-05 Jasem Mutlaq         Update INSTALL file to reflect current state of affairs
+07a0d3eb3 2018-08-05 Jasem Mutlaq         Looksl like we will release 2.9.8 hotfix first before moving to 3.0.0
+5b7990ead 2018-08-05 Csaba Kertesz        Increase the font size in KStars Lite
+1fa13a932 2018-08-05 Jasem Mutlaq         Using Delta Max RMS as the threshold value to abort instead of just pulse length since it is a more reliable measure of guiding performance and also..
+bb27336ca 2018-08-05 Jasem Mutlaq         Always process images in Guide, Focus, and Align as Mono images
+45777dfd4 2018-08-04 Andy Galasso         The PHD2 external guider was not honoring the Lost Star timeout setting, it was using a hard-coded value of 5 seconds which is much too aggressive.
+a6b9780d2 2018-08-04 Yuri Chornoivan      Fix some EBN issues
+0abaa846a 2018-08-04 Wolfgang Reissenberger Summary: Logging output in Capture corrected, considering only the counts of a single sequence job
+46523bed3 2018-08-04 Eric Dejouhanet      Rework scheduler startup to merge execution paths.
+3e5f9f055 2018-08-04 Eric Dejouhanet      Update frame map unconditionally when starting scheduler.
+c774401a8 2018-08-04 Eric Dejouhanet      Mark scheduler job dirty when succesfully changing its target.
+bf4ac1e6a 2018-07-21 Csaba Kertesz        Use localization for KStars Lite
+5cec05783 2018-07-17 Csaba Kertesz        Further fixes for the Android build
+f83aed485 2018-08-03 Eric Dejouhanet      Adjust job editing algorithm
+723c1bcf9 2018-08-03 Jasem Mutlaq         Fix focus timer in capture module. Add more comments to explain some of the complex counting
+3bfa544de 2018-08-02 Jasem Mutlaq         After meridian flip, clear calibration is required and then guide
+c4dd86424 2018-08-02 Aleix Pol            Add the file to integrate with phabricator
+3ba2c1a27 2018-08-01 Jasem Mutlaq         Add GUIDE_IDLE to accepted previous state before restarting capture
+f3982dbf5 2018-08-01 Jasem Mutlaq         When PHD2 reports idle after calibration error, keep the error so that it is picked up by other processes until DBus signals are implemented
+424f4b03d 2018-08-01 Jasem Mutlaq         Fix slots connections. Remove prior hack used to identify aborted guide state
+499669f86 2018-08-01 Jasem Mutlaq         Limit reading for drivers XML files to those starting with indi_*
+25630e41c 2018-07-31 Pino Toscano         cmake: fix enabling of exceptions
+7676c91eb 2018-07-31 Jasem Mutlaq         Add warning if the guide camera is the same as the capture capture
+8e1034e54 2018-07-31 Jasem Mutlaq         Adapt INDI control panel to high DPI screens
+0132cd73c 2018-07-31 Jasem Mutlaq         Simplify scheduler calls to Guide module by remote the startAutoCalibrate and calling individual commands to have more control
+ac36a20c1 2018-07-30 Jasem Mutlaq         Reset align and guide fail counts when finding next job. Add GUIDE_IDLE as a fail condition since PHD2 resets to IDLE after it fails calibration
+d42df697c 2018-07-30 Jasem Mutlaq         When user edit FOV and reset it to 0x0, remove the effective FOV if one is saved so that the alignment process re-measures it again
+895cf1480 2018-07-30 Jasem Mutlaq         Remove cross cursor it was added before by mistake somehow
+26cd35278 2018-07-30 Jasem Mutlaq         Add StartupWMClass for better compatibility in other desktop environments
+6654b2fd2 2018-07-29 Jasem Mutlaq         Show tip of the day dialog after applying themes.
+9be2169dc 2018-07-29 Andy Galasso         PHD2: honor the "Receive external guide frames" setting. Also, only log event messages from PHD2 when verbose logging is enabled PHD2: only request ..
+0e259fb08 2018-07-28 Pino Toscano         i18n fixes
+cde98d293 2018-07-26 Jasem Mutlaq         Fix crash due to NaN asteroid magnitude. Also enforce show limit as per the options.
+fc5b8e237 2018-07-26 Eric Dejouhanet      Fix FINISH_AT management in Scheduler.
+40578b139 2018-07-25 Jasem Mutlaq         FIx another center issue with older Qt
+e5656839e 2018-07-25 Jasem Mutlaq         QPointF.center requires Qt 5.8 so we are going for the simpler version to make this compile on 16.04
+fadd47d9b 2018-07-25 Wolfgang Reissenberger Handling multiple occurrence of the same sequence job corrected
+4f100e322 2018-07-25 Robert Lancaster     Improving the Astrometry Index File configuration tab to include a button to open files and a link to the Readme
+0176721b0 2018-07-25 Jasem Mutlaq         Add green cloud to indicate EkosLive is online
+
+2.9.7 (Luna):
+=================================================================================================
+fadd47d 2018-07-25 Wolfgang Reissenberger Handling multiple occurrence of the same sequence job corrected
+4f100e3 2018-07-25 Robert Lancaster     Improving the Astrometry Index File configuration tab to include a button to open files and a link to the Readme
+0176721 2018-07-25 Jasem Mutlaq         Add green cloud to indicate EkosLive is online
+c3c9543 2018-07-24 Jasem Mutlaq         Improve tracking box pixmap by giving it a margin. Guiding profile needs to be grapped fully as is
+8d746c6 2018-07-24 Robert Lancaster     I finally got around to looking at these two issues.  First, the Astrometry Startup wizard has been rather redundant since I integrated all the astr..
+c3156de 2018-07-24 Jasem Mutlaq         Update OpenNGC to latest snapshot
+72a13e3 2018-07-24 Jasem Mutlaq         Support for remote drivers, both locally and using INDI Web Manager are complete. These changes require INDI Web Manager v0.1.5
+46cb903 2018-07-24 Jasem Mutlaq         Add control to change video stream exposure duration from the video widget
+2e33c32 2018-07-24 Jasem Mutlaq         Remote drivers are now supported locally and also remote via INDI Web Manager in addition to custom driver support
+0bf5c25 2018-07-24 Jasem Mutlaq         Add support for remote drivers
+619f446 2018-07-24 Jasem Mutlaq         Use new versioning system that is more reliable than relying on KStars version solely. Remove very old database upgrade paths.
+c67f9e8 2018-07-23 Jasem Mutlaq         Accomodate new web manager API
+4e13404 2018-07-23 Jasem Mutlaq         Syncing remote drivers in current profile with remote INDI web manager
+25f4a55 2018-07-23 Jasem Mutlaq         Custom drivers now work locally with Ekos
+d6ef5b1 2018-07-23 Jasem Mutlaq         Bump GUI version to 7
+23e6454 2018-07-22 Jasem Mutlaq         A bit of refactor and GUI rework plus database functionality for Custom Drivers instead of just aliases
+7ba647c 2018-07-22 Jasem Mutlaq         Use more common-sense variable names
+2b2e3a8 2018-07-22 Jasem Mutlaq         Update XML from upstream 3rd party
+e3d2c1f 2018-07-22 Jasem Mutlaq         Add detector to aux list as well
+0ce2169 2018-07-22 Jasem Mutlaq         Add spectrograph family type
+7804e61 2018-07-22 Jasem Mutlaq         calculating cumulative frequency corrected
+34ff784 2018-07-21 Jasem Mutlaq         Add support to manual dither either by magnitude or X,Y coordinates. Please note that if the target X,Y coordinates are far away from current reticl..
+17ec2a5 2018-07-21 Jasem Mutlaq         Use settings universally
+a781a00 2018-07-21 Jasem Mutlaq         Do not assume Filter_# convention
+f17be1d 2018-07-20 Jasem Mutlaq         Initial work for driver aliases
+e31207e 2018-07-20 Jasem Mutlaq         Add auto park feature with a timer
+4ba60e3 2018-07-20 Jasem Mutlaq         Do not delete temporary file even with autoremove set to true if we are loading the same filename
+bc6a45c 2018-07-20 Jasem Mutlaq         Use correct header
+c5ef911 2018-07-20 Jasem Mutlaq         Add option to restart alignment process in scheduler in case of guiding calibration failure since the target might have moved off center during the ..
+6d2257b 2018-07-20 Jasem Mutlaq         Add more check when saving PHD2 FITS image
+cc3a339 2018-07-19 Jasem Mutlaq         Add warning if reset guide calibration is enabled while using PHD2
+0e5361a 2018-07-19 Jasem Mutlaq         Limit minimum box radius to 100 pixels
+41104d9 2018-07-17 Aleix Pol            Android: Fix small build issues
+65735ca 2018-07-18 Jasem Mutlaq         Only queue focus-related tasks when the focuser is online
+ec7fd81 2018-07-17 Jasem Mutlaq         Send PAH message as plain text
+5db8b39 2018-07-17 Jasem Mutlaq         Return calculated values as required from astrometry option even if the effective FOV has not been measured yet. Make binning by default to be the m..
+28c4b13 2018-07-16 Jasem Mutlaq         Implement smart auto zoom for PAH when using EkosLive
+a89e11d 2018-07-16 Jasem Mutlaq         Add guiding settle time to capture module
+21bbdc0 2018-07-16 Jasem Mutlaq         Send center coords to EkosLive
+ed93aa1 2018-07-14 Jasem Mutlaq         Use dedicated timer instead of single shot so that we can stop the timer when captureAndSolve is invoked again. Added more helpful PAH info
+fd2c5ee 2018-07-14 Jasem Mutlaq         Send polar error along with correction vector to EkosLive
+b620243 2018-07-14 Jasem Mutlaq         Temporarily disable tracking box in focus view to prevent it from searching stars within the tracking box when no user star selection has been made
+bd59f16 2018-07-14 Jasem Mutlaq         Disable check for internet due to QTBUG-68613
+92f4f0e 2018-07-13 Csaba Kertesz        Add About dialog to KStars Lite
+a15b374 2018-07-13 Csaba Kertesz        Fix the Android build
+82605a3 2018-07-12 Csaba Kertesz        Bug fix: Mark the session list items on the skymap
+1e25ee5 2018-07-12 Jasem Mutlaq         Reduce PAH frame quality to increase speed during refresh. Only send magnitude and position angle of vector
+ce24278 2018-07-11 Jasem Mutlaq         Set state to abort or idle depending on the call. Resume capture if it was aborted before due to guide getting aborted.
+9b46a9d 2018-07-11 Jasem Mutlaq         Do not set slew rate if it the rate is the same
+8bf9a1c 2018-07-09 Jasem Mutlaq         Send correction vector to EKos like separately
+df18faa 2018-07-09 Jasem Mutlaq         Fix reading of RA (in degrees)
+c92979a 2018-07-07 Jasem Mutlaq         Consolidate setting and getting Ekos Live settings
+a852d0c 2018-07-06 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+77d3c0c 2018-07-06 Jasem Mutlaq         Sync capture settings back to EkosLive
+1d204a5 2018-07-06 Jasem Mutlaq         Add more debug for PAA and calculate Position Angle
+aee228f 2018-07-05 Csaba Kertesz        Add touch support to KStars (pinch, tap-and-hold)
+967c3d5 2018-07-03 Csaba Kertesz        Optimize Android package size
+5c7c268 2018-07-01 Jasem Mutlaq         Drop the experimental bit for HiPS, it is stable
+9ad3650 2018-07-01 Jasem Mutlaq         Fix header info
+be64083 2018-07-01 Jasem Mutlaq         Use QVariant for FITS header values since they carry different types. Still needs more work
+1180b2d 2018-07-01 Jasem Mutlaq         Add more informative log for PAH process
+a9835eb 2018-06-27 Csaba Kertesz        Remove custom sky objects via context menu
+1dbcb0c 2018-06-30 Jasem Mutlaq         Disable telescope wizard since it can be confusing to new users and is now redundant with Ekos
+77cd6a0 2018-06-28 Jasem Mutlaq         Display compressed file in FITSVIewer
+8ed1026 2018-06-27 Jasem Mutlaq         Add content-disposition to header to that the correct file name is downloaded when the URL is requested
+1075348 2018-06-27 Jasem Mutlaq         Include another missing header..
+7daa3cc 2018-06-26 Jasem Mutlaq         Be consistent in naming KStars startup wizard.
+702e068 2018-06-26 Jasem Mutlaq         Include required header
+dae9014 2018-06-23 Csaba Kertesz        Update the Android build to the latest NDK version and official tools, remove hacks
+6e4d0c9 2018-06-25 Jasem Mutlaq         Fix random dithering not being not so random, plus limit it to 25 pixels box
+8aa7ca2 2018-06-25 Jasem Mutlaq         No need to prefix the x-amz since we'll just save the metadata to DB and not cloud
+2646052 2018-06-25 Jasem Mutlaq         Fix gain issue not showing up
+337670b 2018-06-24 Jasem Mutlaq         Include fpack and punpack directly since we need to specify the output filename as well calling a binary cross-platform can be problematic. Each upl..
+d5befeb 2018-06-22 Jasem Mutlaq         Fix broken simbad link to simbad.cfa.harvard.edu
+d6e9cb4 2018-06-22 Jasem Mutlaq         Only stop sending pulses in case we are guiding (not dithering) and we already sent one high pulse beforehand. This is to allow for dithering large ..
+47291ec 2018-06-21 Jasem Mutlaq         Cloud storage is now operational
+9da31f3 2018-06-21 Eric Dejouhanet      Keeping time since previous periodic refocus
+92b9c3c 2018-06-21 Jasem Mutlaq         Add cloud part and consolidate options
+92d91f3 2018-06-19 Csaba Kertesz        Separate build targets for KStars and KStars Lite
+ec145c7 2018-06-21 Jasem Mutlaq         Refactoring Ekos Live into its own namespace
+2661f5f 2018-06-21 Jasem Mutlaq         Add isTempFIle()
+a242977 2018-06-20 Jasem Mutlaq         Add const qualifier
+5da27f4 2018-06-20 Jasem Mutlaq         Enable cloud storage
+5de94b9 2018-06-20 Jasem Mutlaq         Set it to use Live
+a2682ee 2018-06-19 Jasem Mutlaq         Fix set blobs and send query params on media connection
+30a1546 2018-06-19 Jasem Mutlaq         Implement set blobs
+09023b2 2018-06-18 Jasem Mutlaq         Merge branch 'ekoslive'
+ce614aa 2018-06-18 Jasem Mutlaq         Merge branch 'ekoslive'
+54d4830 2018-06-18 Jasem Mutlaq         Use Qt5 Keychain instead of KWallet since it works cross-platform better
+d108408 2018-06-17 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+ed37a2f 2018-06-17 Jasem Mutlaq         Set rotation regardless of job status
+09a60a5 2018-06-17 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+88e11b5 2018-06-17 Jasem Mutlaq         Set temperature regardless of status
+70fc5c2 2018-06-17 Jasem Mutlaq         Sync with master
+00cb600 2018-06-17 Jasem Mutlaq         Job should be BUSY even in the preperation phase before capture where it is setting filter or rotation or temperature..etc. This should enable the u..
+a9448ae 2018-06-16 Jasem Mutlaq         Fix copy-paste error
+eae818d 2018-06-16 Jasem Mutlaq         Send additional metadata and implement focus reset
+a4e4b0a 2018-06-16 Jasem Mutlaq         Send inital status on set
+c394475 2018-06-15 Jasem Mutlaq         Delay frame capture until pulse duration is almost over
+e05f896 2018-06-14 Jasem Mutlaq         Increase high pulse margin to .95 and add debug in case of lost star
+c71b674 2018-06-14 Jasem Mutlaq         Add support to notification option
+f27b79e 2018-06-14 Jasem Mutlaq         Fix typo
+296bd3e 2018-06-14 Jasem Mutlaq         Need to move them to slots
+59d493c 2018-06-14 Jasem Mutlaq         Support auto reconnect on server termination
+a18d673 2018-06-14 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+6b22b11 2018-06-14 Jasem Mutlaq         Syncing with master
+84bb988 2018-06-12 Csaba Kertesz        Fix cppcheck findings
+a6be7db 2018-06-13 Jasem Mutlaq         If star is lost during dithering, resume dither after reaquiring the star
+384ce52 2018-06-12 Csaba Kertesz        Compilation fixes
+d058ae1 2018-06-08 Csaba Kertesz        Krazy fixes
+c018f4d 2018-06-11 Jasem Mutlaq         Testing dev site
+ba9217e 2018-06-11 Jasem Mutlaq         Support bandwidth and transfer settings
+2dd77ab 2018-06-11 Eric Dejouhanet      Keep job removal icon disabled when Scheduler stops
+418478a 2018-06-10 Jasem Mutlaq         Sequences working now with Ekos Live
+dfceb97 2018-06-10 Jasem Mutlaq         Add missing satellite icons
+a3ad2a2 2018-06-09 Jasem Mutlaq         isoIndex --> iso
+23beeeb 2018-06-07 Jasem Mutlaq         Use the same setCapture settings structure
+14e2d09 2018-06-07 Jasem Mutlaq         Emit state also when idle. Send mounts and scopes on detecting TELESCOPE_PARK as well
+e578061 2018-06-07 Eric Dejouhanet      Preparing for homogeneity with capture tab.
+8b0db9f 2018-06-07 Eric Dejouhanet      Fix scheduling issue picking unexpected job as first
+4e6a0d4 2018-06-07 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+336b886 2018-06-07 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+b3c1b0d 2018-06-06 Jasem Mutlaq         The workflow is now more event driven
+f9202a9 2018-06-06 Jasem Mutlaq         More progress for connection and profile work
+beb522e 2018-06-06 Jasem Mutlaq         Enable high dpi scaling for Qt > 5.6
+e41e1fc 2018-06-06 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+59d5a8f 2018-06-06 Jasem Mutlaq         Master merge
+dbb9419 2018-06-06 Jasem Mutlaq         Initial support for profile control
+85560b1 2018-06-05 Csaba Kertesz        Fix Coverity findings
+aa8b38b 2018-06-05 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+40fb703 2018-06-05 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+c2c83d6 2018-06-04 Jasem Mutlaq         Removing some HTML tags. PAH now ready to be used with Ekos Live
+5421483 2018-06-04 Jasem Mutlaq         Save pixmap and image in QBuffer instead of saving to disk. Pixmap contains all overlay elements. This should be used for other cases where we save ..
+d893c34 2018-06-04 Csaba Kertesz        Clazy fixes
+069331c 2018-06-04 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+429e91e 2018-06-04 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+6569077 2018-06-03 Csaba Kertesz        Modernize for cycles
+3e77d59 2018-06-03 Jasem Mutlaq         Ensure ekos is connected first
+8900e81 2018-06-03 Jasem Mutlaq         Support PAH changes in Ekos Live
+d4ecff1 2018-06-03 Jasem Mutlaq         Simplify PAH tool
+48e8cc7 2018-05-31 Csaba Kertesz        Remove redundant returns
+0c757d3 2018-06-02 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+ebf5020 2018-06-02 Csaba Kertesz        Fix the Windows build
+1904421 2018-06-02 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+f689ccb 2018-06-02 Jasem Mutlaq         Use UUID to create the filename for FITS WCS
+e12d536 2018-06-02 Jasem Mutlaq         Some initial work for PAH support in Ekos Live
+9096a0a 2018-06-01 Jasem Mutlaq         Code refactoring. Support load n slew from Ekos Live
+f5ba3be 2018-06-01 Jasem Mutlaq         Do not send token with EACH request since we have a stateful connection. Just send token on the initial connection.
+90103ba 2018-05-31 Eric Dejouhanet      Reduced the amount of logs in the Scheduler.
+82b5710 2018-05-31 Jasem Mutlaq         Support a dedicated channel for media
+3915c2d 2018-05-31 Jasem Mutlaq         Return solutoin results and set capture settings in align module
+e7ecc3f 2018-05-31 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+9892df2 2018-05-30 Jasem Mutlaq         Progress on alignment
+3c1236e 2018-05-30 Jasem Mutlaq         Merge branch 'ekoslive' of git://anongit.kde.org/kstars into ekoslive
+60a0423 2018-05-30 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars into ekoslive
+616a6bf 2018-05-29 Jasem Mutlaq         Add minimum 5 points to help text to avoid confusion
+f36eae1 2018-05-26 Csaba Kertesz        Change the num singleton name in KStars Lite to uppercase otherwise new Qt versions crash
+f58b2e6 2018-05-29 Jasem Mutlaq         Add metadata to regular captures
+bd3800e 2018-05-29 Jasem Mutlaq         size --> samplesPerChannel refactor
+789d590 2018-05-29 Jasem Mutlaq         size --> samplesPerChannel refactor
+c8916d3 2018-05-29 Jasem Mutlaq         Use const where appropiate. Parse FITS header and provide methods to retrive and search it
+7624bf3 2018-05-28 Jasem Mutlaq         Implement guiding and send video frames separately
+9320faf 2018-05-28 Jasem Mutlaq         Merge branch 'master' of git://anongit.kde.org/kstars
+5a4a5ea 2018-05-28 Robert Lancaster     This patch fixes a couple of icons issues that popped up after we did the themes work.  These were not correct and it could not find the icons prope..
+b4916eb 2018-05-28 Jasem Mutlaq         Add supprt for focus actions
+7f07def 2018-05-28 Jasem Mutlaq         Ekos live mount control are almost complete now.
+6c02df0 2018-05-28 Eric Dejouhanet      Fix execution of repeating scheduler jobs.
+ebd508e 2018-05-28 Jasem Mutlaq         Support tracking control and slew rate
+2456da5 2018-05-27 Jasem Mutlaq         Merge with master changes
+4563499 2018-05-26 Jasem Mutlaq         Support for abort and slew rates
+6661957 2018-05-26 Csaba Kertesz        Compilation fixes
+5ac761a 2018-05-25 Csaba Kertesz        Use default keyword for ctors/dtors and other fixes
+368a0d9 2018-05-25 Yuri Chornoivan      Add missing words
+7d4975c 2018-05-25 Yuri Chornoivan      Make compile + some updates
+42afb30 2018-05-25 Yuri Chornoivan      Fix minor typos
+04b980e 2018-05-25 Yuri Chornoivan      Fix minor typos
+c7ae428 2018-05-25 Jasem Mutlaq         Include the hips entity in commands
+
 2.9.6 (Lalande):
 =================================================================================================
 3434dd0 2018-05-24 Jasem Mutlaq         Add HiPS documentation
@@ -282,42 +829,42 @@ a2809ae 2017-11-17 Aleix Pol            Adapt the cmake buildsystem to be able t
 
 2.8.9 (Sarin):
 =================================================================================================
-bcf13d8 2017-12-16 Robert Lancaster     Add scatter plot in guide module                                                                                                                      
-e6bb032 2017-12-15 Jasem Mutlaq         Update INDI drivers list                                                                                                                              
-2853e56 2017-12-14 Jasem Mutlaq         target filter need to be set after meridian flip and before in-sequence focusing is started in case current filter is different                       
-3f058ed 2017-12-14 Jasem Mutlaq         Init variables to zero D9326                                                                                                                          
+bcf13d8 2017-12-16 Robert Lancaster     Add scatter plot in guide module
+e6bb032 2017-12-15 Jasem Mutlaq         Update INDI drivers list
+2853e56 2017-12-14 Jasem Mutlaq         target filter need to be set after meridian flip and before in-sequence focusing is started in case current filter is different
+3f058ed 2017-12-14 Jasem Mutlaq         Init variables to zero D9326
 09e0df4 2017-12-14 Robert Lancaster     I cleaned up some of the code in the PHD2 file, added a Request List so that it remembers what it asked PHD2 to do, and added a skeleton to make it ..
-7a979bb 2017-12-14 Jasem Mutlaq         Update driver list for v1.6.0                                                                                                                         
-d895018 2017-12-14 Jasem Mutlaq         If version is not valid, set it to 1.0                                                                                                                
-b236166 2017-12-13 Jasem Mutlaq         Do not use Autofocus filter policy on preview                                                                                                         
-4b9daca 2017-12-13 Jasem Mutlaq         Improve focus filter policy                                                                                                                           
-ab0e8d2 2017-12-13 Jasem Mutlaq         Add option for when to perform in-sequence focusing                                                                                                   
-b473d01 2017-12-13 Jasem Mutlaq         Lock policy should determine lock filter search                                                                                                       
-feab1ce 2017-12-13 Jasem Mutlaq         Check target filter position is > 0                                                                                                                   
-0549957 2017-12-12 Jasem Mutlaq         Resume guiding if it was suspended due to parking dust cap before                                                                                     
+7a979bb 2017-12-14 Jasem Mutlaq         Update driver list for v1.6.0
+d895018 2017-12-14 Jasem Mutlaq         If version is not valid, set it to 1.0
+b236166 2017-12-13 Jasem Mutlaq         Do not use Autofocus filter policy on preview
+4b9daca 2017-12-13 Jasem Mutlaq         Improve focus filter policy
+ab0e8d2 2017-12-13 Jasem Mutlaq         Add option for when to perform in-sequence focusing
+b473d01 2017-12-13 Jasem Mutlaq         Lock policy should determine lock filter search
+feab1ce 2017-12-13 Jasem Mutlaq         Check target filter position is > 0
+0549957 2017-12-12 Jasem Mutlaq         Resume guiding if it was suspended due to parking dust cap before
 755e8df 2017-12-12 Robert Lancaster     This patch should add several improvements to the PHD2 interface in KStars.  Here is a list. 1.  Makes sure the temp directory exists so that the gu..
-1399d97 2017-12-11 Jasem Mutlaq         Remove calibration button and make it automatic with just one simple guide button. A clear calibration button is added to reset the calibration       
-d3ec2d4 2017-12-11 Jasem Mutlaq         Bump version to 2.8.9                                                                                                                                 
-c0340ce 2017-12-10 Robert Lancaster     Use USHORT for PHD2 image                                                                                                                             
-881385b 2017-12-10 Jasem Mutlaq         Make file system string comparision case insensitive so that it does not overwrite files on Windows.                                                  
-7128916 2017-12-10 Jasem Mutlaq         Do not update focus state when in meridian flip                                                                                                       
-bbe79a3 2017-12-10 Jasem Mutlaq         Set focus to IDLE on filter position ready                                                                                                            
-91c1130 2017-12-10 Robert Lancaser      Add support for star image reception from PHD2                                                                                                        
-e4fc7c3 2017-12-10 Jasem Mutlaq         Only reset initialHA on first regular startup not after deviation restart                                                                             
-c28546d 2017-12-10 Jasem Mutlaq         Increase max failure attempts                                                                                                                         
-063582f 2017-12-10 Jasem Mutlaq         Update debugging statement to show DMS                                                                                                                
+1399d97 2017-12-11 Jasem Mutlaq         Remove calibration button and make it automatic with just one simple guide button. A clear calibration button is added to reset the calibration
+d3ec2d4 2017-12-11 Jasem Mutlaq         Bump version to 2.8.9
+c0340ce 2017-12-10 Robert Lancaster     Use USHORT for PHD2 image
+881385b 2017-12-10 Jasem Mutlaq         Make file system string comparision case insensitive so that it does not overwrite files on Windows.
+7128916 2017-12-10 Jasem Mutlaq         Do not update focus state when in meridian flip
+bbe79a3 2017-12-10 Jasem Mutlaq         Set focus to IDLE on filter position ready
+91c1130 2017-12-10 Robert Lancaser      Add support for star image reception from PHD2
+e4fc7c3 2017-12-10 Jasem Mutlaq         Only reset initialHA on first regular startup not after deviation restart
+c28546d 2017-12-10 Jasem Mutlaq         Increase max failure attempts
+063582f 2017-12-10 Jasem Mutlaq         Update debugging statement to show DMS
 f8a0645 2017-12-08 Jasem Mutlaq         Update Guide params when using external guiders. This needs to be extensively tested as it may lead to regressions on the remote image reception fun..
 c42dd43 2017-12-08 Jasem Mutlaq         Use QtConcurrent as to not freeze KStars during the calculation. Object1 should _not_ be a unique_ptr since reset will delete the object while we ar..
-84ec267 2017-12-08 Jasem Mutlaq         Cache default Sun pointer instead of repeated search                                                                                                  
-060961b 2017-12-04 Jasem Mutlaq         Improve objectnearest search algorithm so that object selection especially for bright deep sky objects is not as furstrating                          
-4d0d6c2 2017-12-04 Jasem Mutlaq         If not selected, return nullptr for objectnearest                                                                                                     
-1b1846b 2017-12-04 Jasem Mutlaq         If there is no country defined, just return site name                                                                                                 
-59b15b4 2017-12-04 Jasem Mutlaq         Update description and text for time and location settings to avoid confusion on what they exactly do                                                 
-b675922 2017-12-03 Jasem Mutlaq         String should not contain show                                                                                                                        
-a7d91de 2017-12-03 Jasem Mutlaq         Add support for local meridian solid line                                                                                                             
-ec1b8e3 2017-12-01 Jasem Mutlaq         remove duplicate file                                                                                                                                 
-d81a8c2 2017-11-26 Robert Lancaster     Add support for percentage display while downloading astrometry index files                                                                           
-6cb541f 2017-11-23 Robert Lancaster     This patch will calculate the download time for astrometry index files and will still set it for 60 seconds for the smaller 
+84ec267 2017-12-08 Jasem Mutlaq         Cache default Sun pointer instead of repeated search
+060961b 2017-12-04 Jasem Mutlaq         Improve objectnearest search algorithm so that object selection especially for bright deep sky objects is not as furstrating
+4d0d6c2 2017-12-04 Jasem Mutlaq         If not selected, return nullptr for objectnearest
+1b1846b 2017-12-04 Jasem Mutlaq         If there is no country defined, just return site name
+59b15b4 2017-12-04 Jasem Mutlaq         Update description and text for time and location settings to avoid confusion on what they exactly do
+b675922 2017-12-03 Jasem Mutlaq         String should not contain show
+a7d91de 2017-12-03 Jasem Mutlaq         Add support for local meridian solid line
+ec1b8e3 2017-12-01 Jasem Mutlaq         remove duplicate file
+d81a8c2 2017-11-26 Robert Lancaster     Add support for percentage display while downloading astrometry index files
+6cb541f 2017-11-23 Robert Lancaster     This patch will calculate the download time for astrometry index files and will still set it for 60 seconds for the smaller
 
 2.8.7 (Nunki):
 =================================================================================================
@@ -1674,7 +2221,7 @@ b32c941 2016-09-20	Artem Fedoskin	Final commit before merging to master. Added c
 928d184 2016-09-18	l10n daemon script	SVN_SILENT made messages (.desktop file) - always resolve ours
 1deb1f2 2016-09-18	Jasem Mutlaq	Add more logging to isSequenceFileComplete to diagnose any future issues
 55f164c 2016-09-17	Jasem Mutlaq	Disable and enable start button based on number of jobs
-353d5f8 2016-09-17	Artem Fedoskin	Added comments to all SkyItem derrived classes. Started to add comments to SkyNode derrived classes. Added function for deleting all childNodes to TrixelNode
+353d5f8 2016-09-17	Artem Fedoskin	Added comments to all SkyItem derived classes. Started to add comments to SkyNode derrived classes. Added function for deleting all childNodes to TrixelNode
 31a7b6d 2016-09-16	Jasem Mutlaq	Disable all queue edit buttons while sequence is in progress
 d210c12 2016-09-15	Jasem Mutlaq	Start sequence as well if state is capture complete
 e52c841 2016-09-15	Jasem Mutlaq	Always set filterReady to true if the frame type is either bias or dark

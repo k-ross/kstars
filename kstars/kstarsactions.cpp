@@ -21,6 +21,7 @@
 
 #include "imageexporter.h"
 #include "kstarsdata.h"
+#include "kstars_debug.h"
 #include "kswizard.h"
 #include "Options.h"
 #include "skymap.h"
@@ -67,7 +68,7 @@
 
 #ifdef HAVE_INDI
 #include <basedevice.h>
-#include "indi/telescopewizardprocess.h"
+//#include "indi/telescopewizardprocess.h"
 #include "indi/opsindi.h"
 #include "indi/drivermanager.h"
 #include "indi/guimanager.h"
@@ -78,7 +79,7 @@
 #include "fitsviewer/fitsviewer.h"
 #include "fitsviewer/opsfits.h"
 #ifdef HAVE_INDI
-#include "ekos/ekosmanager.h"
+#include "ekos/manager.h"
 #include "ekos/opsekos.h"
 #endif
 #endif
@@ -91,20 +92,18 @@
 #include <KActionCollection>
 #include <KActionMenu>
 #include <KTipDialog>
+#include <KToggleAction>
 #include <kns3/downloaddialog.h>
 
 #include <QQuickWindow>
 #include <QQuickView>
 
-#include <KToggleAction>
 
 #ifdef _WIN32
 #include <windows.h>
 #undef interface
 #endif
 #include <sys/stat.h>
-
-#include "kstars_debug.h"
 
 /** ViewToolBar Action.  All of the viewToolBar buttons are connected to this slot. **/
 
@@ -251,7 +250,7 @@ void KStars::slotViewToolBar()
 void KStars::slotINDIToolBar()
 {
 #ifdef HAVE_INDI
-    KToggleAction *a = (KToggleAction *)sender();
+    KToggleAction *a = qobject_cast<KToggleAction *>(sender());
 
     if (a == actionCollection()->action("show_control_panel"))
     {
@@ -279,7 +278,7 @@ void KStars::slotINDIToolBar()
     {
         if (INDIListener::Instance()->size() == 0)
         {
-            KMessageBox::sorry(0, i18n("KStars did not find any active telescopes."));
+            KMessageBox::sorry(nullptr, i18n("KStars did not find any active telescopes."));
             return;
         }
 
@@ -298,7 +297,7 @@ void KStars::slotINDIToolBar()
             if (bd->isConnected() == false)
             {
                 KMessageBox::error(
-                    0, i18n("Telescope %1 is offline. Please connect and retry again.", gd->getDeviceName()));
+                    nullptr, i18n("Telescope %1 is offline. Please connect and retry again.", gd->getDeviceName()));
                 return;
             }
 
@@ -308,7 +307,7 @@ void KStars::slotINDIToolBar()
 
         if (oneScope == nullptr)
         {
-            KMessageBox::sorry(0, i18n("KStars did not find any active telescopes."));
+            KMessageBox::sorry(nullptr, i18n("KStars did not find any active telescopes."));
             return;
         }
 
@@ -327,7 +326,7 @@ void KStars::slotINDIToolBar()
 
         if (a->isChecked())
         {
-            foreach (FITSViewer *view, m_FITSViewers)
+            for (QPointer<FITSViewer> view : m_FITSViewers)
             {
                 if (view->getTabs().empty() == false)
                 {
@@ -339,7 +338,7 @@ void KStars::slotINDIToolBar()
         }
         else
         {
-            foreach (FITSViewer *view, m_FITSViewers)
+            for (QPointer<FITSViewer> view : m_FITSViewers)
             {
                 view->hide();
             }
@@ -609,6 +608,7 @@ void KStars::slotFlagManager()
     m_FlagManager->show();
 }
 
+#if 0
 void KStars::slotTelescopeWizard()
 {
 #ifdef HAVE_INDI
@@ -643,6 +643,7 @@ void KStars::slotTelescopeWizard()
     delete twiz;
 #endif
 }
+#endif
 
 void KStars::slotINDIPanel()
 {
@@ -1143,16 +1144,9 @@ void KStars::slotSetTimeToNow()
 
 void KStars::slotFind()
 {
-    clearCachedFindDialog();
-    if (!m_FindDialog) // create new dialog if no dialog is existing
-    {
-        m_FindDialog = new FindDialog(this);
-    }
-
-    if (!m_FindDialog)
-        qWarning() << i18n("KStars::slotFind() - Not enough memory for dialog");
-    SkyObject *targetObject;
-    if (m_FindDialog->exec() == QDialog::Accepted && (targetObject = m_FindDialog->targetObject()))
+    //clearCachedFindDialog();
+    SkyObject *targetObject = nullptr;
+    if (FindDialog::Instance()->exec() == QDialog::Accepted && (targetObject = FindDialog::Instance()->targetObject()))
     {
         map()->setClickedObject(targetObject);
         map()->setClickedPoint(map()->clickedObject());
@@ -1160,8 +1154,8 @@ void KStars::slotFind()
     }
 
     // check if data has changed while dialog was open
-    if (DialogIsObsolete)
-        clearCachedFindDialog();
+    //if (DialogIsObsolete)
+    //    clearCachedFindDialog();
 }
 
 void KStars::slotOpenFITS()
@@ -1170,7 +1164,7 @@ void KStars::slotOpenFITS()
 
     static QUrl path = QUrl::fromLocalFile(QDir::homePath());
     QUrl fileURL =
-        QFileDialog::getOpenFileUrl(KStars::Instance(), i18n("Open FITS"), path, "FITS (*.fits *.fit *.fts)");
+        QFileDialog::getOpenFileUrl(KStars::Instance(), i18n("Open FITS"), path, "FITS (*.fits *.fits.fz *.fit *.fts)");
 
     if (fileURL.isEmpty())
         return;
@@ -1178,15 +1172,14 @@ void KStars::slotOpenFITS()
     // Remember last directory
     path.setUrl(fileURL.url(QUrl::RemoveFilename));
 
-    FITSViewer *fv = new FITSViewer((Options::independentWindowFITS()) ? nullptr : this);
-    // Error opening file
-    if (fv->addFITS(&fileURL, FITS_NORMAL, FITS_NONE, QString(), false) == -2)
-        delete (fv);
-    else
-    {
-        m_FITSViewers.append(fv);
+    QPointer<FITSViewer> fv = new FITSViewer((Options::independentWindowFITS()) ? nullptr : this);
+
+    connect(fv, &FITSViewer::loaded, [&,fv]() {
+        addFITSViewer(fv);
         fv->show();
-    }
+    });
+
+    fv->addFITS(fileURL, FITS_NORMAL, FITS_NONE, QString(), false);
 #endif
 }
 
@@ -1631,7 +1624,7 @@ void KStars::slotHIPSSource()
     QAction *selectedAction = qobject_cast<QAction*>(sender());
     Q_ASSERT(selectedAction != nullptr);
 
-    QString selectedSource = selectedAction->text().remove("&");
+    QString selectedSource = selectedAction->text().remove('&');
 
     // selectedSource could be translated, while we need to send only Latin "None"
     // to Hips manager.
@@ -1703,7 +1696,7 @@ void KStars::slotEyepieceView(SkyPoint *sp, const QString &imagePath)
         {
             nameToFovMap.insert(f->name(), f);
         }
-        nameToFovMap.insert(i18n("Attempt to determine from image"), 0);
+        nameToFovMap.insert(i18n("Attempt to determine from image"), nullptr);
         fov = nameToFovMap[QInputDialog::getItem(this, i18n("Eyepiece View: Choose a field-of-view"),
                                                  i18n("FOV to render eyepiece view for:"), nameToFovMap.uniqueKeys(), 0,
                                                  false, &ok)];

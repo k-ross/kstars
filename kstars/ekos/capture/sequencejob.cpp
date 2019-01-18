@@ -8,27 +8,28 @@
  */
 
 #include "sequencejob.h"
-#include "indi/driverinfo.h"
-#include "indi/clientmanager.h"
 
 #include "kstars.h"
 #include "kstarsdata.h"
 #include "Options.h"
+#include "indi/driverinfo.h"
+#include "indi/clientmanager.h"
 
 #include <KNotifications/KNotification>
 
-#define INVALID_VALUE       -1e6
 #define MF_TIMER_TIMEOUT    90000
 #define MF_RA_DIFF_LIMIT    4
 
 namespace Ekos
 {
+QString const & SequenceJob::ISOMarker("_ISO8601");
+
 SequenceJob::SequenceJob()
 {
     statusStrings = QStringList() << i18n("Idle") << i18n("In Progress") << i18n("Error") << i18n("Aborted")
                                   << i18n("Complete");
-    currentTemperature = targetTemperature = INVALID_VALUE;
-    targetRotation = currentRotation = INVALID_VALUE;
+    currentTemperature = targetTemperature = Ekos::INVALID_VALUE;
+    targetRotation = currentRotation = Ekos::INVALID_VALUE;
 
     prepareActions[ACTION_FILTER] = true;
     prepareActions[ACTION_TEMPERATURE] = true;
@@ -44,19 +45,16 @@ void SequenceJob::reset()
 
 void SequenceJob::resetStatus()
 {
-    status         = JOB_IDLE;    
-    completed      = 0;
+    setStatus(JOB_IDLE);
+    setCompleted(0);
     exposeLeft     = 0;
     captureRetires = 0;
-    if (preview == false && statusCell)
-        statusCell->setText(statusStrings[status]);
+    m_JobProgressIgnored = false;
 }
 
 void SequenceJob::abort()
 {
-    status = JOB_ABORTED;
-    if (preview == false && statusCell)
-        statusCell->setText(statusStrings[status]);
+    setStatus(JOB_ABORTED);
     if (activeChip->canAbort())
         activeChip->abortExposure();
     activeChip->setBatchMode(false);
@@ -64,15 +62,15 @@ void SequenceJob::abort()
 
 void SequenceJob::done()
 {
-    status = JOB_DONE;
-
-    if (statusCell)
-        statusCell->setText(statusStrings[status]);
+    setStatus(JOB_DONE);
 }
 
 void SequenceJob::prepareCapture()
 {
+    status = JOB_BUSY;
+
     prepareReady = false;
+
     // Reset all prepare actions
     setAllActionsReady();
 
@@ -88,8 +86,8 @@ void SequenceJob::prepareCapture()
     activeCCD->setUploadMode(uploadMode);
 
     // Set all custom properties
-    if (preview == false)
-    {
+    //if (preview == false)
+    //{
         QMapIterator<QString, QMap<QString,double>> i(customProperties);
         while (i.hasNext())
         {
@@ -111,7 +109,7 @@ void SequenceJob::prepareCapture()
                 activeCCD->getDriverInfo()->getClientManager()->sendNewNumber(np);
             }
         }
-    }
+    //}
 
     if (activeChip->isBatchMode() && remoteDirectory.isEmpty() == false)
         activeCCD->updateUploadSettings(remoteDirectory + directoryPostfix);
@@ -160,7 +158,7 @@ void SequenceJob::prepareCapture()
     }
 
     // Check if we need to update rotator
-    if (targetRotation != INVALID_VALUE && fabs(currentRotation - targetRotation)*60 > Options::astrometryRotatorThreshold())
+    if (targetRotation != Ekos::INVALID_VALUE && fabs(currentRotation - targetRotation)*60 > Options::astrometryRotatorThreshold())
     {
         // PA = RawAngle * Multiplier + Offset
         double rawAngle = (targetRotation - Options::pAOffset()) / Options::pAMultiplier();
@@ -185,6 +183,59 @@ void SequenceJob::setAllActionsReady()
         i.next();
         i.setValue(true);
     }
+}
+
+void SequenceJob::setStatus(JOBStatus const in_status)
+{
+    status = in_status;
+    if( !preview && nullptr != statusCell)
+        statusCell->setText(statusStrings[in_status]);
+}
+
+void SequenceJob::setStatusCell(QTableWidgetItem* cell)
+{
+    statusCell = cell;
+    if (nullptr != cell)
+    {
+        cell->setTextAlignment(Qt::AlignHCenter);
+        cell->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        setStatus(getStatus());
+    }
+}
+
+void SequenceJob::setCount(int in_count)
+{
+    count = in_count;
+    if( !preview && nullptr != countCell)
+        countCell->setText(QString("%L1/%L2").arg(completed).arg(in_count));
+}
+
+void SequenceJob::setCompleted(int in_completed)
+{
+    completed = in_completed;
+    if( !preview && nullptr != countCell)
+        countCell->setText(QString("%L1/%L2").arg(in_completed).arg(count));
+}
+
+void SequenceJob::setCountCell(QTableWidgetItem* cell)
+{
+    countCell = cell;
+    if (nullptr != cell)
+    {
+        cell->setTextAlignment(Qt::AlignHCenter);
+        cell->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        setCount(getCount());
+    }
+}
+
+bool SequenceJob::getJobProgressIgnored() const
+{
+    return m_JobProgressIgnored;
+}
+
+void SequenceJob::setJobProgressIgnored(bool JobProgressIgnored)
+{
+    m_JobProgressIgnored = JobProgressIgnored;
 }
 
 QString SequenceJob::getDirectoryPostfix() const
@@ -250,21 +301,13 @@ SequenceJob::CAPTUREResult SequenceJob::capture(bool noCaptureFilter)
         // So setting binning first always ensures this will work.
         if (activeChip->canBin() && activeChip->setBinning(binX, binY) == false)
         {
-            status = JOB_ERROR;
-
-            if (preview == false && statusCell)
-                statusCell->setText(statusStrings[status]);
-
+            setStatus(JOB_ERROR);
             return CAPTURE_BIN_ERROR;
         }
 
         if ((w > 0 && h > 0) && activeChip->canSubframe() && activeChip->setFrame(x, y, w, h) == false)
         {
-            status = JOB_ERROR;
-
-            if (preview == false && statusCell)
-                statusCell->setText(statusStrings[status]);
-
+            setStatus(JOB_ERROR);
             return CAPTURE_FRAME_ERROR;
         }
     }
@@ -281,10 +324,8 @@ SequenceJob::CAPTUREResult SequenceJob::capture(bool noCaptureFilter)
     if (activeFilter && activeFilter != activeCCD)
         activeCCD->setFilter(filter);
 
-    status = JOB_BUSY;
-
-    if (preview == false && statusCell)
-        statusCell->setText(statusStrings[status]);
+    //status = JOB_BUSY;
+    setStatus(getStatus());
 
     exposeLeft = exposure;
 
@@ -343,7 +384,8 @@ void SequenceJob::setCurrentTemperature(double value)
     if (enforceTemperature == false || fabs(targetTemperature - currentTemperature) <= Options::maxTemperatureDiff())
         prepareActions[ACTION_TEMPERATURE] = true;
 
-    if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    //if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    if (prepareReady == false && areActionsReady())
     {
         prepareReady = true;
         emit prepareComplete();
@@ -478,7 +520,7 @@ QString SequenceJob::getRemoteDir() const
 void SequenceJob::setRemoteDir(const QString &value)
 {
     remoteDirectory = value;
-    if (remoteDirectory.endsWith("/"))
+    if (remoteDirectory.endsWith('/'))
         remoteDirectory.chop(1);
 }
 
@@ -534,7 +576,8 @@ void SequenceJob::setCurrentFilter(int value)
     if (currentFilter == targetFilter)
         prepareActions[ACTION_FILTER] = true;
 
-    if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    //if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    if (prepareReady == false && areActionsReady())
     {
         prepareReady = true;
         emit prepareComplete();
@@ -550,7 +593,8 @@ void SequenceJob::setCurrentRotation(double value)
     if (fabs(currentRotation - targetRotation)*60 <= Options::astrometryRotatorThreshold())
         prepareActions[ACTION_ROTATOR] = true;
 
-    if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    //if (prepareReady == false && areActionsReady() && (status == JOB_IDLE || status == JOB_ABORTED))
+    if (prepareReady == false && areActionsReady())
     {
         prepareReady = true;
         emit prepareComplete();

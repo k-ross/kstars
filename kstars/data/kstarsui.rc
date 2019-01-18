@@ -1,6 +1,6 @@
 <!DOCTYPE kpartgui SYSTEM "kpartgui.dtd">
 
-<kpartgui name="KStars" version="6">
+<kpartgui name="KStars" version="9">
 <MenuBar noMerge="1">
         <Menu name="file" noMerge="1"><text>&amp;File</text>
                 <Action name="new_window" />
@@ -61,8 +61,9 @@
         <Menu name="tools" noMerge="1"><text>&amp;Tools</text>
                 <Action name="astrocalculator" />
         <Menu name="devices" noMerge="1"><text>&amp;Devices</text>
-                <Action name="telescope_wizard" />
+                <!-- <Action name="telescope_wizard" /> -->
                 <Action name="device_manager" />
+                <Action name="custom_drivers" />
                 <Separator />
                 <Action name="indi_cpl" />
         </Menu>
@@ -72,6 +73,7 @@
                 <Action name="altitude_vs_time" />
                 <Action name="whats_up_tonight" />
                 <Action name="whats_interesting" />
+                <Action name="XPlanet" />
                 <Action name="glossary" />
                 <Action name="scriptbuilder" />
                 <Action name="solarsystem" />
@@ -192,7 +194,7 @@
         <Action name="lock_telescope" />
 </ToolBar>
 
-<ToolBar hidden="1" noMerge="1" name="TelescopeToolBar" iconText="icononly" hidden="true">
+<ToolBar noMerge="1" name="TelescopeToolBar" iconText="icononly" hidden="true">
         <text>Telescope Toolbar</text>
         <Action name="show_mount_box" />
         <Action name="telescope_track" />
@@ -203,7 +205,7 @@
         <Action name="telescope_abort" />
 </ToolBar>
 
-<ToolBar hidden="1" noMerge="1" name="DomeToolBar" iconText="icononly" hidden="true">
+<ToolBar noMerge="1" name="DomeToolBar" iconText="icononly" hidden="true">
         <text>Dome Toolbar</text>
         <Action name="dome_park" />
         <Action name="dome_unpark" />

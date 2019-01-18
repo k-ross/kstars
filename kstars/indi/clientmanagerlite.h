@@ -108,7 +108,7 @@ class ClientManagerLite : public INDI::BaseClientQt
     /** Do actions when async Web Manager requests are finished */
     Q_INVOKABLE void webManagerReplyFinished();
 
-    Q_INVOKABLE TelescopeLite *getTelescope(const QString &deviceName);
+    Q_INVOKABLE TelescopeLite *getTelescope();
 
     QString connectedHost() { return m_connectedHost; }
     void setConnectedHost(const QString &connectedHost);
@@ -123,6 +123,8 @@ class ClientManagerLite : public INDI::BaseClientQt
 
     /**
      * @brief syncLED
+     * @param device device name
+     * @param property property name
      * @param name of Light which LED needs to be synced
      * @return color of state
      */
@@ -222,6 +224,8 @@ class ClientManagerLite : public INDI::BaseClientQt
     void connectedChanged(bool);
     void telescopeAdded(TelescopeLite *newTelescope);
     void telescopeRemoved(TelescopeLite *delTelescope);
+    void telescopeConnected(TelescopeLite *telescope);
+    void telescopeDisconnected();
 
     void lastUsedServerChanged();
     void lastUsedPortChanged();
@@ -251,6 +255,7 @@ class ClientManagerLite : public INDI::BaseClientQt
     std::unique_ptr<QNetworkReply> webMStartProfileReply;
     /// Web Manager profiles
     QStringList webMProfiles;
+    TelescopeLite *m_telescope { nullptr };
 #ifdef ANDROID
     QString defaultImageType;
     QString defaultImagesLocation;

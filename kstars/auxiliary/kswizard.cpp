@@ -65,10 +65,6 @@ WizDataUI::WizDataUI(QWidget *parent) : QFrame(parent)
 {
     setupUi(this);
 }
-WizAstrometryUI::WizAstrometryUI(QWidget *parent) : QFrame(parent)
-{
-    setupUi(this);
-}
 #endif
 
 KSWizard::KSWizard(QWidget *parent) : QDialog(parent)
@@ -80,7 +76,7 @@ KSWizard::KSWizard(QWidget *parent) : QDialog(parent)
     wizardStack = new QStackedWidget(this);
     adjustSize();
 
-    setWindowTitle(i18n("Setup Wizard"));
+    setWindowTitle(i18n("Startup Wizard"));
 
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->addWidget(wizardStack);
@@ -100,7 +96,6 @@ KSWizard::KSWizard(QWidget *parent) : QDialog(parent)
     welcome = new WizWelcomeUI(wizardStack);
 #ifdef Q_OS_OSX
     data       = new WizDataUI(wizardStack);
-    astrometry = new WizAstrometryUI(wizardStack);
 #endif
     location                = new WizLocationUI(wizardStack);
     WizDownloadUI *download = new WizDownloadUI(wizardStack);
@@ -108,7 +103,6 @@ KSWizard::KSWizard(QWidget *parent) : QDialog(parent)
     wizardStack->addWidget(welcome);
 #ifdef Q_OS_OSX
     wizardStack->addWidget(data);
-    wizardStack->addWidget(astrometry);
 #endif
     wizardStack->addWidget(location);
     wizardStack->addWidget(download);
@@ -137,31 +131,25 @@ KSWizard::KSWizard(QWidget *parent) : QDialog(parent)
     else if (im.load(QDir(QCoreApplication::applicationDirPath() + "/../Resources/data").absolutePath() +
                      "/wzdownload.png"))
         data->Banner->setPixmap(im);
-    if (im.load(KSPaths::locate(QStandardPaths::GenericDataLocation, "wzdownload.png")))
-        astrometry->Banner->setPixmap(im);
-    else if (im.load(QDir(QCoreApplication::applicationDirPath() + "/../Resources/data").absolutePath() +
-                     "/wzdownload.png"))
-        astrometry->Banner->setPixmap(im);
 
     data->dataPath->setText(
         QStandardPaths::locate(QStandardPaths::GenericDataLocation, QString(), QStandardPaths::LocateDirectory) +
         "kstars");
     slotUpdateDataButtons();
-    astrometry->astrometryPath->setText(
-        QStandardPaths::locate(QStandardPaths::GenericDataLocation, QString(), QStandardPaths::LocateDirectory) +
-        "Astrometry");
-    updateAstrometryButtons();
 
     connect(data->copyKStarsData, SIGNAL(clicked()), this, SLOT(slotOpenOrCopyKStarsDataDirectory()));
-    connect(astrometry->astrometryButton, SIGNAL(clicked()), this, SLOT(slotOpenOrCreateAstrometryFolder()));
     connect(data->installGSC, SIGNAL(clicked()), this, SLOT(slotInstallGSC()));
     connect(this, SIGNAL(accepted()), this, SLOT(slotFinishWizard()));
 
     gscMonitor = new QProgressIndicator(data);
     data->GSCLayout->addWidget(gscMonitor);
     data->downloadProgress->setValue(0);
+
     data->downloadProgress->setEnabled(false);
     data->downloadProgress->setVisible(false);
+
+    data->gscInstallCancel->setVisible(false);
+    data->gscInstallCancel->setEnabled(false);
 
 #endif
 
@@ -248,11 +236,11 @@ void KSWizard::slotChangeCity()
 {
     if (location->CityListBox->currentItem())
     {
-        for (int i = 0; i < filteredCityList.size(); ++i)
+        for (auto &city : filteredCityList)
         {
-            if (filteredCityList[i]->fullName() == location->CityListBox->currentItem()->text())
+            if (city->fullName() == location->CityListBox->currentItem()->text())
             {
-                Geo = filteredCityList[i];
+                Geo = city;
                 break;
             }
         }
@@ -307,7 +295,7 @@ void KSWizard::slotOpenOrCopyKStarsDataDirectory()
         QDir dataSourceDir = QDir(QCoreApplication::applicationDirPath() + "/../Resources/data").absolutePath();
         if (! dataSourceDir.exists()) //If there is no default data directory in the app bundle
         {
-            KMessageBox::sorry(0, i18n("Error! There was no default data directory found in the app bundle!"));
+            KMessageBox::sorry(0, i18n("There was no default data directory found in the app bundle."));
             return;
         }
         QDir writableDir;
@@ -317,7 +305,7 @@ void KSWizard::slotOpenOrCopyKStarsDataDirectory()
         if (dataLocation.isEmpty()) //If there *still* is not a kstars data directory
         {
             KMessageBox::sorry(
-                0, i18n("Error! There was a problem creating the data directory ~/Library/Application Support/ !"));
+                0, i18n("There was a problem creating the data directory ~/Library/Application Support/."));
             return;
         }
         KSUtils::copyRecursively(dataSourceDir.absolutePath(), dataLocation);
@@ -340,49 +328,107 @@ void KSWizard::slotOpenOrCopyKStarsDataDirectory()
 #endif
 }
 
-void KSWizard::slotOpenOrCreateAstrometryFolder()
-{
-#ifdef Q_OS_OSX
-    QString astrometryLocation =
-        QStandardPaths::locate(QStandardPaths::GenericDataLocation, "Astrometry", QStandardPaths::LocateDirectory);
-    if (astrometryLocation.isEmpty())
-    {
-        KSUtils::configureDefaultAstrometry();
-        updateAstrometryButtons();
-    }
-    else
-    {
-        QUrl path = QUrl::fromLocalFile(
-            QStandardPaths::locate(QStandardPaths::GenericDataLocation, "Astrometry", QStandardPaths::LocateDirectory));
-        QDesktopServices::openUrl(path);
-    }
-#endif
-}
-
 void KSWizard::slotInstallGSC()
 {
 #ifdef Q_OS_OSX
+
+    QNetworkAccessManager *manager= new QNetworkAccessManager();
+
     QString location =
         QStandardPaths::locate(QStandardPaths::GenericDataLocation, "kstars", QStandardPaths::LocateDirectory);
     gscZipPath            = location + "/gsc.zip";
-    QProcess *downloadGSC = new QProcess();
-    downloadGSC->setWorkingDirectory(location);
-    connect(downloadGSC, SIGNAL(finished(int)), this, SLOT(slotExtractGSC()));
-    connect(downloadGSC, SIGNAL(finished(int)), this, SLOT(downloadGSC.deleteLater()));
-    downloadGSC->start("curl", QStringList() << "-L"
-                                             << "-o"
-                                             << "gsc.zip"
-                                             << "http://www.indilib.org/jdownloads/Mac/gsc.zip");
-    data->GSCFeedback->setText("downloading GSC . . .");
 
-    downloadMonitor = new QTimer(this);
-    connect(downloadMonitor, SIGNAL(timeout()), this, SLOT(slotCheckDownloadProgress()));
-    downloadMonitor->start(1000);
-    gscMonitor->startAnimation();
     data->downloadProgress->setVisible(true);
     data->downloadProgress->setEnabled(true);
-    data->downloadProgress->setMaximum(240);
-    data->downloadProgress->setValue(0);
+
+    data->gscInstallCancel->setVisible(true);
+    data->gscInstallCancel->setEnabled(true);
+
+    QString gscURL = "http://www.indilib.org/jdownloads/Mac/gsc.zip";
+
+    QNetworkReply *response = manager->get(QNetworkRequest(QUrl(gscURL)));
+
+    QMetaObject::Connection *cancelConnection = new QMetaObject::Connection();
+    QMetaObject::Connection *replyConnection = new QMetaObject::Connection();
+    QMetaObject::Connection *percentConnection = new QMetaObject::Connection();
+
+    *percentConnection=connect(response,&QNetworkReply::downloadProgress,
+    [=](qint64 bytesReceived, qint64 bytesTotal){
+        data->downloadProgress->setValue(bytesReceived);
+        data->downloadProgress->setMaximum(bytesTotal);
+    });
+
+    *cancelConnection=connect(data->gscInstallCancel, &QPushButton::clicked,
+    [=](){
+        qDebug() << "Download Cancelled.";
+
+        if(cancelConnection)
+            disconnect(*cancelConnection);
+        if(replyConnection)
+            disconnect(*replyConnection);
+
+        if(response){
+            response->abort();
+            response->deleteLater();
+        }
+
+        data->downloadProgress->setVisible(false);
+        data->downloadProgress->setEnabled(false);
+
+        data->gscInstallCancel->setVisible(false);
+        data->gscInstallCancel->setEnabled(false);
+
+        if(manager)
+            manager->deleteLater();
+
+    });
+
+    *replyConnection=connect(response, &QNetworkReply::finished, this,
+    [=]() {
+        if(response){
+
+            if(cancelConnection)
+                disconnect(*cancelConnection);
+            if(replyConnection)
+                disconnect(*replyConnection);
+
+            data->downloadProgress->setVisible(false);
+            data->downloadProgress->setEnabled(false);
+
+            data->gscInstallCancel->setVisible(false);
+            data->gscInstallCancel->setEnabled(false);
+
+
+            response->deleteLater();
+            if(manager)
+                manager->deleteLater();
+            if (response->error() != QNetworkReply::NoError)
+                return;
+
+            QByteArray responseData = response->readAll();
+
+            QFile file(gscZipPath);
+            if (QFileInfo(QFileInfo(file).path()).isWritable())
+            {
+                if (!file.open(QIODevice::WriteOnly))
+                {
+                    KMessageBox::error(0, i18n("File write error."));
+                    return;
+                }
+                else
+                {
+                    file.write(responseData.data(), responseData.size());
+                    file.close();
+                    slotExtractGSC();
+                }
+            }
+            else
+            {
+                KMessageBox::error(0, i18n("Data folder permissions error."));
+            }
+        }
+    });
+
 #endif
 }
 
@@ -398,14 +444,6 @@ void KSWizard::slotExtractGSC()
     gscExtractor->start("unzip", QStringList() << "-ao"
                                                << "gsc.zip");
     gscMonitor->startAnimation();
-#endif
-}
-
-void KSWizard::slotCheckDownloadProgress()
-{
-#ifdef Q_OS_OSX
-    if (QFileInfo(gscZipPath).exists())
-        data->downloadProgress->setValue(QFileInfo(gscZipPath).size() / 1048576);
 #endif
 }
 
@@ -435,19 +473,6 @@ bool KSWizard::dataDirExists()
     return !dataLocation.isEmpty();
 }
 
-bool KSWizard::astrometryDirExists()
-{
-    QString astrometryLocation =
-        QStandardPaths::locate(QStandardPaths::GenericDataLocation, "Astrometry", QStandardPaths::LocateDirectory);
-    return !astrometryLocation.isEmpty();
-}
-
-bool KSWizard::pythonExists()
-{
-    return QFileInfo("/usr/local/bin/python").exists()||
-            QFileInfo("/usr/bin/python").exists()||
-            QFileInfo(QCoreApplication::applicationDirPath() + "/python/bin/python").exists();
-}
 bool KSWizard::GSCExists()
 {
     QString GSCLocation =
@@ -455,28 +480,6 @@ bool KSWizard::GSCExists()
     return !GSCLocation.isEmpty();
 }
 
-bool KSWizard::pyfitsExists()
-{
-    return QFileInfo("/usr/local/lib/python2.7/site-packages/pyfits").exists()||
-            QFileInfo("/usr/lib/python2.7/site-packages/pyfits").exists()||
-            QFileInfo(QCoreApplication::applicationDirPath() + "/python/bin/site-packages/pyfits").exists();
-
-}
-
-bool KSWizard::netpbmExists()
-{
-    return QFileInfo("/usr/local/bin/jpegtopnm").exists()||
-            QFileInfo("/usr/bin/jpegtopnm").exists()||
-            QFileInfo(QCoreApplication::applicationDirPath() + "/netpbm/bin/jpegtopnm").exists();
-}
-
-void KSWizard::updateAstrometryButtons()
-{
-    astrometry->astrometryFound->setChecked(astrometryDirExists());
-    astrometry->pythonFound->setChecked(pythonExists());
-    astrometry->pyfitsFound->setChecked(pyfitsExists());
-    astrometry->netpbmFound->setChecked(netpbmExists());
-}
 #endif
 
 void KSWizard::slotUpdateDataButtons()

@@ -47,7 +47,7 @@ class SkyPainter;
  * (such as drawing on screen, or updating position), but each Component may perform its task
  * slightly differently. Thus, each Component can implement its own version of the functions,
  * and each Composite calls on its child Components to execute the desired function. For
- * example, if we wanted to draw all Components in the SkyMap, we would simly need to call
+ * example, if we wanted to draw all Components in the SkyMap, we would simply need to call
  * "skyComposite()->draw()". SkyComposite is the "top-level" Composite; its "draw()" function
  * simply calls draw() on each of its children. Its child Components will draw themselves,
  * while its child Composites will call "draw()" for each of *their* children.  Note that
@@ -59,6 +59,7 @@ class SkyPainter;
  * (directly or indirectly). Its most important derivative is SkyComposite, the base classes
  * for all Composites.
  *
+ * FIXME: There is no SingleComponent
  * From SkyComponent, we derive three important subclasses: SingleComponent, ListComponent,
  * and PointListComponent. SingleComponent represents a sky element consisting of a single
  * SkyObject, such as the Sun.  ListComponent represents a list of SkyObjects, such as the
@@ -195,7 +196,6 @@ class SkyComponent
 
     inline QVector<QPair<QString, const SkyObject *>> &objectLists(int type) { return getObjectLists()[type]; }
 
-  protected:
     void removeFromNames(const SkyObject *obj);
     void removeFromLists(const SkyObject *obj);
 

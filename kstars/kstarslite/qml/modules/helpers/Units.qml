@@ -74,7 +74,7 @@ QtObject {
     property int largeSpacing: gridUnit
 
     /**
-     * The ratio between physical and device-independent pixels. This value does not depend on the \
+     * The ratio between physical and device-independent pixels. This value does not depend on the
      * size of the configured font. If you want to take font sizes into account when scaling elements,
      * use theme.mSize(theme.defaultFont), units.smallSpacing and units.largeSpacing.
      * The devicePixelRatio follows the definition of "device independent pixel" by Microsoft.
@@ -89,7 +89,7 @@ QtObject {
 
     /**
      * units.shortDuration should be used for short animations, such as accentuating a UI event,
-     * hover events, etc..
+     * hover events, etc.
      */
     property int shortDuration: 150
 

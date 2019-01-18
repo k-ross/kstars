@@ -8,12 +8,13 @@
     version 2 of the License, or (at your option) any later version.
 */
 
+#include "profilewizard.h"
+
 #include <QDesktopServices>
 #include <QUrl>
 #include <QTcpSocket>
 #include <QTimer>
 
-#include "profilewizard.h"
 #include "kstars.h"
 #include "auxiliary/kspaths.h"
 #include "ksnotification.h"
@@ -122,13 +123,13 @@ void ProfileWizard::processRemoteEquipment()
 
     if (portOK == false)
     {
-        KSNotification::error(i18n("Invalid port!"));
+        KSNotification::error(i18n("Invalid port."));
         return;
     }
 
     if (remoteHostEdit->text().isEmpty())
     {
-        KSNotification::error(i18n("Host name cannot be empty!"));
+        KSNotification::error(i18n("Host name cannot be empty."));
         return;
     }
 
@@ -159,7 +160,7 @@ void ProfileWizard::processStellarMateEquipment()
 {
     if (stellarMateHost->text().isEmpty())
     {
-        KSNotification::error(i18n("Host name cannot be empty!"));
+        KSNotification::error(i18n("Host name cannot be empty."));
         return;
     }
 
@@ -215,7 +216,7 @@ void ProfileWizard::createProfile()
 {
     if (profileNameEdit->text().isEmpty())
     {
-        KSNotification::error(i18n("Profile name cannot be empty!"));
+        KSNotification::error(i18n("Profile name cannot be empty."));
         return;
     }
 

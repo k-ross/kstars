@@ -67,7 +67,8 @@ class FOVDialog : public QDialog
     static int fovID;
 };
 
-/** @class NewFOV Dialog for defining a new FOV symbol
+/** @class NewFOV
+        * Dialog for defining a new FOV symbol
 	*@author Jason Harris
 	*@version 1.0
 	*/
@@ -77,7 +78,7 @@ class NewFOV : public QDialog
   public:
     /** Create new dialog
          * @param parent parent widget
-         * @fov widget to copy data from. If it's empty will create empty one.
+         * @param fov widget to copy data from. If it's empty will create empty one.
          */
     explicit NewFOV(QWidget *parent = nullptr, const FOV *fov = nullptr);
     ~NewFOV() override = default;
@@ -98,7 +99,8 @@ class NewFOV : public QDialog
 };
 
 /**
- *@class TelescopeFL Dialog for calculating telescope focal length from f-number and diameter
+ *@class TelescopeFL
+ *Dialog for calculating telescope focal length from f-number and diameter
  *@author Akarsh Simha
  *@version 1.0
  */

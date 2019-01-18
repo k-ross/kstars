@@ -36,8 +36,8 @@ DarkLibrary::DarkLibrary(QObject *parent) : QObject(parent)
     subtractParams.duration    = 0;
     subtractParams.offsetX     = 0;
     subtractParams.offsetY     = 0;
-    subtractParams.targetChip  = 0;
-    subtractParams.targetImage = 0;
+    subtractParams.targetChip  = nullptr;
+    subtractParams.targetImage = nullptr;
 
     QDir writableDir;
     writableDir.mkdir(KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + "darks");
@@ -82,7 +82,7 @@ FITSData *DarkLibrary::getDarkFrame(ISD::CCDChip *targetChip, double duration)
                 if (fabs(map["duration"].toDouble() - duration) > 0.05)
                     continue;
 
-                // Finaly check if the duration is acceptable
+                // Finally check if the duration is acceptable
                 QDateTime frameTime = QDateTime::fromString(map["timestamp"].toString(), Qt::ISODate);
                 if (frameTime.daysTo(QDateTime::currentDateTime()) > Options::darkLibraryDuration())
                     continue;
@@ -174,39 +174,31 @@ bool DarkLibrary::subtract(FITSData *darkData, FITSView *lightImage, FITSScale f
     Q_ASSERT(darkData);
     Q_ASSERT(lightImage);
 
-    switch (darkData->getDataType())
+    switch (darkData->property("dataType").toInt())
     {
         case TBYTE:
             return subtract<uint8_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TSHORT:
             return subtract<int16_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TUSHORT:
             return subtract<uint16_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TLONG:
             return subtract<int32_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TULONG:
             return subtract<uint32_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TFLOAT:
             return subtract<float>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TLONGLONG:
             return subtract<int64_t>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         case TDOUBLE:
             return subtract<double>(darkData, lightImage, filter, offsetX, offsetY);
-            break;
 
         default:
             break;
@@ -223,10 +215,10 @@ bool DarkLibrary::subtract(FITSData *darkData, FITSView *lightImage, FITSScale f
 
 
     T *lightBuffer = reinterpret_cast<T *>(lightData->getImageBuffer());
-    int lightW      = lightData->getWidth();
-    int lightH      = lightData->getHeight();
+    int lightW      = lightData->width();
+    int lightH      = lightData->height();
 
-    int darkW      = darkData->getWidth();
+    int darkW      = darkData->width();
     int darkoffset = offsetX + offsetY * darkW;
     T *darkBuffer  = reinterpret_cast<T *>(darkData->getImageBuffer()) + darkoffset;
 
@@ -262,6 +254,29 @@ bool DarkLibrary::subtract(FITSData *darkData, FITSView *lightImage, FITSScale f
     lightImage->rescale(ZOOM_KEEP_LEVEL);
     lightImage->updateFrame();
 
+    // If telescope is covered, let's uncover it
+    if (m_TelescopeCovered)
+    {
+        QString deviceName= subtractParams.targetChip->getCCD()->getDeviceName();
+        bool hasNoShutter = Options::shutterlessCCDs().contains(deviceName);
+        // Only ask if no shutter and is temporary file
+        // For regular files, the data is already loaded so no need to ask user to remove cover
+        // since dark data is loaded from disk.
+        if (hasNoShutter)
+        {
+            if (KMessageBox::warningContinueCancel(
+                    nullptr, i18n("Remove cover from the telescope in order to continue."), i18n("Dark Exposure"),
+                    KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                    "uncover_scope_dialog_notification", KMessageBox::WindowModal|KMessageBox::Notify) == KMessageBox::Cancel)
+            {
+                emit darkFrameCompleted(false);
+                return false;
+            }
+            else
+                m_TelescopeCovered = false;
+        }
+    }
+
     emit darkFrameCompleted(true);
 
     return true;
@@ -280,9 +295,15 @@ bool DarkLibrary::captureAndSubtract(ISD::CCDChip *targetChip, FITSView *targetI
     // If no information is available either way, then ask the user
     if (hasShutter == false && hasNoShutter == false)
     {
-        //if (KMessageBox::questionYesNo(nullptr, i18n("Does %1 have mechanical or electronic shutter?", deviceName),
-        //                               i18n("Dark Exposure")) == KMessageBox::Yes)
-        if (KMessageBox::questionYesNo(nullptr, i18n("Does %1 have a shutter?", deviceName),
+        // If DSLR then it is considered to have no shutter
+        // since the camera needs to open the shutter to take dark frames
+        if (targetChip->getISOList().empty() == false)
+        {
+            hasNoShutter = true;
+            shutterlessCCDs.append(deviceName);
+            Options::setShutterlessCCDs(shutterlessCCDs);
+        }
+        else if (KMessageBox::questionYesNo(nullptr, i18n("Does %1 have a shutter?", deviceName),
                                        i18n("Dark Exposure")) == KMessageBox::Yes)
         {
             hasNoShutter = false;
@@ -300,15 +321,17 @@ bool DarkLibrary::captureAndSubtract(ISD::CCDChip *targetChip, FITSView *targetI
     if (hasNoShutter)
     {
         if (KMessageBox::warningContinueCancel(
-                nullptr, i18n("Cover the telescope or camera in order to take a dark exposure."), i18n("Dark Exposure"),
+                nullptr, i18n("Cover the telescope in order to take a dark exposure."), i18n("Dark Exposure"),
                 KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
-                "dark_exposure_dialog_notification", KMessageBox::WindowModal|KMessageBox::Notify) == KMessageBox::Cancel)
+                "cover_scope_dialog_notification", KMessageBox::WindowModal|KMessageBox::Notify) == KMessageBox::Cancel)
         {
             emit newLog(i18n("Dark frame capture cancelled."));
-            disconnect(targetChip->getCCD(), SIGNAL(BLOBUpdated(IBLOB *)), this, SLOT(newFITS(IBLOB *)));
+            disconnect(targetChip->getCCD(), SIGNAL(BLOBUpdated(IBLOB*)), this, SLOT(newFITS(IBLOB*)));
             emit darkFrameCompleted(false);
             return false;
         }
+        else
+            m_TelescopeCovered = true;
     }
 
     targetChip->resetFrame();
@@ -336,7 +359,7 @@ void DarkLibrary::newFITS(IBLOB *bp)
 
     Q_ASSERT(subtractParams.targetChip);
 
-    disconnect(subtractParams.targetChip->getCCD(), SIGNAL(BLOBUpdated(IBLOB *)), this, SLOT(newFITS(IBLOB *)));
+    disconnect(subtractParams.targetChip->getCCD(), SIGNAL(BLOBUpdated(IBLOB*)), this, SLOT(newFITS(IBLOB*)));
 
     FITSView *calibrationView = subtractParams.targetChip->getImageView(FITS_CALIBRATE);
 
@@ -351,7 +374,7 @@ void DarkLibrary::newFITS(IBLOB *bp)
     FITSData *calibrationData = new FITSData();
 
     // Deep copy of the data
-    if (calibrationData->loadFITS(calibrationView->getImageData()->getFilename()))
+    if (calibrationData->loadFITS(calibrationView->getImageData()->filename()))
     {
         saveDarkFile(calibrationData);
         subtract(calibrationData, subtractParams.targetImage, subtractParams.targetChip->getCaptureFilter(),
@@ -361,7 +384,7 @@ void DarkLibrary::newFITS(IBLOB *bp)
     {
         delete calibrationData;
         emit darkFrameCompleted(false);
-        emit newLog(i18n("Warning: Cannot load calibration file %1", calibrationView->getImageData()->getFilename()));
+        emit newLog(i18n("Warning: Cannot load calibration file %1", calibrationView->getImageData()->filename()));
     }
 }
 }

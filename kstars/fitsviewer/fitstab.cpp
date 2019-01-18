@@ -28,13 +28,17 @@
 #include <QtConcurrent>
 #include <KMessageBox>
 
-FITSTab::FITSTab(FITSViewer *parent) : QWidget()
+FITSTab::FITSTab(FITSViewer *parent) : QWidget(parent)
 {
     viewer    = parent;
     undoStack = new QUndoStack(this);
     undoStack->setUndoLimit(10);
     undoStack->clear();
     connect(undoStack, SIGNAL(cleanChanged(bool)), this, SLOT(modifyFITSState(bool)));
+
+    statWidget = new QDialog(this);
+    fitsHeaderDialog = new QDialog(this);
+    histogram = new FITSHistogram(this);
 }
 
 FITSTab::~FITSTab()
@@ -64,7 +68,7 @@ void FITSTab::saveUnsaved()
 
 void FITSTab::closeEvent(QCloseEvent *ev)
 {
-    saveUnsaved();    
+    saveUnsaved();
 
     if (undoStack->isClean())
         ev->accept();
@@ -81,7 +85,19 @@ void FITSTab::setPreviewText(const QString &value)
     previewText = value;
 }
 
-bool FITSTab::loadFITS(const QUrl *imageURL, FITSMode mode, FITSScale filter, bool silent)
+void FITSTab::selectRecentFITS(int i)
+{
+    loadFITS(QUrl::fromLocalFile(recentImages->item(i)->text()));
+}
+
+void FITSTab::clearRecentFITS()
+{
+    disconnect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
+    recentImages->clear();
+    connect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
+}
+
+void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bool silent)
 {
     if (view.get() == nullptr)
     {
@@ -89,50 +105,107 @@ bool FITSTab::loadFITS(const QUrl *imageURL, FITSMode mode, FITSScale filter, bo
         view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         QVBoxLayout *vlayout = new QVBoxLayout();
 
-        vlayout->addWidget(view.get());
+        fitsSplitter = new QSplitter(Qt::Horizontal,this);
+        fitsTools = new QToolBox();
+
+        stat.setupUi(statWidget);
+        fitsTools->addItem(statWidget,i18n("Statistics"));
+
+        fitsTools->addItem(histogram,i18n("Histogram"));
+
+
+        header.setupUi(fitsHeaderDialog);
+        fitsTools->addItem(fitsHeaderDialog,i18n("FITS Header"));
+
+
+
+        QVBoxLayout *recentPanelLayout = new QVBoxLayout();
+        QWidget *recentPanel = new QWidget(fitsSplitter);
+        recentPanel->setLayout(recentPanelLayout);
+        fitsTools->addItem(recentPanel,i18n("Recent Images"));
+        recentImages = new QListWidget(recentPanel);
+        recentPanelLayout->addWidget(recentImages);
+        QPushButton *clearRecent = new QPushButton(i18n("Clear"));
+        recentPanelLayout->addWidget(clearRecent);
+        connect(clearRecent, &QPushButton::pressed, this, &FITSTab::clearRecentFITS);
+        connect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
+
+        QScrollArea *scrollFitsPanel = new QScrollArea(fitsSplitter);
+        scrollFitsPanel->setWidgetResizable(true);
+        scrollFitsPanel->setWidget(fitsTools);
+
+        fitsSplitter->addWidget(scrollFitsPanel);
+        fitsSplitter->addWidget(view.get());
+
+
+        //This code allows the fitsTools to start in a closed state
+        fitsSplitter->setSizes(QList<int>() << 0 << view->width() );
+
+        vlayout->addWidget(fitsSplitter);
+
+        connect(fitsSplitter, &QSplitter::splitterMoved, histogram, &FITSHistogram::resizePlot);
+
 
         setLayout(vlayout);
-        connect(view.get(), SIGNAL(newStatus(QString,FITSBar)), this, SIGNAL(newStatus(QString,FITSBar)));
-        connect(view.get(), SIGNAL(debayerToggled(bool)), this, SIGNAL(debayerToggled(bool)));
+        connect(view.get(), &FITSView::newStatus, this, &FITSTab::newStatus);
+        connect(view.get(), &FITSView::debayerToggled, this, &FITSTab::debayerToggled);
+
+        // On Failure to load
+        connect(view.get(), &FITSView::failed, this, &FITSTab::failed);
+
+        // On Success loading image
+        connect(view.get(), &FITSView::loaded, [&,filter]() {
+
+            // If it was already running make sure it's done
+            histogramFuture.waitForFinished();
+
+            FITSData *image_data = view->getImageData();
+
+            if (histogram == nullptr)
+            {
+                histogram = new FITSHistogram(this);
+                image_data->setHistogram(histogram);
+            }
+
+            histogramFuture = QtConcurrent::run([&]() {histogram->constructHistogram(); evaluateStats();});
+
+            if(histogram->isVisible())
+                histogramFuture.waitForFinished();
+
+//            if (filter != FITS_NONE)
+//            {
+//                image_data->applyFilter(filter);
+//                view->rescale(ZOOM_KEEP_LEVEL);
+//            }
+
+            if (viewer->isStarsMarked())
+                view->toggleStars(true);
+
+
+            loadFITSHeader();
+
+            if(recentImages->findItems(currentURL.toLocalFile(),Qt::MatchExactly).count()==0)  //Don't add it to the list if it is already there
+            {
+                if(!image_data->isTempFile()) //Don't add it to the list if it is a preview
+                {
+                    disconnect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
+                    recentImages->addItem(currentURL.toLocalFile());
+                    recentImages->setCurrentRow(recentImages->count()-1);
+                    connect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
+                }
+            }
+
+            view->updateFrame();
+
+            emit loaded();
+        });
     }
 
-    currentURL = *imageURL;
+    currentURL = imageURL;
 
     view->setFilter(filter);
 
-    bool imageLoad = view->loadFITS(imageURL->toLocalFile(), silent);
-
-    // If it was already running make sure it's done
-    histogramFuture.waitForFinished();
-
-    if (imageLoad)
-    {
-        FITSData *image_data = view->getImageData();
-
-        if (histogram == nullptr)
-        {
-            histogram = new FITSHistogram(this);
-            image_data->setHistogram(histogram);
-        }
-
-        histogramFuture = QtConcurrent::run([&]() {histogram->constructHistogram();});
-
-        if (filter != FITS_NONE)
-        {
-            image_data->applyFilter(filter);
-            view->rescale(ZOOM_KEEP_LEVEL);
-        }
-
-        if (viewer->isStarsMarked())
-            view->toggleStars(true);
-
-        view->updateFrame();
-
-        //histoFuture.waitForFinished();
-        //histogram->syncGUI();
-    }
-
-    return imageLoad;
+    view->loadFITS(imageURL.toLocalFile(), silent);
 }
 
 void FITSTab::modifyFITSState(bool clean)
@@ -157,25 +230,26 @@ int FITSTab::saveFITS(const QString &filename)
 
 void FITSTab::copyFITS()
 {
-    QApplication::clipboard()->setImage(*(view->getDisplayImage()));
+    QApplication::clipboard()->setImage(view->getDisplayImage());
 }
 
 void FITSTab::histoFITS()
 {
-    histogram->show();
+    fitsTools->setCurrentIndex(1);
+    if(view->width()>200)
+        fitsSplitter->setSizes(QList<int>() << 200 << view->width() - 200);
+    else
+        fitsSplitter->setSizes(QList<int>() << 50 << 50);
 }
 
-void FITSTab::statFITS()
+void FITSTab::evaluateStats()
 {
-    QDialog statDialog;
-    Ui::statForm stat;
-    stat.setupUi(&statDialog);
 
     FITSData *image_data = view->getImageData();
 
-    stat.widthOUT->setText(QString::number(image_data->getWidth()));
-    stat.heightOUT->setText(QString::number(image_data->getHeight()));
-    stat.bitpixOUT->setText(QString::number(image_data->getBPP()));
+    stat.widthOUT->setText(QString::number(image_data->width()));
+    stat.heightOUT->setText(QString::number(image_data->height()));
+    stat.bitpixOUT->setText(QString::number(image_data->bpp()));
     stat.maxOUT->setText(QString::number(image_data->getMax(), 'f', 3));
     stat.minOUT->setText(QString::number(image_data->getMin(), 'f', 3));
     stat.meanOUT->setText(QString::number(image_data->getMean(), 'f', 3));
@@ -183,59 +257,50 @@ void FITSTab::statFITS()
     stat.HFROUT->setText(QString::number(image_data->getHFR(), 'f', 3));
     stat.medianOUT->setText(QString::number(image_data->getMedian(), 'f', 3));
     stat.SNROUT->setText(QString::number(image_data->getSNR(), 'f', 3));
+}
 
-    statDialog.exec();
+void FITSTab::statFITS()
+{
+    fitsTools->setCurrentIndex(0);
+    if(view->width()>200)
+        fitsSplitter->setSizes(QList<int>() << 200 << view->width() - 200);
+    else
+        fitsSplitter->setSizes(QList<int>() << 50 << 50);
+}
+
+void FITSTab::loadFITSHeader()
+{
+    FITSData *image_data = view->getImageData();
+
+    int nkeys = image_data->getRecords().size();
+    int counter=0;
+    header.tableWidget->setRowCount(nkeys);
+    for (FITSData::Record *oneRecord : image_data->getRecords())
+    {
+        QTableWidgetItem *tempItem = new QTableWidgetItem(oneRecord->key);
+        tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        header.tableWidget->setItem(counter, 0, tempItem);
+        tempItem = new QTableWidgetItem(oneRecord->value.toString());
+        tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        header.tableWidget->setItem(counter, 1, tempItem);
+        tempItem = new QTableWidgetItem(oneRecord->comment);
+        tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        header.tableWidget->setItem(counter, 2, tempItem);
+        counter++;
+    }
+
+    header.tableWidget->setColumnWidth(0,100);
+    header.tableWidget->setColumnWidth(1,100);
+    header.tableWidget->setColumnWidth(2,250);
 }
 
 void FITSTab::headerFITS()
 {
-    QString recordList;
-    int nkeys = 0;
-    int err_status = 0;
-
-    FITSData *image_data = view->getImageData();
-
-    if ((err_status = image_data->getFITSRecord(recordList, nkeys)) < 0)
-    {
-        char err_text[FLEN_STATUS];
-
-        fits_get_errstatus(err_status, err_text);
-        KMessageBox::error(0, i18n("FITS record error: %1", QString::fromUtf8(err_text)), i18n("FITS Header"));
-        return;
-    }
-
-    //FIXME: possible crash! Must use QPointer<...>!
-    QDialog fitsHeaderDialog;
-    Ui::fitsHeaderDialog header;
-    header.setupUi(&fitsHeaderDialog);
-    header.tableWidget->setRowCount(nkeys);
-    for (int i = 0; i < nkeys; i++)
-    {
-        QString record = recordList.mid(i * 80, 80);
-        // I love regexp!
-        QStringList properties = record.split(QRegExp("[=/]"));
-
-        QTableWidgetItem *tempItem = new QTableWidgetItem(properties[0].simplified());
-        tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-        header.tableWidget->setItem(i, 0, tempItem);
-
-        if (properties.size() > 1)
-        {
-            tempItem = new QTableWidgetItem(properties[1].simplified());
-            tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-            header.tableWidget->setItem(i, 1, tempItem);
-        }
-
-        if (properties.size() > 2)
-        {
-            tempItem = new QTableWidgetItem(properties[2].simplified());
-            tempItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-            header.tableWidget->setItem(i, 2, tempItem);
-        }
-    }
-
-    header.tableWidget->resizeColumnsToContents();
-    fitsHeaderDialog.exec();
+    fitsTools->setCurrentIndex(2);
+    if(view->width()>200)
+        fitsSplitter->setSizes(QList<int>() << 200 << view->width() - 200);
+    else
+        fitsSplitter->setSizes(QList<int>() << 50 << 50);
 }
 
 bool FITSTab::saveFile()
@@ -254,7 +319,7 @@ bool FITSTab::saveFile()
     if (currentURL.isEmpty())
     {
         currentURL =
-            QFileDialog::getSaveFileUrl(KStars::Instance(), i18n("Save FITS"), currentDir, "FITS (*.fits *.fit)");
+            QFileDialog::getSaveFileUrl(KStars::Instance(), i18n("Save FITS"), currentDir, "FITS (*.fits *.fits.gz *.fit)");
         // if user presses cancel
         if (currentURL.isEmpty())
         {
@@ -292,7 +357,7 @@ bool FITSTab::saveFile()
 
             fits_get_errstatus(err_status, err_text);
             // Use KMessageBox or something here
-            KMessageBox::error(0, i18n("FITS file save error: %1", QString::fromUtf8(err_text)), i18n("FITS Save"));
+            KMessageBox::error(nullptr, i18n("FITS file save error: %1", QString::fromUtf8(err_text)), i18n("FITS Save"));
             return false;
         }
 
@@ -305,7 +370,7 @@ bool FITSTab::saveFile()
     else
     {
         QString message = i18n("Invalid URL: %1", currentURL.url());
-        KMessageBox::sorry(0, message, i18n("Invalid URL"));
+        KMessageBox::sorry(nullptr, message, i18n("Invalid URL"));
         return false;
     }
 }
@@ -341,6 +406,6 @@ void FITSTab::tabPositionUpdated()
 {
     undoStack->setActive(true);
     emit newStatus(QString("%1%").arg(view->getCurrentZoom()), FITS_ZOOM);
-    emit newStatus(QString("%1x%2").arg(view->getImageData()->getWidth()).arg(view->getImageData()->getHeight()),
+    emit newStatus(QString("%1x%2").arg(view->getImageData()->width()).arg(view->getImageData()->height()),
                    FITS_RESOLUTION);
 }

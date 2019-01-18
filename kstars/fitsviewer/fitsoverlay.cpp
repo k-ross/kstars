@@ -8,14 +8,15 @@
 
  */
 
+#include "fitsoverlay.h"
+
+#include "fitsimage.h"
+
 #include <KTemporaryFile>
 #include <KIO/CopyJob>
 #include <KIO/JobUiDelegate>
 
-#include "fitsoverlay.h"
-#include "fitsimage.h"
-
-FITSOverlay::FITSOverlay() : downloadJob(0)
+FITSOverlay::FITSOverlay()
 {
 }
 
@@ -60,7 +61,7 @@ void FITSOverlay::loadImageFromURL()
     qDebug() << "Starting download job for URL " << m_ImageUrl << endl;
 
     downloadJob = KIO::copy(m_ImageUrl, saveURL); // starts the download asynchron
-    connect(downloadJob, SIGNAL(result(KJob *)), SLOT(downloadReady(KJob *)));
+    connect(downloadJob, SIGNAL(result(KJob*)), SLOT(downloadReady(KJob*)));
 }
 
 void FITSOverlay::downloadReady(KJob *job)
@@ -99,7 +100,7 @@ void FITSOverlay::openImage()
         return;
     }
 
-    qDebug() << "Read succesfull, creating fits overlay now ..." << endl;
+    qDebug() << "Read successful, creating fits overlay now ..." << endl;
 
     int image_width, image_height;
     double min, max, bzero, bscale, val;

@@ -9,18 +9,17 @@
 
 #pragma once
 
-#include <QDialog>
-#include <QSqlDatabase>
-#include <QQueue>
-#include <QPointer>
+#include "ui_filtersettings.h"
+#include "ekos/ekos.h"
 
 #include <indi/indistd.h>
 #include <indi/indifocuser.h>
 #include <oal/filter.h>
 
-#include "ekos/ekos.h"
-
-#include "ui_filtersettings.h"
+#include <QDialog>
+#include <QSqlDatabase>
+#include <QQueue>
+#include <QPointer>
 
 class QSqlTableModel;
 class LockDelegate;
@@ -80,7 +79,17 @@ public:
      */
     QString getFilterLock(const QString &name) const;
 
-    void setCurrentFilter(ISD::GDInterface *filter);    
+    /**
+     * @brief setCurrentFilterWheel Set the FilterManager active filter wheel.
+     * @param filter pointer to filter wheel device
+     */
+    void setCurrentFilterWheel(ISD::GDInterface *filter);
+
+    /**
+     * @brief setFocusReady Set whether a focuser device is active and in use.
+     * @param enabled true if focus is ready, false otherwise.
+     */
+    void setFocusReady(bool enabled) { m_FocusReady = enabled;}
 
 
     /**
@@ -90,7 +99,7 @@ public:
 
 public slots:
     // Position. if applyPolicy is true then all filter offsets and autofocus & lock policies are applied.
-    bool setFilterPosition(uint8_t position, FilterPolicy policy = ALL_POLICIES);
+    bool setFilterPosition(uint8_t position, Ekos::FilterManager::FilterPolicy policy = ALL_POLICIES);
     // Offset Request completed
     void setFocusOffsetComplete();
     // Remove Device
@@ -101,6 +110,8 @@ public slots:
     void setFocusStatus(Ekos::FocusState focusState);
     // Set absolute focus position
     void setFocusAbsolutePosition(int value) { m_FocusAbsPosition = value; }
+    // Inti filter property after connection
+    void initFilterProperties();
 
 signals:
     // Emitted only when there is a change in the filter slot number
@@ -114,7 +125,7 @@ signals:
     // Emitted when operation fails
     void failed();
     // Status signal
-    void newStatus(FilterState state);
+    void newStatus(Ekos::FilterState state);
     // Check Focus
     void checkFocus(double);
     // New Focus offset requested
@@ -123,7 +134,7 @@ signals:
 private slots:    
     void processText(ITextVectorProperty *tvp);
     void processNumber(INumberVectorProperty *nvp);
-    void processSwitch(ISwitchVectorProperty *svp);
+    void processSwitch(ISwitchVectorProperty *svp);    
 
 private:
 
@@ -170,6 +181,7 @@ private:
     int targetFilterOffset { - 1 };
 
 
+    bool m_FocusReady { false };
     bool m_FocusAbsPositionPending { false};
     int m_FocusAbsPosition { -1 };
 

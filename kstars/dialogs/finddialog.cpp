@@ -21,6 +21,7 @@
 #include "kstarsdata.h"
 #include "Options.h"
 #include "detaildialog.h"
+#include "skymap.h"
 #include "skyobjects/skyobject.h"
 #include "skyobjects/deepskyobject.h"
 #include "skycomponents/starcomponent.h"
@@ -34,6 +35,10 @@
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
 #include <QTimer>
+#include <QComboBox>
+#include <QLineEdit>
+
+FindDialog * FindDialog::m_Instance = nullptr;
 
 FindDialogUI::FindDialogUI(QWidget *parent) : QFrame(parent)
 {
@@ -55,6 +60,14 @@ FindDialogUI::FindDialogUI(QWidget *parent) : QFrame(parent)
 
     SearchList->setMinimumWidth(256);
     SearchList->setMinimumHeight(320);
+}
+
+FindDialog *FindDialog::Instance()
+{
+    if (m_Instance == nullptr)
+        m_Instance = new FindDialog(KStars::Instance());
+
+    return m_Instance;
 }
 
 FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_targetObject(nullptr)
@@ -87,7 +100,8 @@ FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_tar
 
     ui->FilterType->setCurrentIndex(0); // show all types of objects
 
-    fModel    = new SkyObjectListModel(this);
+    fModel = new SkyObjectListModel(this);
+    connect(KStars::Instance()->map(), &SkyMap::removeSkyObject, fModel, &SkyObjectListModel::removeSkyObject);
     sortModel = new QSortFilterProxyModel(ui->SearchList);
     sortModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
     sortModel->setSourceModel(fModel);
@@ -99,9 +113,33 @@ FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_tar
     ui->SearchList->setModel(sortModel);
 
     // Connect signals to slots
-    connect(ui->SearchBox, SIGNAL(textChanged(QString)), SLOT(enqueueSearch()));
-    connect(ui->SearchBox, SIGNAL(returnPressed()), SLOT(slotOk()));
-    connect(ui->FilterType, SIGNAL(activated(int)), this, SLOT(enqueueSearch()));
+    connect(ui->clearHistoryB, &QPushButton::clicked, [&](){
+        ui->clearHistoryB->setEnabled(false);
+        m_HistoryCombo->clear();
+        m_HistoryList.clear();
+    });
+
+    m_HistoryCombo = new QComboBox(ui->showHistoryB);
+    m_HistoryCombo->move(0, ui->showHistoryB->height());
+    connect(ui->showHistoryB, &QPushButton::clicked, [&]() {
+       if (m_HistoryList.empty() == false)
+       {
+           m_HistoryCombo->showPopup();
+       }
+    });
+
+    connect(m_HistoryCombo, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
+            [&](int index)
+    {
+        m_targetObject = m_HistoryList[index];
+        m_targetObject->updateCoordsNow(KStarsData::Instance()->updateNum());
+        m_HistoryCombo->setCurrentIndex(-1);
+        m_HistoryCombo->hidePopup();
+        accept();
+    });
+    connect(ui->SearchBox, &QLineEdit::textChanged, this, &FindDialog::enqueueSearch);
+    connect(ui->SearchBox, &QLineEdit::returnPressed, this, &FindDialog::slotOk);
+    connect(ui->FilterType, &QComboBox::currentTextChanged, this, &FindDialog::enqueueSearch);
     connect(ui->SearchList, SIGNAL(doubleClicked(QModelIndex)), SLOT(slotOk()));
 
     // Set focus to object name edit
@@ -111,6 +149,7 @@ FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_tar
     QTimer::singleShot(0, this, SLOT(init()));
 
     listFiltered = false;
+
 }
 
 void FindDialog::init()
@@ -122,6 +161,12 @@ void FindDialog::init()
     m_targetObject = nullptr;
 }
 
+void FindDialog::showEvent(QShowEvent *e)
+{
+    ui->SearchBox->setFocus();
+    e->accept();
+}
+
 void FindDialog::initSelection()
 {
     if (sortModel->rowCount() <= 0)
@@ -129,6 +174,9 @@ void FindDialog::initSelection()
         okB->setEnabled(false);
         return;
     }
+
+//    ui->SearchBox->setModel(sortModel);
+//    ui->SearchBox->setModelColumn(0);
 
     if (ui->SearchBox->text().isEmpty())
     {
@@ -248,7 +296,7 @@ void FindDialog::filterList()
 {
     QString SearchText = processSearchText();
     sortModel->setFilterFixedString(SearchText);
-    ui->InternetSearchButton->setText(i18n("or search the internet for %1", SearchText));
+    ui->InternetSearchButton->setText(i18n("or search the Internet for %1", SearchText));
     filterByType();
     initSelection();
 
@@ -315,7 +363,7 @@ QString FindDialog::processSearchText()
 
     // If it is an NGC/IC/M catalog number, as in "M 76" or "NGC 5139", check for absence of the space
     re.setPattern("^(m|ngc|ic)\\s*\\d*$");
-    if (ui->SearchBox->text().contains(re))
+    if (searchtext.contains(re))
     {
         re.setPattern("\\s*(\\d+)");
         searchtext.replace(re, " \\1");
@@ -353,9 +401,9 @@ void FindDialog::finishProcessing(SkyObject *selObj, bool resolve)
 {
     if (!selObj && resolve)
     {
-        CatalogEntryData cedata;
-        cedata             = NameResolver::resolveName(processSearchText());
+        CatalogEntryData cedata = NameResolver::resolveName(processSearchText());
         DeepSkyObject *dso = nullptr;
+
         if (!std::isnan(cedata.ra) && !std::isnan(cedata.dec))
         {
             dso = KStarsData::Instance()->skyComposite()->internetResolvedComponent()->addObject(cedata);
@@ -373,6 +421,45 @@ void FindDialog::finishProcessing(SkyObject *selObj, bool resolve)
     else
     {
         selObj->updateCoordsNow(KStarsData::Instance()->updateNum());
+        if (m_HistoryList.contains(selObj) == false)
+        {
+            switch (selObj->type())
+            {
+                case SkyObject::OPEN_CLUSTER:
+                case SkyObject::GLOBULAR_CLUSTER:
+                case SkyObject::GASEOUS_NEBULA:
+                case SkyObject::PLANETARY_NEBULA:
+                case SkyObject::SUPERNOVA_REMNANT:
+                case SkyObject::GALAXY:
+                    if (selObj->name() != selObj->longname())
+                        m_HistoryCombo->addItem(QString("%1 (%2)").arg(selObj->name()).arg(selObj->longname()));
+                    else
+                        m_HistoryCombo->addItem(QString("%1").arg(selObj->longname()));
+                    break;
+
+                case SkyObject::STAR:
+                case SkyObject::CATALOG_STAR:
+                case SkyObject::PLANET:
+                case SkyObject::COMET:
+                case SkyObject::ASTEROID:
+                case SkyObject::CONSTELLATION:
+                case SkyObject::MOON:
+                case SkyObject::ASTERISM:
+                case SkyObject::GALAXY_CLUSTER:
+                case SkyObject::DARK_NEBULA:
+                case SkyObject::QUASAR:
+                case SkyObject::MULT_STAR:
+                case SkyObject::RADIO_SOURCE:
+                case SkyObject::SATELLITE:
+                case SkyObject::SUPERNOVA:
+                default:
+                    m_HistoryCombo->addItem(QString("%1").arg(selObj->longname()));
+                    break;
+            }
+
+            m_HistoryList.append(selObj);
+        }
+        ui->clearHistoryB->setEnabled(true);
         accept();
     }
 }

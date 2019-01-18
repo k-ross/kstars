@@ -112,6 +112,62 @@ bool isOnline(ProfileInfo *pi)
         return false;
 }
 
+bool isStellarMate(ProfileInfo *pi)
+{
+    QNetworkAccessManager manager;
+    QUrl url(QString("http://%1:%2/api/info/version").arg(pi->host).arg(pi->INDIWebManagerPort));
+
+    QJsonDocument json;
+    if (getWebManagerResponse(QNetworkAccessManager::GetOperation, url, &json))
+    {
+        QJsonObject version = json.object();
+        if (version.contains("version") == false)
+            return false;
+        qInfo(KSTARS_EKOS) << "Detect StellarMate version" << version["version"].toString();
+        return true;
+    }
+    return false;
+}
+
+bool syncCustomDrivers(ProfileInfo *pi)
+{
+    QNetworkAccessManager manager;
+    QUrl url(QString("http://%1:%2/api/profiles/custom").arg(pi->host).arg(pi->INDIWebManagerPort));
+
+    QStringList customDriversLabels;
+    QMapIterator<QString, QString> i(pi->drivers);
+    while (i.hasNext())
+    {
+        QString name       = i.next().value();
+        DriverInfo *driver = DriverManager::Instance()->findDriverByName(name);
+
+        if (driver == nullptr)
+            driver = DriverManager::Instance()->findDriverByLabel(name);
+        if (driver && driver->getDriverSource() == CUSTOM_SOURCE)
+            customDriversLabels << driver->getLabel();
+    }
+
+    // Search for locked filter by filter color name
+    const QList<QVariantMap> &customDrivers = DriverManager::Instance()->getCustomDrivers();
+
+    for (auto label : customDriversLabels)
+    {
+        auto pos = std::find_if(customDrivers.begin(), customDrivers.end(), [label](QVariantMap oneDriver)
+        {return (oneDriver["Label"] == label);});
+
+        if (pos == customDrivers.end())
+            continue;
+
+        QVariantMap driver = (*pos);
+        QJsonObject jsonDriver = QJsonObject::fromVariantMap(driver);
+
+        QByteArray data    = QJsonDocument(jsonDriver).toJson();
+        getWebManagerResponse(QNetworkAccessManager::PostOperation, url, nullptr, &data);
+    }
+
+    return true;
+}
+
 bool areDriversRunning(ProfileInfo *pi)
 {
     QUrl url(QString("http://%1:%2/api/server/drivers").arg(pi->host).arg(pi->INDIWebManagerPort));
@@ -134,7 +190,7 @@ bool areDriversRunning(ProfileInfo *pi)
             if (driver == nullptr)
                 driver = DriverManager::Instance()->findDriverByLabel(name);
             if (driver)
-                piExecDrivers << driver->getDriver();
+                piExecDrivers << driver->getExecutable();
         }
 
         if (array.count() < piExecDrivers.count())
@@ -144,16 +200,21 @@ bool areDriversRunning(ProfileInfo *pi)
         QStringList webManagerDrivers;
         for (auto value : array)
         {
-            QJsonObject obj = value.toObject();
-            webManagerDrivers << obj.value("driver").toString();
+            QJsonObject driver = value.toObject();
+            // Old Web Manager API API
+            QString exec = driver["driver"].toString();
+            if (exec.isEmpty())
+                // New v0.1.5+ Web Manager API
+                exec = driver["binary"].toString();
+            webManagerDrivers << exec;
         }
 
         // Make sure all the profile drivers are running there
-        for (auto oneDriverExec : piExecDrivers)
+        for (auto &oneDriverExec : piExecDrivers)
         {
             if (webManagerDrivers.contains(oneDriverExec) == false)
             {
-                KSNotification::error(i18n("Driver %1 failed to start on the remote INDI server!", oneDriverExec));
+                KSNotification::error(i18n("Driver %1 failed to start on the remote INDI server.", oneDriverExec));
                 qCritical(KSTARS_EKOS) << "Driver" << oneDriverExec << "failed to start on the remote INDI server!";
                 return false;
             }
@@ -211,8 +272,18 @@ bool syncProfile(ProfileInfo *pi)
         }
     }
 
+    // Regular Drivers
     while (i.hasNext())
         driverArray.append(QJsonObject({{"label", i.next().value()}}));
+
+    // Remote Drivers
+    if (pi->remotedrivers.isEmpty() == false)
+    {
+        for (auto remoteDriver : pi->remotedrivers.split(","))
+        {
+            driverArray.append(QJsonObject({{"remote", remoteDriver}}));
+        }
+    }
 
     data    = QJsonDocument(driverArray).toJson();
     getWebManagerResponse(QNetworkAccessManager::PostOperation, url, nullptr, &data);

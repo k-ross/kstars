@@ -46,7 +46,7 @@ const char *libindi_strings_context = "string from libindi, used in the config d
 #include "libraw/libraw.h"
 #endif
 
-DeviceInfoLite::DeviceInfoLite(INDI::BaseDevice *dev) : device(dev), telescope(nullptr)
+DeviceInfoLite::DeviceInfoLite(INDI::BaseDevice *dev) : device(dev)
 {
 }
 
@@ -149,28 +149,28 @@ void ClientManagerLite::webManagerReplyError(QNetworkReply::NetworkError code)
     if (webMProfilesReply.get() != nullptr)
     {
         qWarning("Web Manager profile query error: %d", (int)code);
-        KStarsLite::Instance()->notificationMessage(i18n("Couldn't connect to the Web Manager"));
+        KStarsLite::Instance()->notificationMessage(i18n("Could not connect to the Web Manager"));
         webMProfilesReply.release()->deleteLater();
         return;
     }
     if (webMStatusReply.get() != nullptr)
     {
         qWarning("Web Manager status query error: %d", (int)code);
-        KStarsLite::Instance()->notificationMessage(i18n("Couldn't connect to the Web Manager"));
+        KStarsLite::Instance()->notificationMessage(i18n("Could not connect to the Web Manager"));
         webMStatusReply.release()->deleteLater();
         return;
     }
     if (webMStopProfileReply.get() != nullptr)
     {
         qWarning("Web Manager stop active profile error: %d", (int)code);
-        KStarsLite::Instance()->notificationMessage(i18n("Couldn't connect to the Web Manager"));
+        KStarsLite::Instance()->notificationMessage(i18n("Could not connect to the Web Manager"));
         webMStopProfileReply.release()->deleteLater();
         return;
     }
     if (webMStartProfileReply.get() != nullptr)
     {
         qWarning("Web Manager start active profile error: %d", (int)code);
-        KStarsLite::Instance()->notificationMessage(i18n("Couldn't connect to the Web Manager"));
+        KStarsLite::Instance()->notificationMessage(i18n("Could not connect to the Web Manager"));
         webMStartProfileReply.release()->deleteLater();
         return;
     }
@@ -238,14 +238,14 @@ void ClientManagerLite::webManagerReplyFinished()
         if (statusStr == "True")
         {
             // INDI Server is running (online)
-            indiControlPage->setProperty("webMStatusText", QString(i18n("Web Manager Status:")+' '+i18n("Online")));
+            indiControlPage->setProperty("webMStatusText", i18n("Web Manager Status: Online"));
             indiControlPage->setProperty("webMActiveProfileText",
-                                         QString(i18n("Active Profile:")+" "+activeProfileStr));
+                                         i18n("Active Profile: %1", activeProfileStr));
             indiControlPage->setProperty("webMActiveProfileLayoutVisible", true);
             indiControlPage->setProperty("webMProfileListVisible", false);
         } else {
             // INDI Server is not running (offline)
-            indiControlPage->setProperty("webMStatusText", QString(i18n("Web Manager Status:")+' '+i18n("Offline")));
+            indiControlPage->setProperty("webMStatusText", i18n("Web Manager Status: Offline"));
             indiControlPage->setProperty("webMActiveProfileLayoutVisible", false);
             context.setContextProperty("webMProfileModel", QVariant::fromValue(webMProfiles));
             indiControlPage->setProperty("webMProfileListVisible", true);
@@ -284,11 +284,11 @@ void ClientManagerLite::webManagerReplyFinished()
     }
 }
 
-TelescopeLite *ClientManagerLite::getTelescope(const QString &deviceName)
+TelescopeLite *ClientManagerLite::getTelescope()
 {
     for (auto& devInfo : m_devices)
     {
-        if (devInfo->device->getDeviceName() == deviceName)
+        if (devInfo->telescope.get())
         {
             return devInfo->telescope.get();
         }
@@ -536,7 +536,7 @@ void ClientManagerLite::buildSwitchGUI(INDI::Property *property, PGui guiType)
         exclusive = false;
 
     /*if (svp->p != IP_RO)
-        QObject::connect(groupB, SIGNAL(buttonClicked(QAbstractButton*)), this, SLOT(newSwitch(QAbstractButton *)));*/
+        QObject::connect(groupB, SIGNAL(buttonClicked(QAbstractButton*)), this, SLOT(newSwitch(QAbstractButton*)));*/
 
     for (int i = 0; i < svp->nsp; i++)
     {
@@ -902,10 +902,20 @@ void ClientManagerLite::newProperty(INDI::Property *property)
 
     if (devInfo)
     {
-        if ((!strcmp(property->getName(), "EQUATORIAL_EOD_COORD") || !strcmp(property->getName(), "HORIZONTAL_COORD")))
+        if ((!strcmp(property->getName(), "EQUATORIAL_EOD_COORD") ||
+             !strcmp(property->getName(), "EQUATORIAL_COORD") ||
+             !strcmp(property->getName(), "HORIZONTAL_COORD")))
         {
             devInfo->telescope.reset(new TelescopeLite(devInfo->device));
-            emit telescopeAdded(devInfo->telescope.get());
+            m_telescope = devInfo->telescope.get();
+            emit telescopeAdded(m_telescope);
+            // The connected signal must be emitted for already connected scopes otherwise
+            // the motion control page remains disabled.
+            if (devInfo->telescope->isConnected())
+            {
+                emit deviceConnected(devInfo->telescope->getDeviceName(), true);
+                emit telescopeConnected(devInfo->telescope.get());
+            }
         }
     }
 
@@ -1149,6 +1159,15 @@ void ClientManagerLite::newSwitch(ISwitchVectorProperty *svp)
         if (QString(sw->name) == QString("CONNECT"))
         {
             emit deviceConnected(svp->device, sw->s == ISS_ON);
+            if (m_telescope && m_telescope->getDeviceName() == svp->device)
+            {
+                if (sw->s == ISS_ON)
+                {
+                    emit telescopeConnected(m_telescope);
+                } else {
+                    emit telescopeDisconnected();
+                }
+            }
         }
         if (sw != nullptr)
         {

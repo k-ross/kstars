@@ -29,6 +29,7 @@ class ConstellationsArt;
 class DeepSkyObject;
 class KSComet;
 class KSPlanetBase;
+class KSEarthShadow;
 class LineList;
 class LineListLabel;
 class Satellite;
@@ -143,8 +144,15 @@ class SkyPainter
     virtual bool drawPlanet(KSPlanetBase *planet) = 0;
 
     /**
+     * @short Draw the earths shadow on the moon (red-ish)
+     * @param shadow the shadow to draw
+     * @return true if it was drawn
+     */
+    virtual bool drawEarthShadow(KSEarthShadow *shadow) = 0;
+
+    /**
      * @short Draw the symbols for the observing list
-     * @param obs the oberving list
+     * @param obs the observing list
      */
     virtual void drawObservingList(const QList<SkyObject *> &obs) = 0;
 

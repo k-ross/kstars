@@ -62,7 +62,6 @@ class FlagManager;
 class Execute;
 class ExportImageDialog;
 class PrintingWizard;
-class EkosManager;
 class HorizonManager;
 class EyepieceField;
 class AddDeepSkyObject;
@@ -77,8 +76,11 @@ class OpsAdvanced;
 class OpsINDI;
 class OpsEkos;
 class OpsFITS;
-
 class OpsXplanet;
+
+namespace Ekos {
+class Manager;
+}
 
 #ifdef HAVE_CFITSIO
 class FITSViewer;
@@ -142,12 +144,12 @@ class KStars : public KXmlGuiWindow
     inline PrintingWizard *printingWizard() const { return m_PrintingWizard; }
 
 #ifdef HAVE_CFITSIO
-    FITSViewer *genericFITSViewer();
-    QList<FITSViewer *> &getFITSViewersList() { return m_FITSViewers; }
+    QPointer<FITSViewer> genericFITSViewer();
+    void addFITSViewer(QPointer<FITSViewer> fv);
 #endif
 
 #ifdef HAVE_INDI
-    EkosManager *ekosManager();
+    Ekos::Manager *ekosManager();
 #endif
 
     /** Add an item to the color-scheme action manu
@@ -433,12 +435,10 @@ class KStars : public KXmlGuiWindow
     Q_SCRIPTABLE Q_NOREPLY void printImage(bool usePrintDialog, bool useChartColors);
 
     /** DBUS interface function.  Open FITS image.
-         * @param imageURL URL of FITS image to load. For a local file the prefix must be file:// For example
+         * @param imageUrl URL of FITS image to load. For a local file the prefix must be file:// For example
          * if the file is located at /home/john/m42.fits then the full URL is file:///home/john/m42.fits
-         * @return True if successful, false otherwise.
          */
-    Q_SCRIPTABLE bool openFITS(const QString &imageURL); // for DBus
-    bool openFITS(const QUrl &imageUrl);                 // for C++ code
+    Q_SCRIPTABLE Q_NOREPLY void openFITS(const QUrl &imageUrl);
 
     /** @}*/
 
@@ -502,7 +502,7 @@ class KStars : public KXmlGuiWindow
     /** Show the add deep-sky object dialog */
     void slotAddDeepSkyObject();
 
-    /** action slot: open KStars setup wizard */
+    /** action slot: open KStars startup wizard */
     void slotWizard();
 
     void updateLocationFromWizard(const GeoLocation& geo);
@@ -573,8 +573,10 @@ class KStars : public KXmlGuiWindow
     /** action slot: open Moon Phase Calendar tool */
     void slotMoonPhaseTool();
 
+    #if 0
     /** action slot: open Telescope wizard */
     void slotTelescopeWizard();
+    #endif
 
     /** action slot: open INDI driver panel */
     void slotINDIDriver();
@@ -671,7 +673,7 @@ class KStars : public KXmlGuiWindow
     /** Invoke the Field-of-View symbol editor window */
     void slotFOVEdit();
 
-    /** Toggle between Equatorial and Ecliptic coordinte systems */
+    /** Toggle between Equatorial and Ecliptic coordinate systems */
     void slotCoordSys();
 
     /** Set the map projection according to the menu selection */
@@ -773,9 +775,6 @@ class KStars : public KXmlGuiWindow
     ExportImageDialog *m_ExportImageDialog { nullptr };
     PrintingWizard *m_PrintingWizard { nullptr };
 
-    // Pointing Menu
-    FindDialog *m_FindDialog { nullptr };
-
     // Tool Menu
     AstroCalc *m_AstroCalc { nullptr };
     AltVsTime *m_AltVsTime { nullptr };
@@ -789,11 +788,11 @@ class KStars : public KXmlGuiWindow
     EyepieceField *m_EyepieceView { nullptr };
 #ifdef HAVE_CFITSIO
     QPointer<FITSViewer> m_GenericFITSViewer;
-    QList<FITSViewer *> m_FITSViewers;
+    QList<QPointer<FITSViewer>> m_FITSViewers;
 #endif
 
 #ifdef HAVE_INDI
-    QPointer<EkosManager> m_EkosManager;
+    QPointer<Ekos::Manager> m_EkosManager;
 #endif
 
     AddDeepSkyObject *m_addDSODialog { nullptr };

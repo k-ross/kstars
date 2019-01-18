@@ -19,9 +19,15 @@
 #include "fitscommon.h"
 
 #include <QUndoStack>
+#include <QSplitter>
+#include <QToolBox>
 #include <QUrl>
 #include <QWidget>
+#include "ui_fitsheaderdialog.h"
+#include "ui_statform.h"
 #include <QFuture>
+#include <QPointer>
+#include <QListWidget>
 
 #include <memory>
 
@@ -42,20 +48,24 @@ class FITSTab : public QWidget
     explicit FITSTab(FITSViewer *parent);
     virtual ~FITSTab();
 
-    bool loadFITS(const QUrl *imageURL, FITSMode mode = FITS_NORMAL, FITSScale filter = FITS_NONE, bool silent = true);
+    void clearRecentFITS();
+    void selectRecentFITS(int i);
+    void loadFITS(const QUrl &imageURL, FITSMode mode = FITS_NORMAL, FITSScale filter = FITS_NONE, bool silent = true);
     int saveFITS(const QString &filename);
 
     inline QUndoStack *getUndoStack() { return undoStack; }
     inline QUrl *getCurrentURL() { return &currentURL; }
     inline FITSView *getView() { return view.get(); }
-    inline FITSHistogram *getHistogram() { return histogram; }
-    inline FITSViewer *getViewer() { return viewer; }
+    inline QPointer<FITSHistogram> getHistogram() { return histogram; }
+    inline QPointer<FITSViewer> getViewer() { return viewer; }
 
     bool saveFile();
     bool saveFileAs();
     void copyFITS();
+    void loadFITSHeader();
     void headerFITS();
     void histoFITS();
+    void evaluateStats();
     void statFITS();
 
     void setUID(int newID) { uid = newID; }
@@ -80,11 +90,24 @@ class FITSTab : public QWidget
   private:
     /** Ask user whether he wants to save changes and save if he do. */
 
+    /// The FITSTools Toolbox
+    QPointer<QToolBox> fitsTools;
+    /// The Splitter for th FITSTools Toolbox
+    QPointer<QSplitter> fitsSplitter;
+    /// The FITS Header Panel
+    QPointer<QDialog> fitsHeaderDialog;
+    Ui::fitsHeaderDialog header;
+    /// The Statistics Panel
+    QPointer<QDialog> statWidget;
+    Ui::statForm stat;
+    /// FITS Histogram
+    QPointer<FITSHistogram> histogram;
+    QPointer<FITSViewer> viewer;
+
+    QPointer<QListWidget> recentImages;
+
     /// FITS image object
     std::unique_ptr<FITSView> view;
-    /// FITS Histogram
-    FITSHistogram *histogram { nullptr };
-    FITSViewer *viewer { nullptr };
 
     /// History for undo/redo
     QUndoStack *undoStack { nullptr };
@@ -102,4 +125,6 @@ class FITSTab : public QWidget
     void debayerToggled(bool);
     void newStatus(const QString &msg, FITSBar id);
     void changeStatus(bool clean);
+    void loaded();
+    void failed();
 };

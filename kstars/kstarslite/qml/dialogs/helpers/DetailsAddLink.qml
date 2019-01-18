@@ -17,7 +17,7 @@ import "../../modules"
 
 KSPage {
     id: addLink
-    title: SkyMapLite.clickedObjectLite.getTranslatedName() + " - " + (editMode ? xi18n("Edit Link") : xi18n("Add a Link") )
+    title: editMode ? xi18n("%1 - Edit Link", SkyMapLite.clickedObjectLite.getTranslatedName()) : xi18n("%1 - Add a Link", SkyMapLite.clickedObjectLite.getTranslatedName())
     property bool editMode: false // true if popup is in edit mode. False if in add mode
     property bool isImage: false //is the object for which this popup was opened an image or information
     property int itemIndex: -1
@@ -95,7 +95,7 @@ KSPage {
                 text: editMode ? xi18n("Save") : xi18n("Add")
                 onClicked: {
                     if(descField.text == "" || urlField.text == "") {
-                        notification.showNotification(xi18n("Please, fill in URL and Description"))
+                        skyMapLite.notification.showNotification(xi18n("Please, fill in URL and Description"))
                         return
                     }
 

@@ -250,11 +250,11 @@ ScriptBuilder::ScriptBuilder(QWidget *parent)
     QTreeWidgetItem *kstars_tree   = new QTreeWidgetItem(sb->FunctionTree, QStringList("KStars"));
     QTreeWidgetItem *simclock_tree = new QTreeWidgetItem(sb->FunctionTree, QStringList("SimClock"));
 
-    for (int i = 0; i < KStarsFunctionList.size(); ++i)
-        new QTreeWidgetItem(kstars_tree, QStringList(KStarsFunctionList[i]->prototype()));
+    for (auto &item : KStarsFunctionList)
+        new QTreeWidgetItem(kstars_tree, QStringList(item->prototype()));
 
-    for (int i = 0; i < SimClockFunctionList.size(); ++i)
-        new QTreeWidgetItem(simclock_tree, QStringList(SimClockFunctionList[i]->prototype()));
+    for (auto &item : SimClockFunctionList)
+        new QTreeWidgetItem(simclock_tree, QStringList(item->prototype()));
 
     kstars_tree->sortChildren(0, Qt::AscendingOrder);
     simclock_tree->sortChildren(0, Qt::AscendingOrder);
@@ -1032,7 +1032,7 @@ void ScriptBuilder::slotRunScript()
 #ifdef Q_OS_OSX
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString path            = env.value("PATH", "");
-    env.insert("PATH", "/usr/local/bin:" + QCoreApplication::applicationDirPath() + ":" + path);
+    env.insert("PATH", "/usr/local/bin:" + QCoreApplication::applicationDirPath() + ':' + path);
     p.setProcessEnvironment(env);
 #endif
     p.start(f.fileName());
@@ -1746,18 +1746,15 @@ void ScriptBuilder::slotFindCity()
 
 void ScriptBuilder::slotFindObject()
 {
-    QPointer<FindDialog> fd = new FindDialog(ks);
-
-    if (fd->exec() == QDialog::Accepted && fd->targetObject())
+    if (FindDialog::Instance()->exec() == QDialog::Accepted && FindDialog::Instance()->targetObject())
     {
         setUnsavedChanges(true);
 
         if (sender() == argLookToward->FindButton)
-            argLookToward->FocusEdit->setEditText(fd->targetObject()->name());
+            argLookToward->FocusEdit->setEditText(FindDialog::Instance()->targetObject()->name());
         else
-            argFindObject->NameEdit->setText(fd->targetObject()->name());
+            argFindObject->NameEdit->setText(FindDialog::Instance()->targetObject()->name());
     }
-    delete fd;
 }
 
 void ScriptBuilder::slotShowOptions()
@@ -1811,7 +1808,7 @@ void ScriptBuilder::slotRa()
 
     if (sf->name() == "setRaDec")
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if (argSetRaDec->RABox->text().isEmpty())
             return;
 
@@ -1843,7 +1840,7 @@ void ScriptBuilder::slotDec()
 
     if (sf->name() == "setRaDec")
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if (argSetRaDec->DecBox->text().isEmpty())
             return;
 
@@ -1875,7 +1872,7 @@ void ScriptBuilder::slotAz()
 
     if (sf->name() == "setAltAz")
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if (argSetAltAz->AzBox->text().isEmpty())
             return;
 
@@ -1906,7 +1903,7 @@ void ScriptBuilder::slotAlt()
 
     if (sf->name() == "setAltAz")
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if (argSetAltAz->AltBox->text().isEmpty())
             return;
 
@@ -2442,7 +2439,7 @@ void ScriptBuilder::slotINDISetTargetCoordDeviceRA()
 
     if ( sf->name() == "setINDITargetCoord" )
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if ( argSetTargetCoordINDI->RABox->text().isEmpty() )
         {
             sf->setValid(false);
@@ -2483,7 +2480,7 @@ void ScriptBuilder::slotINDISetTargetCoordDeviceDEC()
 
     if ( sf->name() == "setINDITargetCoord" )
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if ( argSetTargetCoordINDI->DecBox->text().isEmpty() )
         {
             sf->setValid(false);
@@ -2658,7 +2655,7 @@ void ScriptBuilder::slotINDISetGeoLocationDeviceLong()
 
     if ( sf->name() == "setINDIGeoLocation" )
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if ( argSetGeoLocationINDI->longBox->text().isEmpty())
         {
             sf->setValid(false);
@@ -2699,7 +2696,7 @@ void ScriptBuilder::slotINDISetGeoLocationDeviceLat()
 
     if ( sf->name() == "setINDIGeoLocation" )
     {
-        //do nothing if box is blank (because we could be clearing boxes while switcing argWidgets)
+        //do nothing if box is blank (because we could be clearing boxes while switching argWidgets)
         if ( argSetGeoLocationINDI->latBox->text().isEmpty() )
         {
             sf->setValid(false);

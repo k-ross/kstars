@@ -89,7 +89,7 @@ void OpsHIPS::downloadReady()
             continue;
         }
 
-        QStringList keyvalue = line.split("=", QString::KeepEmptyParts);
+        QStringList keyvalue = line.split('=', QString::KeepEmptyParts);
         QString key   = keyvalue[0].simplified();
         if (hipsKeys.contains(key) == false)
             continue;
@@ -108,7 +108,7 @@ void OpsHIPS::downloadReady()
     for (QMap<QString,QString> oneSource : dbSources)
         dbTitles << oneSource["obs_title"];
 
-    // Add all titiles to list widget
+    // Add all titles to list widget
     sourcesList->addItems(hipsTitles);
     QListWidgetItem* item = nullptr;
 

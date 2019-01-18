@@ -16,25 +16,28 @@
  ***************************************************************************/
 
 #include "fov.h"
-#include "Options.h"
+
+#include "geolocation.h"
+#include "kspaths.h"
 #ifndef KSTARS_LITE
 #include "kstars.h"
 #endif
 #include "kstarsdata.h"
-#include "geolocation.h"
+#include "Options.h"
 #include "skymap.h"
 #include "projections/projector.h"
-
-#include <algorithm>
+#include "fovadaptor.h"
 
 #include <QPainter>
 #include <QTextStream>
 #include <QFile>
 #include <QDebug>
 #include <QStandardPaths>
-#include "kspaths.h"
+
+#include <algorithm>
 
 QList<FOV *> FOVManager::m_FOVs;
+int FOV::m_ID=1;
 
 FOVManager::~FOVManager()
 {
@@ -138,7 +141,7 @@ const QList<FOV *> &FOVManager::readFOVs()
                     return m_FOVs;
                 }
 
-                shape = FOV::intToShape(fields[6].toInt(&ok));
+                shape = static_cast<FOV::Shape>(fields[6].toInt(&ok));
                 if (!ok)
                 {
                     return m_FOVs;
@@ -165,13 +168,14 @@ void FOVManager::releaseCache()
     m_FOVs.clear();
 }
 
-FOV::Shape FOV::intToShape(int s)
+FOV::FOV(const QString &n, float a, float b, float xoffset, float yoffset, float rot, Shape sh, const QString &col, bool useLockedCP) : QObject()
 {
-    return (s >= FOV::UNKNOWN || s < 0) ? FOV::UNKNOWN : static_cast<FOV::Shape>(s);
-}
+    qRegisterMetaType<FOV::Shape>("FOV::Shape");
+    qDBusRegisterMetaType<FOV::Shape>();
 
-FOV::FOV(const QString &n, float a, float b, float xoffset, float yoffset, float rot, Shape sh, const QString &col, bool useLockedCP)
-{
+    new FovAdaptor(this);
+    QDBusConnection::sessionBus().registerObject(QString("/KStars/FOV/%1").arg(getID()) , this);
+
     m_name  = n;
     m_sizeX = a;
     m_sizeY = (b < 0.0) ? a : b;
@@ -188,16 +192,49 @@ FOV::FOV(const QString &n, float a, float b, float xoffset, float yoffset, float
     m_lockCelestialPole = useLockedCP;
 }
 
-FOV::FOV()
+FOV::FOV() : QObject()
 {
+    qRegisterMetaType<FOV::Shape>("FOV::Shape");
+    qDBusRegisterMetaType<FOV::Shape>();
+
+    new FovAdaptor(this);
+    QDBusConnection::sessionBus().registerObject(QString("/KStars/FOV/%1").arg(getID()) , this);
+
     m_name  = i18n("No FOV");
     m_color = "#FFFFFF";
 
     m_sizeX = m_sizeY = 0;
     m_shape           = SQUARE;
-    m_offsetX = m_offsetY = m_PA = 0, m_northPA = 0;
     m_imageDisplay = false;
     m_lockCelestialPole = false;
+}
+
+FOV::FOV(const FOV &other) : QObject()
+{
+    m_name   = other.m_name;
+    m_color  = other.m_color;
+    m_sizeX  = other.m_sizeX;
+    m_sizeY  = other.m_sizeY;
+    m_shape  = other.m_shape;
+    m_offsetX= other.m_offsetX;
+    m_offsetY= other.m_offsetY;
+    m_PA     = other.m_PA;
+    m_imageDisplay = other.m_imageDisplay;
+    m_lockCelestialPole = other.m_lockCelestialPole;
+}
+
+void FOV::sync(const FOV &other)
+{
+    m_name   = other.m_name;
+    m_color  = other.m_color;
+    m_sizeX  = other.m_sizeX;
+    m_sizeY  = other.m_sizeY;
+    m_shape  = other.m_shape;
+    m_offsetX= other.m_offsetX;
+    m_offsetY= other.m_offsetY;
+    m_PA     = other.m_PA;
+    m_imageDisplay = other.m_imageDisplay;
+    m_lockCelestialPole = other.m_lockCelestialPole;
 }
 
 void FOV::draw(QPainter &p, float zoomFactor)
@@ -262,7 +299,7 @@ void FOV::draw(QPainter &p, float zoomFactor)
             p.drawText(nameRect, Qt::AlignCenter, name());
 
             QRect sizeRect(targetRect.center().x(), targetRect.topLeft().y()-(pixelSizeY/8), targetRect.width()/2, pixelSizeX / 10);
-            p.drawText(sizeRect, Qt::AlignCenter, QString("%1'x%2'").arg(QString::number(m_sizeX, 'f', 1)).arg(QString::number(m_sizeY, 'f', 1)));
+            p.drawText(sizeRect, Qt::AlignCenter, QString("%1'x%2'").arg(QString::number(m_sizeX, 'f', 1), QString::number(m_sizeY, 'f', 1)));
         }
         break;
         case CIRCLE:
@@ -316,11 +353,6 @@ void FOV::draw(QPainter &p, float x, float y)
     draw(p, zoomFactor);
 }
 
-void FOV::setShape(int s)
-{
-    m_shape = intToShape(s);
-}
-
 SkyPoint FOV::center() const
 {
     return m_center;
@@ -359,4 +391,22 @@ bool FOV::lockCelestialPole() const
 void FOV::setLockCelestialPole(bool lockCelestialPole)
 {
     m_lockCelestialPole = lockCelestialPole;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const FOV::Shape& source)
+{
+    argument.beginStructure();
+    argument << static_cast<int>(source);
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, FOV::Shape &dest)
+{
+    int a;
+    argument.beginStructure();
+    argument >> a;
+    argument.endStructure();
+    dest = static_cast<FOV::Shape>(a);
+    return argument;
 }

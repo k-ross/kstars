@@ -25,6 +25,7 @@
 #include "skyobjects/skyline.h"
 
 #include <QGraphicsView>
+#include <QtGlobal>
 #include <QTimer>
 
 class QPainter;
@@ -364,6 +365,11 @@ class SkyMap : public QGraphicsView
          */
     void slotSDSS();
 
+    /**
+     * @brief slotCopyCoordinates Copies J2000 and JNow equatorial coordinates to the clipboard in addition to horizontal coords.
+     */
+    void slotCopyCoordinates();
+
     /** @short Popup menu function: Show webpage about ClickedObject
          * (only available for some objects).
          */
@@ -386,6 +392,9 @@ class SkyMap : public QGraphicsView
          * have User Labels attached.
          */
     void slotRemoveObjectLabel();
+
+    /** Remove custom object from internet search in the local catalog */
+    void slotRemoveCustomObject();
 
     /** @short Add a Planet Trail to ClickedObject.
          * @note Trails are added simply by calling KSPlanetBase::addToTrail() to add the first point.
@@ -448,11 +457,8 @@ class SkyMap : public QGraphicsView
     void slotToggleGL();
 #endif
 
-    /** Run Xplanet to print a view in a Window*/
-    void slotXplanetToWindow();
-
-    /** Run Xplanet to print a view in a file */
-    void slotXplanetToFile();
+    /** Run Xplanet Viewer to display images of the planets*/
+    void slotStartXplanetViewer();
 
     /** Render eyepiece view */
     void slotEyepieceView();
@@ -502,7 +508,12 @@ class SkyMap : public QGraphicsView
     /** Emitted when a position is clicked */
     void objectClicked(SkyObject *);
 
+    /** Emitted when a sky object is removed from the database */
+    void removeSkyObject(SkyObject *object);
+
   protected:
+    bool event(QEvent *event) override;
+
     /** Process keystrokes:
          * @li arrow keys  Slew the map
          * @li +/- keys  Zoom in and out
@@ -591,15 +602,15 @@ class SkyMap : public QGraphicsView
         */
     void incMagLimit(const int modifier);
 
-    /** Convenience routine to either zoom in or incraase mag limit
-         * depending on the Alt modifier.  The Shift and Control modiifers
+    /** Convenience routine to either zoom in or increase mag limit
+         * depending on the Alt modifier.  The Shift and Control modifiers
          * will adjust the size of the zoom or the mag step.
          * @param modifier
          */
     void zoomInOrMagStep(const int modifier);
 
-    /** Convenience routine to either zoom out or decraase mag limit
-         * depending on the Alt modifier.  The Shift and Control modiifers
+    /** Convenience routine to either zoom out or decrease mag limit
+         * depending on the Alt modifier.  The Shift and Control modifiers
          * will adjust the size of the zoom or the mag step.
          * @param modifier
          */
@@ -652,7 +663,7 @@ class SkyMap : public QGraphicsView
     // Timer for tooltips
     QTimer m_HoverTimer;
 
-    // InfoBoxes. Used in desctructor to save state
+    // InfoBoxes. Used in destructor to save state
     InfoBoxWidget *m_timeBox { nullptr };
     InfoBoxWidget *m_geoBox { nullptr };
     InfoBoxWidget *m_objBox { nullptr };
@@ -664,6 +675,10 @@ class SkyMap : public QGraphicsView
 
     bool m_objPointingMode { false };
     bool m_fovCaptureMode { false };
+    bool m_touchMode { false };
+    bool m_pinchMode { false };
+    bool m_tapAndHoldMode { false };
+    qreal m_pinchScale { 0.0 };
 
     QWidget *m_SkyMapDraw { nullptr }; // Can be dynamic_cast<> to SkyMapDrawAbstract
 

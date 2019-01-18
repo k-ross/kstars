@@ -12,7 +12,7 @@
 #include "indi/indistd.h"
 #include "indi/indicap.h"
 
-#include <QtDBus/QtDBus>
+#include <QtDBus>
 
 namespace Ekos
 {
@@ -27,10 +27,11 @@ class DustCap : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.kde.kstars.Ekos.DustCap")
+    Q_PROPERTY(ISD::DustCap::Status status READ status NOTIFY newStatus)
+    Q_PROPERTY(ISD::ParkStatus parkStatus READ parkStatus NOTIFY newParkStatus)
+    Q_PROPERTY(bool canPark READ canPark)
 
   public:
-    typedef enum { PARKING_IDLE, PARKING_OK, UNPARKING_OK, PARKING_BUSY, UNPARKING_BUSY, PARKING_ERROR } ParkingStatus;
-
     DustCap();
     virtual ~DustCap() override = default;
 
@@ -65,7 +66,7 @@ class DustCap : public QObject
     /**
      * DBUS interface function.
      * hasLight: Does the dust cap have a flat light source?
-     * @return True if there if flat light, false othereise
+     * @return True if there if flat light, false otherwise
      */
     Q_SCRIPTABLE bool hasLight();
 
@@ -88,7 +89,7 @@ class DustCap : public QObject
      * DBUS interface function.
      * Get the dome park status
      */
-    Q_SCRIPTABLE ParkingStatus getParkingStatus();
+    Q_SCRIPTABLE ISD::ParkStatus parkStatus() { return m_ParkStatus; }
 
     /** @}*/
 
@@ -98,8 +99,23 @@ class DustCap : public QObject
      */
     void setDustCap(ISD::GDInterface *newDustCap);
 
+    ISD::DustCap::Status status() { return currentDustCap->status(); }
+
+  signals:
+    void newStatus(ISD::DustCap::Status status);
+    void newParkStatus(ISD::ParkStatus status);
+    void lightToggled(bool enabled);
+    void lightIntensityChanged(int value);
+    void ready();
+
   private:
+    void processProp(INDI::Property *prop);
+    void processSwitch(ISwitchVectorProperty *svp);
+    void processNumber(INumberVectorProperty *nvp);
     // Devices needed for DustCap operation
     ISD::DustCap *currentDustCap { nullptr };
+    ISD::ParkStatus m_ParkStatus { ISD::PARK_UNKNOWN };
+    bool m_LightEnabled { false };
+    uint16_t m_lightIntensity { 0 };
 };
 }

@@ -1032,12 +1032,13 @@ void Logging::SyncFilterRules()
   This method provides a centralized location for the default paths to important external files used in the Options
   on different operating systems.  Note that on OS X, if the user builds the app without indi, astrometry, and xplanet internally
   then the options below will be used.  If the user drags the app from a dmg and has to install the KStars data directory,
-  then most of these paths will be overwritten since it is preferrred to use the internal versions.
+  then most of these paths will be overwritten since it is preferred to use the internal versions.
 **/
 
 QString getDefaultPath(QString option)
 {
     QString snap = QProcessEnvironment::systemEnvironment().value("SNAP");
+    QString flat = QProcessEnvironment::systemEnvironment().value("FLATPAK_DEST");
 
     if (option == "fitsDir")
     {
@@ -1048,14 +1049,20 @@ QString getDefaultPath(QString option)
 #ifdef Q_OS_OSX
         return "/usr/local/bin/indiserver";
 #endif
-        return snap + "/usr/bin/indiserver";
+        if (flat.isEmpty() == false)
+            return flat + "/bin/indiserver";
+        else
+            return snap + "/usr/bin/indiserver";
     }
     else if (option == "indiDriversDir")
     {
 #ifdef Q_OS_OSX
         return "/usr/local/share/indi";
 #elif defined(Q_OS_LINUX)
-        return snap + "/usr/share/indi";
+        if (flat.isEmpty() == false)
+            return flat + "/share/indi";
+        else
+            return snap + "/usr/share/indi";
 #else
         return QStandardPaths::locate(QStandardPaths::GenericDataLocation, "indi", QStandardPaths::LocateDirectory);
 #endif
@@ -1065,28 +1072,40 @@ QString getDefaultPath(QString option)
 #ifdef Q_OS_OSX
         return "/usr/local/bin/solve-field";
 #endif
-        return snap + "/usr/bin/solve-field";
+        if (flat.isEmpty() == false)
+            return flat + "/bin/solve-field";
+        else
+            return snap + "/usr/bin/solve-field";
     }
     else if (option == "AstrometryWCSInfo")
     {
 #ifdef Q_OS_OSX
         return "/usr/local/bin/wcsinfo";
 #endif
-        return snap + "/usr/bin/wcsinfo";
+        if (flat.isEmpty() == false)
+            return flat + "/bin/wcsinfo";
+        else
+            return snap + "/usr/bin/wcsinfo";
     }
     else if (option == "AstrometryConfFile")
     {
 #ifdef Q_OS_OSX
         return "/usr/local/etc/astrometry.cfg";
 #endif
-        return snap + "/etc/astrometry.cfg";
+        if (flat.isEmpty() == false)
+            return flat + "/etc/astrometry.cfg";
+        else
+            return snap + "/etc/astrometry.cfg";
     }
     else if (option == "XplanetPath")
     {
 #ifdef Q_OS_OSX
         return "/usr/local/bin/xplanet";
 #endif
-        return snap + "/usr/bin/xplanet";
+        if (flat.isEmpty() == false)
+            return flat + "/bin/xplanet";
+        else
+            return snap + "/usr/bin/xplanet";
     }
 
     return QString();
@@ -1103,7 +1122,7 @@ void copyResourcesFolderFromAppBundle(QString folder){
         folderSourceDir = QDir(QCoreApplication::applicationDirPath() + "/../Resources/" + folder).absolutePath();
     if (folderSourceDir.exists())
     {
-        folderLocation = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/"+folder;
+        folderLocation = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + '/' + folder;
         QDir writableDir;
         writableDir.mkdir(folderLocation);
         copyRecursively(folderSourceDir.absolutePath(), folderLocation);
@@ -1164,7 +1183,7 @@ void configureDefaultAstrometry()
             QStandardPaths::locate(QStandardPaths::GenericDataLocation, "Astrometry", QStandardPaths::LocateDirectory);
         if (astrometryPath.isEmpty())
             KMessageBox::sorry(
-                0, i18n("Error!  The Astrometry Index File Directory does not exist and was not able to be created."));
+                0, i18n("The Astrometry Index File Directory does not exist and was not able to be created."));
         else
         {
             QString confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";

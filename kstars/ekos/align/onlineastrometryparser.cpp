@@ -26,7 +26,6 @@
 #define JOB_RETRY_DURATION    2000 /* 2000 ms */
 #define JOB_RETRY_ATTEMPTS    90
 #define SOLVER_RETRY_DURATION 2000 /* 2000 ms */
-#define INVALID_VALUE         -1000
 
 namespace Ekos
 {
@@ -34,7 +33,7 @@ OnlineAstrometryParser::OnlineAstrometryParser() : AstrometryParser()
 {
     networkManager = new QNetworkAccessManager(this);
 
-    parity = INVALID_VALUE;
+    parity = Ekos::INVALID_VALUE;
 
     connect(this, SIGNAL(authenticateFinished()), this, SLOT(uploadFile()));
     connect(this, SIGNAL(uploadFinished()), this, SLOT(getJobID()));
@@ -42,7 +41,7 @@ OnlineAstrometryParser::OnlineAstrometryParser() : AstrometryParser()
     connect(this, SIGNAL(jobFinished()), this, SLOT(checkJobCalibration()));
 
     // Reset parity on solver failure
-    connect(this, &OnlineAstrometryParser::solverFailed, this, [&]() { parity = INVALID_VALUE; });
+    connect(this, &OnlineAstrometryParser::solverFailed, this, [&]() { parity = Ekos::INVALID_VALUE; });
 
     connect(this, SIGNAL(solverFailed()), this, SLOT(resetSolver()));
     connect(this, SIGNAL(solverFinished(double,double,double,double)), this, SLOT(resetSolver()));
@@ -69,17 +68,22 @@ bool OnlineAstrometryParser::startSovler(const QString &in_filename, const QStri
 
     //if (networkManager->networkAccessible() == false)
     // 2018-03-08 JM: Multiple users reported that network accessible is now failing if there is no internet connection
-    // But LAN connectoin is established leading to failure of online solver with a local astrometry solver like ANSVR.
+    // But LAN connection is established leading to failure of online solver with a local astrometry solver like ANSVR.
     // Therefore I am adding the exception below to remedy this situation for now.
+
+    // 2018-07-13: Due to this bug --> https://bugreports.qt.io/browse/QTBUG-68613
+    // The check will be disabled until it is resolved.
+    #if 0
     if (networkManager->networkAccessible() == false && Options::astrometryAPIURL().contains("127.0.0.1") == false)
     {
-        align->appendLogText(i18n("Error: No connection to the internet."));
+        align->appendLogText(i18n("Error: no connection to the Internet."));
         emit solverFailed();
         return false;
     }
+    #endif
 
     // Reset params
-    center_ra = center_dec = downsample_factor = lowerScale = upperScale = INVALID_VALUE;
+    center_ra = center_dec = downsample_factor = lowerScale = upperScale = Ekos::INVALID_VALUE;
     units.clear();
     useWCSCenter = false;
 
@@ -145,7 +149,7 @@ bool OnlineAstrometryParser::stopSolver()
     workflowStage  = NO_STAGE;
     solver_retries = 0;
 
-    disconnect(networkManager, SIGNAL(finished(QNetworkReply *)), this, SLOT(onResult(QNetworkReply *)));
+    disconnect(networkManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(onResult(QNetworkReply*)));
 
     return true;
 }
@@ -181,7 +185,7 @@ void OnlineAstrometryParser::uploadFile()
     bool rc         = fitsFile->open(QIODevice::ReadOnly);
     if (rc == false)
     {
-        align->appendLogText(i18n("Failed to open file %1. %2", filename, fitsFile->errorString()));
+        align->appendLogText(i18n("Failed to open the file %1: %2", filename, fitsFile->errorString()));
         delete (fitsFile);
         emit solverFailed();
         return;
@@ -209,7 +213,7 @@ void OnlineAstrometryParser::uploadFile()
     }
 
     // Do we send RA/DE?
-    if (center_ra != INVALID_VALUE)
+    if (center_ra != Ekos::INVALID_VALUE)
     {
         uploadReq.insert("center_ra", center_ra);
         uploadReq.insert("center_dec", center_dec);
@@ -219,13 +223,13 @@ void OnlineAstrometryParser::uploadFile()
     if (useWCSCenter)
         uploadReq.insert("crpix_center", true);
 
-    if (downsample_factor != INVALID_VALUE)
+    if (downsample_factor != Ekos::INVALID_VALUE)
         uploadReq.insert("downsample_factor", downsample_factor);
 
     // If we have parity and option is valid and this is NOT a blind solve (if ra or units exist then it is not a blind solve)
     // then we send parity
-    if (Options::astrometryDetectParity() && parity != INVALID_VALUE &&
-        (center_ra != INVALID_VALUE || units.isEmpty() == false))
+    if (Options::astrometryDetectParity() && parity != Ekos::INVALID_VALUE &&
+        (center_ra != Ekos::INVALID_VALUE || units.isEmpty() == false))
         uploadReq.insert("parity", parity);
 
     QJsonObject json = QJsonObject::fromVariantMap(uploadReq);
@@ -325,7 +329,7 @@ void OnlineAstrometryParser::onResult(QNetworkReply *reply)
 
     if (parseError.error != QJsonParseError::NoError)
     {
-        align->appendLogText(i18n("JSon error during parsing (%1).", parseError.errorString()));
+        align->appendLogText(i18n("JSON error during parsing (%1).", parseError.errorString()));
         emit solverFailed();
         return;
     }
@@ -333,7 +337,7 @@ void OnlineAstrometryParser::onResult(QNetworkReply *reply)
     QVariant json_result = json_doc.toVariant();
     QVariantMap result   = json_result.toMap();
 
-    if (Options::astrometrySolverVerbose())
+    if (Options::alignmentLogging())
         align->appendLogText(json_doc.toJson(QJsonDocument::Compact));
 
     switch (workflowStage)
@@ -350,7 +354,7 @@ void OnlineAstrometryParser::onResult(QNetworkReply *reply)
 
             sessionKey = result["session"].toString();
 
-            if (Options::astrometrySolverVerbose())
+            if (Options::alignmentLogging())
                 align->appendLogText(i18n("Authentication to astrometry.net is successful. Session: %1", sessionKey));
 
             emit authenticateFinished();

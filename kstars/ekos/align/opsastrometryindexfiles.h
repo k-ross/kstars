@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QString>
 #include <QDir>
+#include <QTimer>
 
 class QNetworkAccessManager;
 
@@ -26,7 +27,7 @@ class OpsAstrometryIndexFiles : public QDialog, public Ui::OpsAstrometryIndexFil
     virtual ~OpsAstrometryIndexFiles() override = default;
 
   protected:
-    void showEvent(QShowEvent *);
+    void showEvent(QShowEvent *) override;
 
   public slots:
     void slotUpdate();
@@ -46,6 +47,7 @@ class OpsAstrometryIndexFiles : public QDialog, public Ui::OpsAstrometryIndexFil
     Align *alignModule { nullptr };
     QNetworkAccessManager *manager { nullptr };
     QMap<float, QString> astrometryIndex;
+    QTimer timeoutTimer;
     int downloadSpeed { 0 }; //bytes per millisecond
     int actualdownloadSpeed { 0 }; //bytes per millisecond
 };

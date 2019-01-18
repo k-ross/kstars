@@ -77,6 +77,10 @@ StreamWG::StreamWG(ISD::CCD *ccd) : QDialog(KStars::Instance())
     QString filename, directory;
     ccd->getSERNameDirectory(filename, directory);
 
+    double duration = 0.1;
+    currentCCD->getStreamExposure(&duration);
+    videoExposure->setValue(duration);
+
     options->recordFilenameEdit->setText(filename);
     options->recordDirectoryEdit->setText(directory);
 
@@ -98,11 +102,18 @@ StreamWG::StreamWG(ISD::CCD *ccd) : QDialog(KStars::Instance())
     connect(recordB, SIGNAL(clicked()), this, SLOT(toggleRecord()));
     connect(ccd, SIGNAL(videoRecordToggled(bool)), this, SLOT(updateRecordStatus(bool)));
 
-    connect(videoFrame, SIGNAL(newSelection(QRect)), this, SLOT(setStreamingFrame(QRect)));
+    connect(videoFrame, &VideoWG::newSelection, this, &StreamWG::setStreamingFrame);
+    connect(videoFrame, &VideoWG::imageChanged, this, &StreamWG::imageChanged);
 
     resize(Options::streamWindowWidth(), Options::streamWindowHeight());
 
     connect(currentCCD, SIGNAL(newFPS(double,double)), this, SLOT(updateFPS(double,double)));
+    connect(videoExposure, static_cast<void(QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), [&](double value)
+    {
+       if (currentCCD)
+           currentCCD->setStreamExposure(value);
+    });
+
 }
 
 QSize StreamWG::sizeHint() const

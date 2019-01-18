@@ -71,7 +71,7 @@ enum MeshBufNum_t
  * different then it should be drawn and then the drawID should be set to the
  * current drawID() so it doesn't get drawn again this cycle.
  *
- * The list of visible trixels found from an aperature() call or one of the
+ * The list of visible trixels found from an aperture() call or one of the
  * primitive index() by creating a new MeshIterator instance:
  *
  *      MeshIterator( HTMesh *mesh )
@@ -220,7 +220,7 @@ class SkyMesh : public HTMesh
         The follow routines are used to index SkyList data structures.  They
         fill a QHash with the indices of the trixels that cover the data
         structure.  These are all used as callbacks in the LineListIndex
-        subclasses so they can use the same indexing code to index differnt
+        subclasses so they can use the same indexing code to index different
         data structures.  See also indexStarLine() above.
         */
 
@@ -229,7 +229,7 @@ class SkyMesh : public HTMesh
     /** @short fills a QHash with the trixel indices needed to cover all the
          * line segments specified in the QVector<SkyPoints*> points.
          *
-         * @param points the points of the line segment.  @debug causes extra
+         * @param points the points of the line segment. The debug mode causes extra
          * info to be printed.
          */
     const IndexHash &indexLine(SkyList *points);
@@ -238,9 +238,7 @@ class SkyMesh : public HTMesh
          * the points.
          *
          * @param points the line segment to be indexed.
-         * @param indexHash the hash to return the indices in.
          * @param skip a hash indicating which points to skip
-         * @param debug optional flag to have the routine print out
          * debugging info.
          */
     const IndexHash &indexLine(SkyList *points, IndexHash *skip);
@@ -251,7 +249,7 @@ class SkyMesh : public HTMesh
          * skip some of the edges of a filled polygon.
          *
          * @param points the points of the line segment.
-         * @debug causes extra info to be printed.
+         * The debug mode causes extra info to be printed.
          */
     const IndexHash &indexPoly(SkyList *points);
 

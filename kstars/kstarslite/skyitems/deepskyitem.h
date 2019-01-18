@@ -21,6 +21,11 @@
 #include "deepskycomponent.h"
 #include "skynodes/trixelnode.h"
 
+class DeepSkyComponent;
+class SkyMesh;
+class StarBlockFactory;
+class MeshIterator;
+
 /**
  * @short This class represents DSOs from particular catalog. To create a node, first create a DSOTrixelNode,
  * (if a node of this trixelID is not a child of m_trixels yet), append it to m_trixels and then append
@@ -39,14 +44,14 @@ class DSOIndexNode : public SkyOpacityNode
 
     DeepSkyIndex *m_index { nullptr };
     QSGNode *m_trixels { nullptr };
-    /** @short m_labelType - holds label type of this catalog */
+    /** @short m_labelType holds label type of this catalog */
     LabelsItem::label_t m_labelType;
-    /** @short schemeColor - holds the color, with which nodes of this catalog should be drawn */
+    /** @short schemeColor holds the color, with which nodes of this catalog should be drawn */
     QString schemeColor;
 };
 
 /**
- * @short The DSOTrixelNode class - represents trixel. Symbols should be appended to m_symbols, labels to
+ * @short The DSOTrixelNode class represents trixel. Symbols should be appended to m_symbols, labels to
  * m_labels and DeepSkyNodes directly to DSOTrixelNode
  */
 class DSOTrixelNode : public TrixelNode
@@ -56,8 +61,8 @@ class DSOTrixelNode : public TrixelNode
 
     virtual void deleteAllChildNodes();
 
-  TrixelNode *m_labels { nullptr };
-  QSGNode *m_symbols { nullptr };
+    TrixelNode *m_labels { nullptr };
+    QSGNode *m_symbols { nullptr };
 };
 
 /**
@@ -68,12 +73,6 @@ class DSOTrixelNode : public TrixelNode
  * @author Artem Fedoskin
  * @version 1.0
  */
-
-class DeepSkyComponent;
-class SkyMesh;
-class StarBlockFactory;
-class MeshIterator;
-
 class DeepSkyItem : public SkyItem
 {
   public:

@@ -55,14 +55,22 @@ class OpsAstrometryIndexFiles;
  * Align module provide Polar Align Helper tool which enables easy-to-follow polar alignment procedure given wide FOVs (> 1.5 degrees)
  * For small FOVs, the Legacy polar alignment measurement should be used.
  * LEGACY: Measurement of polar alignment errors is performed by capturing two images on selected points in the sky and measuring the declination drift to calculate
- * the error in the mount's azimutn and altitude displacement from optimal. Correction is carried by asking the user to re-center a star by adjusting the telescope's azimuth and/or altitude knobs.
+ * the error in the mount's azimuth and altitude displacement from optimal. Correction is carried by asking the user to re-center a star by adjusting the telescope's azimuth and/or altitude knobs.
  *@author Jasem Mutlaq
- *@version 1.3
+ *@version 1.4
  */
 class Align : public QWidget, public Ui::Align
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.kde.kstars.Ekos.Align")
+    Q_PROPERTY(Ekos::AlignState status READ status NOTIFY newStatus)
+    Q_PROPERTY(QStringList logText READ logText NOTIFY newLog)
+    Q_PROPERTY(QString camera READ camera WRITE setCamera)
+    Q_PROPERTY(QString filterWheel READ filterWheel WRITE setFilterWheel)
+    Q_PROPERTY(QString filter READ filter WRITE setFilter)
+    Q_PROPERTY(double exposure READ exposure WRITE setExposure)
+    Q_PROPERTY(QList<double> fov READ fov)
+    Q_PROPERTY(QString solverArguments READ solverArguments WRITE setSolverArguments)
 
   public:
     explicit Align(ProfileInfo *activeProfile);
@@ -125,14 +133,24 @@ class Align : public QWidget, public Ui::Align
          * @param device CCD device name
          * @return Returns true if device if found and selected, false otherwise.
          */
-    Q_SCRIPTABLE bool setCCD(const QString &device);
+    Q_SCRIPTABLE bool setCamera(const QString &device);
+    Q_SCRIPTABLE QString camera();
 
     /** DBUS interface function.
          * select the filter device from the available filter drivers. The filter device can be the same as the CCD driver if the filter functionality was embedded within the driver.
          * @param device The filter device name
          * @return Returns true if filter device is found and set, false otherwise.
          */
-    Q_SCRIPTABLE bool setFilter(QString device, int filterSlot);
+    Q_SCRIPTABLE bool setFilterWheel(const QString &device);
+    Q_SCRIPTABLE QString filterWheel();
+
+    /** DBUS interface function.
+         * select the filter from the available filters.
+         * @param filter The filter name
+         * @return Returns true if filter is found and set, false otherwise.
+         */
+    Q_SCRIPTABLE bool setFilter(const QString &filter);
+    Q_SCRIPTABLE QString filter();
 
     /** DBUS interface function.
          * Start the plate-solving process given the passed image file.
@@ -158,7 +176,7 @@ class Align : public QWidget, public Ui::Align
          * Returns the solver's current status
          * @return Returns solver status (Ekos::AlignState)
          */
-    Q_SCRIPTABLE int getStatus() { return state; }
+    Q_SCRIPTABLE Ekos::AlignState status() { return state; }
 
     /** DBUS interface function.
          * @return Returns State of load slew procedure. Idle if not started. Busy if in progress. Ok if complete. Alert if procedure failed.
@@ -170,6 +188,7 @@ class Align : public QWidget, public Ui::Align
          * @param value Exposure value in seconds
          */
     Q_SCRIPTABLE Q_NOREPLY void setExposure(double value);
+    Q_SCRIPTABLE double exposure() { return exposureIN->value(); }
 
     /** DBUS interface function.
          * Sets the arguments that gets passed to the astrometry.net offline solver.
@@ -181,13 +200,14 @@ class Align : public QWidget, public Ui::Align
          * Get existing solver options.
          * @return String containing all arguments.
          */
-    Q_SCRIPTABLE QString getSolverArguments();
+    Q_SCRIPTABLE QString solverArguments();
 
     /** DBUS interface function.
          * Sets the telescope type (PRIMARY or GUIDE) that should be used for FOV calculations. This value is loaded form driver settings by default.
          * @param index 0 for PRIMARY telescope, 1 for GUIDE telescope
          */
     Q_SCRIPTABLE Q_NOREPLY void setFOVTelescopeType(int index);
+    int FOVTelescopeType() {return FOVScopeCombo->currentIndex();}
 
     /** @}*/
 
@@ -205,13 +225,13 @@ class Align : public QWidget, public Ui::Align
 
     /**
          * @brief Set the current telescope
-         * @newTelescope pointer to telescope device.
+         * @param newTelescope pointer to telescope device.
          */
     void setTelescope(ISD::GDInterface *newTelescope);
 
     /**
          * @brief Set the current dome
-         * @newDome pointer to telescope device.
+         * @param newDome pointer to telescope device.
          */
     void setDome(ISD::GDInterface *newDome);
 
@@ -247,13 +267,14 @@ class Align : public QWidget, public Ui::Align
     bool isParserOK();
 
     // Log
-    QString getLogText() { return logText.join("\n"); }
+    QStringList logText() { return m_LogText; }
+    QString getLogText() { return m_LogText.join("\n"); }
     void clearLog();
 
     /**
          * @brief Return FOV object used to represent the solved image orientation on the sky map.
          */
-    FOV *fov();
+    FOV *getSolverFOV();
 
     /**
          * @brief Return FOV object used to represent the current CCD/Telescope combination.
@@ -267,8 +288,24 @@ class Align : public QWidget, public Ui::Align
          * @param fov_scale FOV scale in arcsec per pixel
          */
     void getFOVScale(double &fov_w, double &fov_h, double &fov_scale);
+    QList<double> fov();
+
+    /**
+     * @brief getCalculatedFOVScale Get calculated FOV scales from the current CCD+Telescope combination.
+     * @param fov_w return calculated fov width in arcminutes
+     * @param fov_h return calculated fov height in arcminutes
+     * @param fov_scale return calculated fov pixcale in arcsecs per pixel.
+     * @note This is NOT the same as effective FOV which is the measured FOV from astrometry. It is the
+     * theoretical FOV from calculated values.
+     */
+    void getCalculatedFOVScale(double &fov_w, double &fov_h, double &fov_scale);
 
     void setFilterManager(const QSharedPointer<FilterManager> &manager);
+
+    // Ekos Live Client helper functions
+    QStringList getActiveSolvers() const;
+    int getActiveSolverIndex() const;
+    void setCaptureSettings(const QJsonObject &settings);
 
     /**
          * @brief generateOptions Generate astrometry.net option given the supplied map
@@ -282,13 +319,13 @@ class Align : public QWidget, public Ui::Align
 
     /**
          * @brief Process updated device properties
-         * @nvp pointer to updated property.
+         * @param nvp pointer to updated property.
          */
     void processNumber(INumberVectorProperty *nvp);
 
     /**
          * @brief Process updated device properties
-         * @svp pointer to updated property.
+         * @param svp pointer to updated property.
          */
     void processSwitch(ISwitchVectorProperty *svp);
 
@@ -307,7 +344,7 @@ class Align : public QWidget, public Ui::Align
 
     /**
          * @brief checkCCDExposureProgress Track the progress of CCD exposure
-         * @param targeChip Target chip under exposure
+         * @param targetChip Target chip under exposure
          * @param remaining how many seconds remaining
          * @param state status of exposure
          */
@@ -344,7 +381,7 @@ class Align : public QWidget, public Ui::Align
          * the telescope is pointing to the same coordinates of the image.
          * @param fileURL URL to the image to solve
          */
-    Q_SCRIPTABLE Q_NOREPLY void loadAndSlew(QString fileURL = QString());
+    Q_SCRIPTABLE bool loadAndSlew(QString fileURL = QString());
 
     /** DBUS interface function.
          * Sets the binning of the selected CCD device.
@@ -371,7 +408,7 @@ class Align : public QWidget, public Ui::Align
     /**
          * @brief We received new telescope info, process them and update FOV.
          */
-    void syncTelescopeInfo();
+    bool syncTelescopeInfo();
 
     void setFocusStatus(Ekos::FocusState state);
 
@@ -384,7 +421,31 @@ class Align : public QWidget, public Ui::Align
     // Update Capture Module status
     void setCaptureStatus(Ekos::CaptureState newState);
     // Update Mount module status
-    void setMountStatus(ISD::Telescope::TelescopeStatus newState);
+    void setMountStatus(ISD::Telescope::Status newState);
+
+    // PAH Ekos Live
+    QString getPAHStage() const { return PAHStages[pahStage];}
+    bool isPAHEnabled() const { return isPAHReady; }
+    QString getPAHMessage() const;
+
+    void startPAHProcess();
+    void stopPAHProcess();
+    void setPAHCorrectionOffsetPercentage(double dx, double dy);
+    void setPAHMountDirection(int index) { PAHDirectionCombo->setCurrentIndex(index);}
+    void setPAHMountRotation(int value) {PAHRotationSpin->setValue(value);}
+    void setPAHRefreshDuration(double value) { PAHExposure->setValue(value);}
+    void startPAHRefreshProcess();
+    void setPAHRefreshComplete();
+    void setPAHCorrectionSelectionComplete();
+    void zoomAlignView();
+
+    // Align Settings
+    QJsonObject getSettings() const;
+    void setSettings(const QJsonObject &settings);
+
+    // PAH Settings. PAH should be in separate class
+    QJsonObject getPAHSettings() const;
+    void setPAHSettings(const QJsonObject &settings);
 
   private slots:
 
@@ -408,13 +469,9 @@ class Align : public QWidget, public Ui::Align
     void toggleAlignWidgetFullScreen();
 
     // Polar Alignment Helper slots
-    void startPAHProcess();
-    void restartPAHProcess();
+
     void rotatePAH();
     void setPAHCorrectionOffset(int x, int y);
-    void setPAHCorrectionSelectionComplete();
-    void startPAHRefreshProcess();
-    void setPAHRefreshComplete();
     void setWCSToggled(bool result);
 
     //Solutions Display slots
@@ -447,7 +504,10 @@ class Align : public QWidget, public Ui::Align
     void alignTypeChanged(const QString alignType);
     void togglePreviewAlignPoints();
     void slotSortAlignmentPoints();
-    void slotAutoScaleGraph();  
+    void slotAutoScaleGraph();
+
+    // Settings
+    void syncSettings();
 
   protected slots:
     /**
@@ -461,16 +521,33 @@ class Align : public QWidget, public Ui::Align
     void refreshAlignOptions();
 
   signals:
-    void newLog();
+    void newLog(const QString &text);
     void newStatus(Ekos::AlignState state);
-    //void newSolutionDeviation(double ra_arcsecs, double de_arcsecs);
+    void newSolution(const QVariantMap &solution);
+
+    // This is sent when we load an image in the view
+    void newImage(FITSView *view);
+    // This is sent when the pixmap is updated within the view
+    void newFrame(FITSView *view);
+
+    void polarResultUpdated(QLineF correctionVector, QString polarError);
+    void newCorrectionVector(QLineF correctionVector);
     void newSolverResults(double orientation, double ra, double dec, double pixscale);
+
+    // Polar Assistant Tool
+    void newPAHStage(PAHStage stage);
+    void newPAHMessage(const QString &message);
+    void newFOVTelescopeType(int index);
+    void PAHEnabled(bool);
+
+    // Settings
+    void settingsUpdated(const QJsonObject &settings);
 
   private:
     /**
         * @brief Calculate Field of View of CCD+Telescope combination that we need to pass to astrometry.net solver.
         */
-    void calculateFOV();    
+    void calculateFOV();
 
     /**
          * @brief After a solver process is completed successfully, measure Azimuth or Altitude error as requested by the user.
@@ -571,6 +648,7 @@ class Align : public QWidget, public Ui::Align
     QVariantMap getEffectiveFOV();
     void saveNewEffectiveFOV(double newFOVW, double newFOVH);
     QList<QVariantMap> effectiveFOVs;
+    void syncFOV();
 
     /// Which chip should we invoke in the current CCD?
     bool useGuideHead { false };
@@ -626,7 +704,7 @@ class Align : public QWidget, public Ui::Align
     double altDeviation { 0 };
     double decDeviation { 0 };
     static const double RAMotion;
-    static const float SIDRATE;
+    static const double SIDRATE;
 
     /// Have we slewed?
     bool isSlewDirty { false };
@@ -663,10 +741,14 @@ class Align : public QWidget, public Ui::Align
     bool m_wcsSynced { false };
 
     /// Log
-    QStringList logText;
+    QStringList m_LogText;
 
-    /// Capture retries
-    int retries { 0 };
+    /// Issue counters
+    uint8_t m_CaptureTimeoutCounter { 0 };
+    uint8_t m_CaptureErrorCounter { 0 };
+    uint8_t m_SlewErrorCounter { 0 };
+
+    QTimer m_CaptureTimer;
 
     // State
     AlignState state { ALIGN_IDLE };
@@ -680,7 +762,7 @@ class Align : public QWidget, public Ui::Align
     QString dirPath;
 
     // Timer
-    QTimer alignTimer;
+    QTimer m_AlignTimer;
 
     // BLOB Type
     ISD::CCD::BlobType blobType;
@@ -694,6 +776,8 @@ class Align : public QWidget, public Ui::Align
 
     // Polar Alignment Helper
     PAHStage pahStage { PAH_IDLE };
+    SkyPoint targetPAH;
+    bool isPAHReady { false };
 
     // keep track of autoWSC
     bool rememberAutoWCS { false };
@@ -703,6 +787,7 @@ class Align : public QWidget, public Ui::Align
     typedef struct
     {
         SkyPoint skyCenter;
+        QPointF celestialPole;
         QPointF pixelCenter;
         double pixelScale { 0 };
         double orientation { 0 };
@@ -747,6 +832,7 @@ class Align : public QWidget, public Ui::Align
     ISD::CCD::TelescopeType rememberTelescopeType = { ISD::CCD::TELESCOPE_UNKNOWN };
 
     double primaryFL = -1, primaryAperture = -1, guideFL = -1, guideAperture = -1;
+    bool m_isRateSynced = false;
     bool domeReady = true;
 
     // CCD Exposure Looping
@@ -757,5 +843,14 @@ class Align : public QWidget, public Ui::Align
 
     // Active Profile
     ProfileInfo *m_ActiveProfile { nullptr };
+
+    // PAH Stage Map
+    static const QMap<PAHStage, QString> PAHStages;
+
+    // Threshold to notify settle time is 3 seconds
+    static constexpr uint16_t DELAY_THRESHOLD_NOTIFY { 3000 };
+
+    // Threshold to stop PAH rotation in degrees
+    static constexpr uint8_t PAH_ROTATION_THRESHOLD { 5 };
 };
 }

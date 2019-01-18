@@ -16,11 +16,11 @@
  ***************************************************************************/
 
 #include "kstars.h"
-#include "kstars_debug.h"
 
 #include "fov.h"
 #include "kspaths.h"
 #include "kstarsdata.h"
+#include "kstars_debug.h"
 #include "Options.h"
 #include "skymap.h"
 #include "texturemanager.h"
@@ -35,7 +35,7 @@
 #ifdef HAVE_INDI
 #include "indi/drivermanager.h"
 #include "indi/guimanager.h"
-#include "ekos/ekosmanager.h"
+#include "ekos/manager.h"
 #endif
 
 #include <KActionCollection>
@@ -350,7 +350,7 @@ void KStars::initActions()
 
     //Add HIPS Sources actions
     hipsActionMenu = actionCollection()->add<KActionMenu>("hipssources");
-    hipsActionMenu->setText(i18n("HiPS All Sky Overlay (Experimental)"));
+    hipsActionMenu->setText(i18n("HiPS All Sky Overlay"));
     hipsActionMenu->setDelayed(false);
     hipsActionMenu->setIcon(QIcon::fromTheme("view-preview"));
     HIPSManager::Instance()->readSources();
@@ -395,7 +395,7 @@ void KStars::initActions()
         << QKeySequence(Qt::SHIFT + Qt::CTRL + Qt::Key_C);
 
     /* FIXME Enable once port to KF5 is complete for moonphasetool
-     actionCollection()->addAction("moonphasetool", this, SLOT( slotMoonPhaseTool() ) )
+     actionCollection()->addAction("moonphasetool", this, SLOT(slotMoonPhaseTool()) )
          << i18n("Moon Phase Calendar");
     */
 
@@ -414,6 +414,9 @@ void KStars::initActions()
         << i18n("What's Interesting...") << QKeySequence(Qt::CTRL + Qt::Key_W);
     //#endif
 
+    actionCollection()->addAction("XPlanet", map(), SLOT(slotStartXplanetViewer()))
+        << i18n("XPlanet Solar System Simulator") << QKeySequence(Qt::CTRL + Qt::Key_X);
+
     actionCollection()->addAction("skycalendar", this, SLOT(slotCalendar())) << i18n("Sky Calendar");
 
 #ifdef HAVE_INDI
@@ -426,7 +429,7 @@ void KStars::initActions()
     //     ka = actionCollection()->addAction("glossary");
     //     ka->setText( i18n("Glossary...") );
     //     ka->setShortcuts( QKeySequence(Qt::CTRL+Qt::Key_K ) );
-    //     connect( ka, SIGNAL( triggered() ), this, SLOT( slotGlossary() ) );
+    //     connect( ka, SIGNAL(triggered()), this, SLOT(slotGlossary()) );
 
     // 2017-09-17 Jasem: FIXME! Scripting does not work properly under non UNIX systems.
     // It must be updated to use DBus session bus from Qt (like scheduler)
@@ -439,7 +442,7 @@ void KStars::initActions()
         << i18n("Solar System") << QKeySequence(Qt::CTRL + Qt::Key_Y);
 
     // Disabled until fixed later
-    /*actionCollection()->addAction("jmoontool", this, SLOT( slotJMoonTool() ) )
+    /*actionCollection()->addAction("jmoontool", this, SLOT(slotJMoonTool()) )
         << i18n("Jupiter's Moons")
         << QKeySequence(Qt::CTRL+Qt::Key_J );*/
 
@@ -465,14 +468,19 @@ void KStars::initActions()
 // ==== devices Menu ================
 #ifdef HAVE_INDI
 #ifndef Q_OS_WIN
+#if 0
     actionCollection()->addAction("telescope_wizard", this, SLOT(slotTelescopeWizard()))
         << i18n("Telescope Wizard...")
         << QIcon::fromTheme("tools-wizard");
+#endif
 #endif
     actionCollection()->addAction("device_manager", this, SLOT(slotINDIDriver()))
         << i18n("Device Manager...")
         << QIcon::fromTheme("network-server")
         << QKeySequence(Qt::SHIFT + Qt::META + Qt::Key_D);
+    actionCollection()->addAction("custom_drivers", DriverManager::Instance(), SLOT(showCustomDrivers()))
+        << i18n("Custom Drivers...")
+        << QIcon::fromTheme("address-book-new");
     ka = actionCollection()->addAction("indi_cpl", this, SLOT(slotINDIPanel()))
         << i18n("INDI Control Panel...")
         << QKeySequence(Qt::CTRL + Qt::Key_I);
@@ -488,7 +496,7 @@ void KStars::initActions()
     ka = actionCollection()->addAction(KStandardAction::TipofDay, "help_tipofday", this, SLOT(slotTipOfDay()));
     ka->setWhatsThis(i18n("Displays the Tip of the Day"));
     ka->setIcon(QIcon::fromTheme("help-hint"));
-    //	KStandardAction::help(this, SLOT( appHelpActivated() ), actionCollection(), "help_contents" );
+    //	KStandardAction::help(this, SLOT(appHelpActivated()), actionCollection(), "help_contents" );
 
     //Add timestep widget for toolbar
     m_TimeStepBox = new TimeStepBox(toolBar("kstarsToolBar"));
@@ -682,8 +690,12 @@ void KStars::repopulateFOV()
 void KStars::repopulateHIPS()
 {
     // Iterate through actions
-    hipsActionMenu->menu()->clear();    
-    hipsGroup->actions().clear();    
+    hipsActionMenu->menu()->clear();
+    // Remove all actions
+    QList<QAction*> actions = hipsGroup->actions();
+
+    for (auto &action : actions)
+      hipsGroup->removeAction(action);
 
     QAction *ka = actionCollection()->addAction(i18n("None"), this, SLOT(slotHIPSSource()))
         << i18n("None") << AddToGroup(hipsGroup)
@@ -782,6 +794,13 @@ void KStars::datainitFinished()
     data()->setFullTimeUpdate();
     updateTime();
 
+    // Initial State
+    qCDebug(KSTARS) << "Date/Time is:" << data()->clock()->utc().toString();
+    qCDebug(KSTARS) << "Location:" << data()->geo()->fullName();
+    qCDebug(KSTARS) << "TZ0:" << data()->geo()->TZ0() << "TZ:" << data()->geo()->TZ();
+
+    KSTheme::Manager::instance()->setCurrentTheme(Options::currentTheme());
+
     //If this is the first startup, show the wizard
     if (Options::runStartupWizard())
     {
@@ -790,13 +809,6 @@ void KStars::datainitFinished()
 
     //Show TotD
     KTipDialog::showTip(this, "kstars/tips");
-
-    // Initial State
-    qCDebug(KSTARS) << "Date/Time is:" << data()->clock()->utc().toString();
-    qCDebug(KSTARS) << "Location:" << data()->geo()->fullName();
-    qCDebug(KSTARS) << "TZ0:" << data()->geo()->TZ0() << "TZ:" << data()->geo()->TZ();
-
-    KSTheme::Manager::instance()->setCurrentTheme(Options::currentTheme());
 }
 
 void KStars::initFocus()

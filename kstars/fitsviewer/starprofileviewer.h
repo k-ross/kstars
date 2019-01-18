@@ -10,35 +10,36 @@
     version 2 of the License, or (at your option) any later version.
 */
 
-#ifndef STARPROFILEVIEWER_H
-#define STARPROFILEVIEWER_H
+#pragma once
+
+#include "fitsdata.h"
+
 #include <QtDataVisualization/qbar3dseries.h>
 #include <QtDataVisualization/qbardataproxy.h>
 #include <QtDataVisualization/q3dbars.h>
 #include <QtDataVisualization/QCustom3DLabel>
-#include <QtWidgets/QSlider>
-#include <QDialog>
 
-#include <QtWidgets/QWidget>
-#include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QRadioButton>
-#include <QtWidgets/QSlider>
-#include <QtWidgets/QGroupBox>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QMessageBox>
-#include <QtGui/QPainter>
-#include <QtGui/QScreen>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDial>
+#include <QDialog>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QImage>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPainter>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QScreen>
+#include <QSlider>
+#include <QVBoxLayout>
+#include <QWidget>
 
 #include <QtDataVisualization/QValue3DAxis>
 #include <QtDataVisualization/Q3DTheme>
 #include <QtDataVisualization/qabstract3dseries.h>
-#include <QtGui/QImage>
-#include <QtCore/qmath.h>
-#include <QMessageBox>
-#include "fitsdata.h"
+#include <qmath.h>
 
 using namespace QtDataVisualization;
 
@@ -46,13 +47,14 @@ class StarProfileViewer : public QDialog
 {
     Q_OBJECT
 public:
-    explicit StarProfileViewer(QWidget *parent = nullptr);
+    explicit StarProfileViewer(QWidget *parent);
     ~StarProfileViewer();
 
     void setBlackToYellowGradient();
     void setGreenToRedGradient();
 
     void loadData(FITSData *imageData, QRect sub, QList<Edge *> starCenters);
+    template <typename T> void loadDataPrivate();
     float getImageDataValue(int x, int y);
     void toggleSlice();
     void updateVerticalAxis();
@@ -71,54 +73,54 @@ public slots:
     void updateColor(int selection);
     void updateBarSpacing(int value);
 
-
 signals:
     void sampleSizeUpdated(int size);
 private:
-    Q3DBars *m_graph;
-    QValue3DAxis *m_pixelValueAxis;
-    QCategory3DAxis *m_xPixelAxis;
-    QCategory3DAxis *m_yPixelAxis;
-    QBar3DSeries *m_3DPixelSeries;
+    Q3DBars *m_graph { nullptr };
+    QValue3DAxis *m_pixelValueAxis { nullptr };
+    QCategory3DAxis *m_xPixelAxis { nullptr };
+    QCategory3DAxis *m_yPixelAxis { nullptr };
+    QBar3DSeries *m_3DPixelSeries { nullptr };
 
-    QBarDataArray *dataSet = nullptr;
+    QBarDataArray *dataSet { nullptr };
 
     template <typename T>
     float getImageDataValue(int x, int y);
     void getSubFrameMinMax(float *subFrameMin, float *subFrameMax, double *dataMin, double *dataMax);
 
-    QPushButton *HFRReport;
-    QLabel *reportBox;
-    QPushButton *showPeakValues;
-    QPushButton *showCoordinates;
-    QCheckBox *autoScale;
-    QPushButton *showScaling;
-    QComboBox *sampleSize;
-    QComboBox *selectionType;
-    QComboBox *zoomView;
-    QComboBox *selectStar;
-    QPushButton *exploreMode;
-    QLabel *pixelReport;
-    QLabel *maxValue;
-    QLabel *minValue;
-    QLabel *cutoffValue;
-    QPushButton *sliceB;
-    FITSData * imageData;
+    template <typename T>
+    void getSubFrameMinMax(float *subFrameMin, float *subFrameMax);
+
+    QPushButton *HFRReport { nullptr };
+    QLabel *reportBox { nullptr };
+    QPushButton *showPeakValues { nullptr };
+    QPushButton *showCoordinates { nullptr };
+    QCheckBox *autoScale { nullptr };
+    QPushButton *showScaling { nullptr };
+    QComboBox *sampleSize { nullptr };
+    QComboBox *selectionType { nullptr };
+    QComboBox *zoomView { nullptr };
+    QComboBox *selectStar { nullptr };
+    QPushButton *exploreMode { nullptr };
+    QLabel *pixelReport { nullptr };
+    QLabel *maxValue { nullptr };
+    QLabel *minValue { nullptr };
+    QLabel *cutoffValue { nullptr };
+    QPushButton *sliceB { nullptr };
+    FITSData * imageData { nullptr };
     QRect subFrame;
 
-    QSlider *blackPointSlider;
-    QSlider *whitePointSlider;
-    QSlider *cutoffSlider;
-    QSlider *verticalSelector;
-    QSlider *horizontalSelector;
+    QSlider *blackPointSlider { nullptr };
+    QSlider *whitePointSlider { nullptr };
+    QSlider *cutoffSlider { nullptr };
+    QSlider *verticalSelector { nullptr };
+    QSlider *horizontalSelector { nullptr };
     QList<Edge *> starCenters;
 
-    bool cutOffEnabled;
+    bool cutOffEnabled { false };
 
     int convertToSliderValue(float value);
     float convertFromSliderValue(int value);
     void updatePixelReport();
 
 };
-
-#endif // STARPROFILEVIEWER_H

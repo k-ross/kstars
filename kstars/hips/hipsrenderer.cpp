@@ -20,14 +20,12 @@
 
 #include "hipsrenderer.h"
 
+#include "colorscheme.h"
+#include "kstars_debug.h"
 #include "Options.h"
-
-#include "projections/projector.h"
 #include "skymap.h"
 #include "skyqpainter.h"
-#include "colorscheme.h"
-
-#include "kstars_debug.h"
+#include "projections/projector.h"
 
 HIPSRenderer::HIPSRenderer()
 {
@@ -150,7 +148,7 @@ bool HIPSRenderer::renderPix(bool allsky, int level, int pix, QImage *pDest)
   }  
 
   //if (SKPLANECheckFrustumToPolygon(trfGetFrustum(), pts, 4))
-  // Is the the right way to do this?
+  // Is the right way to do this?
 
   if (isVisible)
   {
@@ -204,7 +202,7 @@ bool HIPSRenderer::renderPix(bool allsky, int level, int pix, QImage *pDest)
       m_HEALpix->getPixChilds(pix, childPixelID);
 
       int j = 0;
-      for (int q = 0; q < 4; q++)
+      for (int id : childPixelID)
       {
         int grandChildPixelID[4];
         // Find the children of this child (i.e. grand child)
@@ -212,14 +210,14 @@ bool HIPSRenderer::renderPix(bool allsky, int level, int pix, QImage *pDest)
         // The image is interpolated and rendered over these pixels
         // coordinate to minimize any distortions due to the projection
         // system.
-        m_HEALpix->getPixChilds(childPixelID[q], grandChildPixelID);
+        m_HEALpix->getPixChilds(id, grandChildPixelID);
 
         QPointF fineScreenCoords[4];
 
-        for (int w = 0; w < 4; w++)
+        for (int id2 : grandChildPixelID)
         {
           SkyPoint fineSkyPoints[4];
-          m_HEALpix->getCornerPoints(level + 2, grandChildPixelID[w], fineSkyPoints);
+          m_HEALpix->getCornerPoints(level + 2, id2, fineSkyPoints);
 
           for (int i = 0; i < 4; i++)
               fineScreenCoords[i] = m_projector->toScreen(&fineSkyPoints[i]);

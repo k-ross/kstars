@@ -45,7 +45,7 @@ KSPage {
                 stackView.pop(indiPage)
             }
             devicesModel.clear()
-            notification.showNotification("Disconnected from the server")
+            skyMapLite.notification.showNotification("Disconnected from the server")
         }
     }
 
@@ -77,12 +77,13 @@ KSPage {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.maximumWidth: parent.width*0.8
                     Layout.fillWidth: true
+                    font.capitalization: Font.AllLowercase
                     //text: ClientManagerLite.lastUsedServer
                     text: "localhost"
 
                     Settings
                     {
-                        property alias text : ipHost.text
+                        property alias ipHostText : ipHost.text
                     }
                 }
             }
@@ -108,7 +109,7 @@ KSPage {
 
                     Settings
                     {
-                        property alias text : portWebManager.text
+                        property alias portWebManagerText : portWebManager.text
                     }
                 }
 
@@ -163,7 +164,7 @@ KSPage {
                         width: webMStatusLabel.width
                         height: webMConnectButton.height
                         KSLabel {
-                            text: xi18n("Profile:")+" "+modelData
+                            text: xi18n("Profile: %1", modelData)
                         }
                     }
 
@@ -209,7 +210,7 @@ KSPage {
 
                     Settings
                     {
-                        property alias text : portHost.text
+                        property alias portHostText : portHost.text
                     }
                 }
 
@@ -220,9 +221,9 @@ KSPage {
                     onClicked: {
                         if (!indiPage.connected) {
                             if(ClientManagerLite.setHost(ipHost.text, parseInt(portHost.text))) {
-                                notification.showNotification(xi18n("Successfully connected to the server"))
+                                skyMapLite.notification.showNotification(xi18n("Successfully connected to the server"))
                             } else {
-                                notification.showNotification(xi18n("Couldn't connect to the server"))
+                                skyMapLite.notification.showNotification(xi18n("Could not connect to the server"))
                             }
                         } else {
 
@@ -238,7 +239,7 @@ KSPage {
         KSLabel {
             id: connectedTo
             visible: indiPage.connected
-            text: xi18n("Connected to ") + ClientManagerLite.connectedHost
+            text: xi18n("Connected to %1", ClientManagerLite.connectedHost)
         }
 
 
@@ -260,7 +261,7 @@ KSPage {
 
             ListModel {
                 id: devicesModel
-            }            
+            }
 
             Connections {
                 target: ClientManagerLite
@@ -279,7 +280,7 @@ KSPage {
                     }
                 }
                 onNewINDIMessage: {
-                    notification.showNotification(message)
+                    skyMapLite.notification.showNotification(message)
                 }
             }
         }

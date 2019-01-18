@@ -61,7 +61,7 @@ class HTMesh
   public:
     /** @short constructor.
          * @param level is passed on to the underlying SpatialIndex
-         * @param buildLevvel is also passed on to the SpatialIndex
+         * @param buildLevel is also passed on to the SpatialIndex
          * @param numBuffers controls how many output buffers are created. Don't
          * use more than require because they eat up mucho RAM.  The default is
          * just one output buffer.
@@ -91,6 +91,7 @@ class HTMesh
          *@param ra Central ra in degrees
          *@param dec Central dec in degrees
          *@param radius Radius of the circle in degrees
+         *@param bufNum the output buffer to hold the results
          *@note You will need to supply unprecessed (ra, dec) in most
          * situations. Please see SkyMesh::aperture()'s code before
          * messing with this method.

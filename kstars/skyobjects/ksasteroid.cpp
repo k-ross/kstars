@@ -18,17 +18,17 @@
 #include "ksasteroid.h"
 
 #include "dms.h"
-
+#include "ksnumbers.h"
+#include "Options.h"
 #ifdef KSTARS_LITE
 #include "skymaplite.h"
 #else
 #include "skymap.h"
 #endif
 
-#include "ksnumbers.h"
-#include "Options.h"
-#include <typeinfo>
 #include <qdebug.h>
+
+#include <typeinfo>
 
 KSAsteroid::KSAsteroid(int _catN, const QString &s, const QString &imfile, long double _JD, double _a, double _e,
                        dms _i, dms _w, dms _Node, dms _M, double _H, double _G)
@@ -49,7 +49,7 @@ KSAsteroid *KSAsteroid::clone() const
 
 bool KSAsteroid::findGeocentricPosition(const KSNumbers *num, const KSPlanetBase *Earth)
 {
-    // TODO: (Valentin) TOP LEVEL CONTROLL OF CALCULATION FOR ALL OBJECTS
+    // TODO: (Valentin) TOP LEVEL CONTROL OF CALCULATION FOR ALL OBJECTS
     if(!toCalculate()){
         return false;
     }
@@ -59,7 +59,7 @@ bool KSAsteroid::findGeocentricPosition(const KSNumbers *num, const KSPlanetBase
     //times the asteroid's mean daily motion (360/P):
 
     // All elements are in the heliocentric ecliptic J2000 reference frame.
-    // Mean anamoly is supplied at the Epoch (which is JD here)
+    // Mean anomaly is supplied at the Epoch (which is JD here)
 
     dms m = dms(double(M.Degrees() + (lastPrecessJD - JD) * 360.0 / P)).reduce();
     double sinm, cosm;

@@ -20,11 +20,12 @@
 #endif
 
 #include "skymap.h"
-#include "ksasteroid.h"
 
+#include "ksasteroid.h"
 #include "kstars_debug.h"
 #include "fov.h"
 #include "imageviewer.h"
+#include "xplanetimageviewer.h"
 #include "ksdssdownloader.h"
 #include "kspaths.h"
 #include "kspopupmenu.h"
@@ -38,6 +39,7 @@
 #include "skymapqdraw.h"
 #include "starhopperdialog.h"
 #include "starobject.h"
+#include "syncedcatalogcomponent.h"
 #include "texturemanager.h"
 #include "dialogs/detaildialog.h"
 #include "printing/printingwizard.h"
@@ -59,6 +61,7 @@
 
 #include <QBitmap>
 #include <QToolTip>
+#include <QClipboard>
 #include <QInputDialog>
 #include <QDesktopServices>
 
@@ -124,6 +127,10 @@ SkyMap::SkyMap()
     : QGraphicsView(KStars::Instance()), computeSkymap(true), rulerMode(false), data(KStarsData::Instance()), pmenu(nullptr),
       ClickedObject(nullptr), FocusObject(nullptr), m_proj(nullptr), m_previewLegend(false), m_objPointingMode(false)
 {
+#if !defined(KSTARS_LITE)
+    grabGesture(Qt::PinchGesture);
+    grabGesture(Qt::TapAndHoldGesture);
+#endif
     m_Scale = 1.0;
 
     ZoomRect = QRect();
@@ -446,6 +453,40 @@ void SkyMap::slotDSS()
                     this);
         //iv->show();
     }
+}
+
+void SkyMap::slotCopyCoordinates()
+{
+    dms J2000RA(0.0), J2000DE(0.0), JNowRA(0.0), JNowDE(0.0), Az, Alt;
+    if (clickedObject())
+    {
+        J2000RA  = clickedObject()->ra0();
+        J2000DE = clickedObject()->dec0();
+        JNowRA = clickedObject()->ra();
+        JNowDE = clickedObject()->dec();
+        Az = clickedObject()->az();
+        Alt = clickedObject()->alt();
+    }
+    else
+    {
+        SkyPoint deprecessedPoint = clickedPoint()->deprecess(data->updateNum());
+        deprecessedPoint.EquatorialToHorizontal(data->lst(), data->geo()->lat());
+
+        J2000RA = deprecessedPoint.ra0();
+        J2000DE = deprecessedPoint.dec0();
+        JNowRA = deprecessedPoint.ra();
+        JNowDE = deprecessedPoint.dec();
+        Az = deprecessedPoint.az();
+        Alt = deprecessedPoint.alt();
+    }
+
+    QApplication::clipboard()->setText(i18nc("Equatorial & Horizontal Coordinates", "JNow:\t%1\t%2\nJ2000:\t%3\t%4\nAzAlt:\t%5\t%6",
+                                       JNowRA.toHMSString(),
+                                       JNowDE.toDMSString(),
+                                       J2000RA.toHMSString(),
+                                       J2000DE.toDMSString(),
+                                       Az.toDMSString(),
+                                       Alt.toDMSString()));
 }
 
 void SkyMap::slotSDSS()
@@ -786,6 +827,18 @@ void SkyMap::slotRemoveObjectLabel()
 {
     data->skyComposite()->removeNameLabel(clickedObject());
     forceUpdate();
+}
+
+void SkyMap::slotRemoveCustomObject()
+{
+    SkyObject* object = clickedObject();
+
+    // The object must be removed from the catalog...
+    data->skyComposite()->internetResolvedComponent()->removeObject(*object);
+    // ...and then in the rest of the places.
+    emit removeSkyObject(object);
+    data->skyComposite()->removeFromNames(object);
+    data->skyComposite()->removeFromLists(object);
 }
 
 void SkyMap::slotAddObjectLabel()
@@ -1216,226 +1269,12 @@ bool SkyMap::isSlewing() const
     return (slewing || (clockSlewing && data->clock()->isActive()));
 }
 
-void SkyMap::startXplanet(const QString &outputFile)
+void SkyMap::slotStartXplanetViewer()
 {
-    QString year, month, day, hour, minute, seconde, fov;
-
-    QString xPlanetLocation = Options::xplanetPath();
-#ifdef Q_OS_OSX
-    if (Options::xplanetIsInternal())
-        xPlanetLocation   = QCoreApplication::applicationDirPath() + "/xplanet/bin/xplanet";
-#endif
-
-    // If Options::xplanetPath() is empty, return
-    if (xPlanetLocation.isEmpty())
-    {
-        KMessageBox::error(nullptr, i18n("Xplanet binary path is empty in config panel."));
-        return;
-    }
-
-    // If Options::xplanetPath() does not exist, return
-    const QFileInfo xPlanetLocationInfo(xPlanetLocation);
-    if (!xPlanetLocationInfo.exists() || !xPlanetLocationInfo.isExecutable())
-    {
-        KMessageBox::error(nullptr, i18n("The configured Xplanet binary does not exist or is not executable."));
-        return;
-    }
-
-    // Format date
-    if (year.setNum(data->ut().date().year()).size() == 1)
-        year.push_front('0');
-    if (month.setNum(data->ut().date().month()).size() == 1)
-        month.push_front('0');
-    if (day.setNum(data->ut().date().day()).size() == 1)
-        day.push_front('0');
-    if (hour.setNum(data->ut().time().hour()).size() == 1)
-        hour.push_front('0');
-    if (minute.setNum(data->ut().time().minute()).size() == 1)
-        minute.push_front('0');
-    if (seconde.setNum(data->ut().time().second()).size() == 1)
-        seconde.push_front('0');
-
-    // Create xplanet process
-    QProcess *xplanetProc = new QProcess;
-
-    // Add some options
-    QStringList args;
-    args << "-body" << clickedObject()->name().toLower() << "-geometry"
-         << Options::xplanetWidth() + 'x' + Options::xplanetHeight() << "-date"
-         << year + month + day + '.' + hour + minute + seconde << "-glare" << Options::xplanetGlare()
-         << "-base_magnitude" << Options::xplanetMagnitude() << "-light_time"
-         << "-window";
-
-    // General options
-    if (!Options::xplanetTitle().isEmpty())
-        args << "-window_title"
-             << "\"" + Options::xplanetTitle() + "\"";
-    if (Options::xplanetFOV())
-        args << "-fov" << fov.setNum(this->fov()).replace('.', ',');
-    if (Options::xplanetConfigFile())
-        args << "-config" << Options::xplanetConfigFilePath();
-    if (Options::xplanetStarmap())
-        args << "-starmap" << Options::xplanetStarmapPath();
-    if (Options::xplanetArcFile())
-        args << "-arc_file" << Options::xplanetArcFilePath();
-    if (Options::xplanetWait())
-        args << "-wait" << Options::xplanetWaitValue();
-    if (!outputFile.isEmpty())
-        args << "-output" << outputFile << "-quality" << Options::xplanetQuality();
-
-    // Labels
-    if (Options::xplanetLabel())
-    {
-        args << "-fontsize" << Options::xplanetFontSize() << "-color"
-             << "0x" + Options::xplanetColor().mid(1) << "-date_format" << Options::xplanetDateFormat();
-
-        if (Options::xplanetLabelGMT())
-            args << "-gmtlabel";
-        else
-            args << "-label";
-        if (!Options::xplanetLabelString().isEmpty())
-            args << "-label_string"
-                 << "\"" + Options::xplanetLabelString() + "\"";
-        if (Options::xplanetLabelTL())
-            args << "-labelpos"
-                 << "+15+15";
-        else if (Options::xplanetLabelTR())
-            args << "-labelpos"
-                 << "-15+15";
-        else if (Options::xplanetLabelBR())
-            args << "-labelpos"
-                 << "-15-15";
-        else if (Options::xplanetLabelBL())
-            args << "-labelpos"
-                 << "+15-15";
-    }
-
-    // Markers
-    if (Options::xplanetMarkerFile())
-        args << "-marker_file" << Options::xplanetMarkerFilePath();
-    if (Options::xplanetMarkerBounds())
-        args << "-markerbounds" << Options::xplanetMarkerBoundsPath();
-
-    // Position
-    if (Options::xplanetRandom())
-        args << "-random";
+    if(clickedObject())
+        new XPlanetImageViewer(clickedObject()->name(), this);
     else
-        args << "-latitude" << Options::xplanetLatitude() << "-longitude" << Options::xplanetLongitude();
-
-    // Projection
-    if (Options::xplanetProjection())
-    {
-        switch (Options::xplanetProjection())
-        {
-        case 1:
-            args << "-projection"
-                 << "ancient";
-            break;
-        case 2:
-            args << "-projection"
-                 << "azimuthal";
-            break;
-        case 3:
-            args << "-projection"
-                 << "bonne";
-            break;
-        case 4:
-            args << "-projection"
-                 << "gnomonic";
-            break;
-        case 5:
-            args << "-projection"
-                 << "hemisphere";
-            break;
-        case 6:
-            args << "-projection"
-                 << "lambert";
-            break;
-        case 7:
-            args << "-projection"
-                 << "mercator";
-            break;
-        case 8:
-            args << "-projection"
-                 << "mollweide";
-            break;
-        case 9:
-            args << "-projection"
-                 << "orthographic";
-            break;
-        case 10:
-            args << "-projection"
-                 << "peters";
-            break;
-        case 11:
-            args << "-projection"
-                 << "polyconic";
-            break;
-        case 12:
-            args << "-projection"
-                 << "rectangular";
-            break;
-        case 13:
-            args << "-projection"
-                 << "tsc";
-            break;
-        default:
-            break;
-        }
-        if (Options::xplanetBackground())
-        {
-            if (Options::xplanetBackgroundImage())
-                args << "-background" << Options::xplanetBackgroundImagePath();
-            else
-                args << "-background"
-                     << "0x" + Options::xplanetBackgroundColorValue().mid(1);
-        }
-    }
-
-    // We add this option at the end otherwise it does not work (???)
-    args << "-origin"
-         << "earth";
-
-    // Run xplanet
-    //qDebug() << "Run:" << xplanetProc->program().join(" ");
-
-#ifdef Q_OS_OSX
-    if (Options::xplanetIsInternal())
-    {
-        QString searchDir = QCoreApplication::applicationDirPath() + "/xplanet/share/xplanet/";
-        args << "-searchdir" << searchDir;
-    }
-#endif
-    xplanetProc->start(xPlanetLocation, args);
-    if (xplanetProc)
-    {
-        xplanetProc->waitForFinished(1000);
-        new ImageViewer(QUrl::fromLocalFile(outputFile),
-                        "XPlanet View: " + clickedObject()->name() + ",  " + data->lt().date().toString() + ",  " +
-                        data->lt().time().toString(),
-                        this);
-        //iv->show();
-    }
-    else
-    {
-        KMessageBox::sorry(this, i18n("XPlanet Program Error"));
-    }
+        new XPlanetImageViewer(i18n("Saturn"), this);
 }
 
-void SkyMap::slotXplanetToWindow()
-{
-    QDir writableDir;
-    QString xPlanetDirPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + "xplanet";
-    writableDir.mkpath(xPlanetDirPath);
-    QString xPlanetPath = xPlanetDirPath + QDir::separator() + clickedObject()->name() + ".png";
-    startXplanet(xPlanetPath);
-}
 
-void SkyMap::slotXplanetToFile()
-{
-    QString filename = QFileDialog::getSaveFileName();
-    if (!filename.isEmpty())
-    {
-        startXplanet(filename);
-    }
-}

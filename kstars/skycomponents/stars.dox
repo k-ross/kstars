@@ -117,10 +117,11 @@
   \subsection MemoryMap Memory map
   Memory map of unnamed stars:
   + StarComponent
-    + One DeepStarComponent for every catalog
-      + One StarBlockList for each trixel       + StarBlockFactory churns out StarBlocks
-        + Several StarBlocks are attached / detached dynamically to a StarBlockList
-          + Several StarObjects (usu. 100) in a StarBlock
+  + One DeepStarComponent for every catalog
+  + One StarBlockList for each trixel
+  + StarBlockFactory churns out StarBlocks
+  + Several StarBlocks are attached / detached dynamically to a StarBlockList
+  + Several StarObjects (usu. 100) in a StarBlock
   \subsection Loading Loading unnamed stars
   As mentioned earlier, unnamed stars may be both static and dynamic,
   and could be both deep and shallow.
@@ -396,7 +397,7 @@
 
  NOTE: KStars _overrides_ the above defined convention for performance
  gains and ease of programming in the star names file, where records
- are stored as single blocks of the 40 bytes long \ref starName starName structure.
+ are stored as single blocks of the 40 bytes long StarComponent::starName structure.
  
  \section HDIndex Henry Draper Indexing
 The index file used to store the Henry Draper catalog indexes for KStars is just a list of 4-byte long offsets (to be treated as signed 32-bit

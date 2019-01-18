@@ -118,18 +118,6 @@ ApplicationWindow {
         initialItem: initPage
     }
 
-    PassiveNotification {
-        z: 2
-        id: notification
-
-        Connections {
-            target: KStarsLite
-            onNotificationMessage: {
-                notification.showNotification(msg)
-            }
-        }
-    }
-
     Units {
         id: units
     }
@@ -165,6 +153,10 @@ ApplicationWindow {
 
     LocationLoading {
         id: locationLoading
+    }
+
+    AboutDialog {
+        id: aboutDialog
     }
 
     //Pages
@@ -320,6 +312,7 @@ ApplicationWindow {
                     append({objID: indiControlPanel});
                     append({objID: findDialog});
                     append({objID: locationDialog});
+                    append({objID: aboutDialog});
                 }
             }
 

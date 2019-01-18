@@ -87,12 +87,12 @@ class KSDssDownloader : public QObject
 
     /**
      * @short Create a URL to obtain a DSS image for a given RA, Dec
-     * @param RA The J2000.0 Right Ascension of the point
-     * @param Dec The J2000.0 Declination of the point
+     * @param ra The J2000.0 Right Ascension of the point
+     * @param dec The J2000.0 Declination of the point
      * @param width The width of the image in arcminutes
      * @param height The height of the image in arcminutes
-     * @param version string describing which version to get
-     * @param type The image type, either gif or fits.
+     * @param type_ The image type, either gif or fits.
+     * @param version_ string describing which version to get
      * @param md If a valid pointer is provided, fill with metadata
      * @note This method resets height and width to fall within the range accepted by DSS
      * @note Moved from namespace KSUtils (--asimha, Jan 5 2016)
