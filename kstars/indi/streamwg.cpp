@@ -12,6 +12,8 @@
 #include "streamwg.h"
 
 #include "indistd.h"
+#include "driverinfo.h"
+#include "clientmanager.h"
 #include "kstars.h"
 #include "Options.h"
 
@@ -33,6 +35,7 @@
 #include <QImageWriter>
 #include <QImageReader>
 #include <QIcon>
+#include <QTimer>
 
 #include <cstdlib>
 #include <fcntl.h>
@@ -78,8 +81,14 @@ StreamWG::StreamWG(ISD::CCD *ccd) : QDialog(KStars::Instance())
     ccd->getSERNameDirectory(filename, directory);
 
     double duration = 0.1;
-    currentCCD->getStreamExposure(&duration);
-    videoExposure->setValue(duration);
+    bool hasStreamExposure = currentCCD->getStreamExposure(&duration);
+    if (hasStreamExposure)
+        targetFPSSpin->setValue(1.0 / duration);
+    else
+    {
+        targetFPSSpin->setEnabled(false);
+        changeFPSB->setEnabled(false);
+    }
 
     options->recordFilenameEdit->setText(filename);
     options->recordDirectoryEdit->setText(directory);
@@ -107,11 +116,73 @@ StreamWG::StreamWG(ISD::CCD *ccd) : QDialog(KStars::Instance())
 
     resize(Options::streamWindowWidth(), Options::streamWindowHeight());
 
-    connect(currentCCD, SIGNAL(newFPS(double,double)), this, SLOT(updateFPS(double,double)));
-    connect(videoExposure, static_cast<void(QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), [&](double value)
+    eoszoom = currentCCD->getProperty("eoszoom");
+    if (eoszoom == nullptr)
     {
-       if (currentCCD)
-           currentCCD->setStreamExposure(value);
+        zoomLevelCombo->hide();
+    }
+    else
+    {
+        connect(zoomLevelCombo, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), [&]()
+        {
+            ITextVectorProperty * tvp = eoszoom->getText();
+            QString zoomLevel = zoomLevelCombo->currentText().remove("x");
+            IUSaveText(&(tvp->tp[0]), zoomLevel.toLatin1().constData());
+            handLabel->setEnabled(true);
+            NSSlider->setEnabled(true);
+            WESlider->setEnabled(true);
+            // Set it twice!
+            currentCCD->getDriverInfo()->getClientManager()->sendNewText(tvp);
+            QTimer::singleShot(1000, this, [ &, tvp]()
+            {
+                currentCCD->getDriverInfo()->getClientManager()->sendNewText(tvp);
+            });
+
+        });
+    }
+
+    eoszoomposition = currentCCD->getProperty("eoszoomposition");
+    if (eoszoomposition == nullptr)
+    {
+        handLabel->hide();
+        NSSlider->hide();
+        WESlider->hide();
+
+        horizontalSpacer->changeSize(1, 1, QSizePolicy::Expanding);
+    }
+    else
+    {
+        connect(NSSlider, &QSlider::sliderReleased, [&]()
+        {
+            ITextVectorProperty * tvp = eoszoomposition->getText();
+            QString pos = QString("%1,%2").arg(WESlider->value()).arg(NSSlider->value());
+            IUSaveText(&(tvp->tp[0]), pos.toLatin1().constData());
+            currentCCD->getDriverInfo()->getClientManager()->sendNewText(tvp);
+        });
+
+        connect(WESlider, &QSlider::sliderReleased, [&]()
+        {
+            ITextVectorProperty * tvp = eoszoomposition->getText();
+            QString pos = QString("%1,%2").arg(WESlider->value()).arg(NSSlider->value());
+            IUSaveText(&(tvp->tp[0]), pos.toLatin1().constData());
+            currentCCD->getDriverInfo()->getClientManager()->sendNewText(tvp);
+        });
+
+        horizontalSpacer->changeSize(1, 1, QSizePolicy::Preferred);
+    }
+
+    connect(currentCCD, SIGNAL(newFPS(double, double)), this, SLOT(updateFPS(double, double)));
+    connect(changeFPSB, &QPushButton::clicked, this, [&]()
+    {
+        if (currentCCD)
+        {
+            currentCCD->setStreamExposure(1.0 / targetFPSSpin->value());
+            currentCCD->setVideoStreamEnabled(false);
+            QTimer::singleShot(1000, this, [&]()
+            {
+                currentCCD->setVideoStreamEnabled(true);
+            });
+        }
     });
 
 }
@@ -122,7 +193,19 @@ QSize StreamWG::sizeHint() const
     return size;
 }
 
-void StreamWG::closeEvent(QCloseEvent *ev)
+void StreamWG::showEvent(QShowEvent *ev)
+{
+    if (currentCCD)
+    {
+        // Always reset to 1x for DSLRs since they reset whenever they are triggered again.
+        if (eoszoom)
+            zoomLevelCombo->setCurrentIndex(0);
+    }
+
+    ev->accept();
+}
+
+void StreamWG::closeEvent(QCloseEvent * ev)
 {
     processStream = false;
 
@@ -149,7 +232,7 @@ void StreamWG::enableStream(bool enable)
     else
     {
         processStream = false;
-        instFPS->setText("--");
+        //instFPS->setText("--");
         avgFPS->setText("--");
         hide();
     }
@@ -157,15 +240,18 @@ void StreamWG::enableStream(bool enable)
 
 void StreamWG::setSize(int wd, int ht)
 {
-    // Initial resize
-    /*if (streamWidth == -1)
-        resize(Options::streamWindowWidth() + layout()->margin() * 2,
-               Options::streamWindowHeight()+ playB->height() + layout()->margin() * 4 + layout()->spacing());*/
+    if (wd != streamWidth || ht != streamHeight)
+    {
+        streamWidth  = wd;
+        streamHeight = ht;
 
-    streamWidth  = wd;
-    streamHeight = ht;
+        NSSlider->setMaximum(ht);
+        NSSlider->setSingleStep(ht / 30);
+        WESlider->setMaximum(wd);
+        WESlider->setSingleStep(wd / 30);
 
-    videoFrame->setSize(wd, ht);
+        videoFrame->setSize(wd, ht);
+    }
 }
 
 /*void StreamWG::resizeEvent(QResizeEvent *ev)
@@ -257,6 +343,7 @@ void StreamWG::setStreamingFrame(QRect newFrame)
 
 void StreamWG::updateFPS(double instantFPS, double averageFPS)
 {
-    instFPS->setText(QString::number(instantFPS, 'f', 1));
+    Q_UNUSED(instantFPS);
+    //instFPS->setText(QString::number(instantFPS, 'f', 1));
     avgFPS->setText(QString::number(averageFPS, 'f', 1));
 }

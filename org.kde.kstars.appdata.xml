@@ -23,6 +23,7 @@
   <name xml:lang="nds">KStars</name>
   <name xml:lang="nl">KStars</name>
   <name xml:lang="nn">KStars</name>
+  <name xml:lang="pa">ਕੇ-ਤਾਰੇ</name>
   <name xml:lang="pl">KStars</name>
   <name xml:lang="pt">KStars</name>
   <name xml:lang="pt-BR">KStars</name>
@@ -54,6 +55,7 @@
   <summary xml:lang="nds">Planetarium för den Schriefdisch</summary>
   <summary xml:lang="nl">Planetarium op uw bureaublad</summary>
   <summary xml:lang="nn">Skrivebordsplanetarium</summary>
+  <summary xml:lang="pa">ਡੈਸਕਟਾਪ ਤਾਰੇ-ਗ੍ਰਹਿ ਦੇਖਣ ਦੀ ਥਾਂ</summary>
   <summary xml:lang="pl">Planetarium na pulpicie</summary>
   <summary xml:lang="pt">Planetário de Ambiente de Trabalho</summary>
   <summary xml:lang="pt-BR">Planetário no ambiente de trabalho</summary>
@@ -77,6 +79,7 @@
     <p xml:lang="nl">KStars is een opensource Astronomieprogramma van KDE, met een vrije licentie, dat draait op allerlei verschillende soorten computers.</p>
     <p xml:lang="pl">KStars jest darmowym, otwartoźródłowym, wieloplatformowym oprogramowaniem astronomicznym stworzonym przez KDE.</p>
     <p xml:lang="pt">O KStars é uma aplicação de astronomia com uma licença livre, de código-aberto e multi-plataforma.</p>
+    <p xml:lang="pt-BR">KStars é um software de Astronomia do KDE licenciado gratuitamente, de código aberto e multiplataforma.</p>
     <p xml:lang="sv">Kstars är en astronomiprogramvara med öppen källkod och fri licens för flera plattformar.</p>
     <p xml:lang="uk">KStars — вільне астрономічне програмне забезпечення з відкритим кодом, яке може працювати на багатьох програмних платформах від KDE.</p>
     <p xml:lang="x-test">xxKStars is freely licensed, open source, cross-platform Astronomy Software by KDE.xx</p>
@@ -145,7 +148,7 @@
     <p xml:lang="ca-valencia">Inclòs amb el KStars hi ha el paquet astrofotogràfic Ekos, una solució completa d'astrofotografia que pot controlar tots els dispositius INDI inclosos nombrosos telescopis, CCD, DSLR, enfocadors, filtres, i molt més. L'Ekos té capacitats d'autoguiatge d'alta precisió, i permet capturar una imatge o múltiples usant el potent gestor de seqüències integrat.</p>
     <p xml:lang="en-GB">Included with KStars is Ekos astrophotography suite, a complete astrophotography solution that can control all INDI devices including numerous telescopes, CCDs, DSLRs, focusers, filters, and a lot more. Ekos supports highly accurate tracking using online and offline astrometry solver, autofocus and autoguiding capabilities, and capture of single or multiple images using the powerful built in sequence manager.</p>
     <p xml:lang="es">KStars incluye la suite de astrofotografía Ekos, una completa solución de fotografía astronómica que puede controlar cualquier dispositivo INDI, como telescopios, cámaras CCD y DSLR, sistemas de enfoque y filtros, entre otros. Ekos permite un seguimiento de alta precisión mediante el uso de sistemas de identificación con y sin conexión, funciones de enfoque y de guiado automáticos, así como la captura de una o múltiples imágenes mediante el uso de potente gestor de secuencias que integra.</p>
-    <p xml:lang="gl">KStar inclúe a colección de software de astrofotografía Ekos, unha solución completa de astrofotografía que pode controlar todos os dispositivos INDI, incluídos moitos telescopios, CCDs, DSLRs, enfocadores, filtros e moito máis. Ekos permite facer seguimentos moi precisos mediante un resolvedor de astrometría por internet e sen internet, conta con capacidade para enforcar e guiar automaticamente, e permite capturar unha ou varias imaxes usando un potente xestor de secuencias que vai incluído.</p>
+    <p xml:lang="gl">KStar inclúe a colección de software de astrofotografía Ekos, unha solución completa de astrofotografía que pode controlar todos os dispositivos INDI, incluídos moitos telescopios, CCDs, DSLRs, enfocadores, filtros e moito máis. Ekos permite facer seguimentos moi precisos mediante un resolvedor de astrometría por internet e sen internet, goza de capacidade para enforcar e guiar automaticamente, e permite capturar unha ou varias imaxes usando un potente xestor de secuencias que vai incluído.</p>
     <p xml:lang="id">Yang termasuk dengan KStars adalah Ekos astrophotography suite, solusi astrophotography lengkap yang dapat mengendalikan semua perangkat INDI termasuk banyak teleskop, CCD, DSLR, fokus, filter, dan banyak lagi. Ekos mendukung pelacakan yang sangat akurat menggunakan pemecah astrometri online dan offline, kemampuan fokus otomatis dan autoguiding, dan menangkap gambar tunggal atau ganda menggunakan pengelola urutan yang kuat.</p>
     <p xml:lang="nl">Tot KStars behoren ook de programma's van Ekos Astrophotography, een complete oplossing voor sterrenfotografie, waarmee alle INDI-apparaten kunnen worden bestuurd, inclusief talloze telescopen, CCD's, DSLR's, focusers, filters, en veel meer. Met Ekos kunt u sterren zeer nauwkeurig volgen met behulp van online en offline astrometrische berekeningen, er zijn mogelijkheden voor autofocus en autovolgen, en voor opnames van enkele of meerdere afbeeldingen, met gebruik van een ingebouwde mogelijkheid tot het beheren van een serie opnames.</p>
     <p xml:lang="pl">Do KStars dołączono pakiet astrofotograficzny Ekos, pełne rozwiązanie astrofotograficzne, które ma możliwość sterowania wszystkimi urządzeniami INDI włączając w to wiele teleskopów, CCD,DSLR, układy ogniskujące, filtry i wiele innych. Ekos obsługuje wysoce dokładne naprowadzanie przy użyciu lokalnych i internetowych programów do rozwiązywania, możliwości samoogniskowania i samonaprowadzania oraz przechwytywanie pojedynczych i wielu obrazów przy użyciu zaawansowanego zarządzania sekwencjami.</p>
@@ -175,6 +178,7 @@
     <p xml:lang="nds">Astronoomsch Katalogen:</p>
     <p xml:lang="nl">Astronomische catalogi:</p>
     <p xml:lang="nn">Astronomikatalogar:</p>
+    <p xml:lang="pa">ਖਾਗੋਲਸ਼ਾਲਾ ਸੂਚੀਆਂ:</p>
     <p xml:lang="pl">Katalogi astronomiczne:</p>
     <p xml:lang="pt">Catálogos Astronómicos:</p>
     <p xml:lang="pt-BR">Catálogos astronômicos:</p>
@@ -199,7 +203,7 @@
       <li xml:lang="fi">Oletusluettelo sisältää tähdet suuruusluokkaan 8 saakka</li>
       <li xml:lang="fr">Le catalogue par défaut contient des étoiles de magnitude 8</li>
       <li xml:lang="gl">Catálogo predeterminado composto de estrelas de magnitudes 8 e inferiores.</li>
-      <li xml:lang="id">Katalog default yang terdiri dari bintang dengan magnitudo 8</li>
+      <li xml:lang="id">Katalog baku yang terdiri dari bintang dengan magnitudo 8</li>
       <li xml:lang="nds">Standardkataloog mit Steerns bet Magnituud 8</li>
       <li xml:lang="nl">Standaard catalogus met sterren tot magnitude 8</li>
       <li xml:lang="pl">Domyślny katalog zawierający gwiazdy wielkości 8</li>
@@ -326,8 +330,10 @@
       <caption xml:lang="gl">Xanela principal de KStars</caption>
       <caption xml:lang="id">Window utama KStars</caption>
       <caption xml:lang="nl">Het hoofdvenster van KStars</caption>
+      <caption xml:lang="pa">ਕੇ-ਤਾਰੇ ਮੁੱਖ ਵਿੰਡੋ</caption>
       <caption xml:lang="pl">Główne okno KStars</caption>
       <caption xml:lang="pt">Janela principal do KStars</caption>
+      <caption xml:lang="pt-BR">Janela principal do KStars</caption>
       <caption xml:lang="sv">Huvudfönstret i Kstars</caption>
       <caption xml:lang="uk">Головне вікно KStars</caption>
       <caption xml:lang="x-test">xxKStars main windowxx</caption>

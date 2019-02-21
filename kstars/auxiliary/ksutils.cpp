@@ -35,6 +35,16 @@
 
 namespace KSUtils
 {
+
+bool isHardwareLimited()
+{
+#ifdef __arm__
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool openDataFile(QFile &file, const QString &s)
 {
     QString FileName = KSPaths::locate(QStandardPaths::GenericDataLocation, s);
@@ -151,7 +161,8 @@ QString toDirectionString(dms angle)
                                         I18N_NOOP2("Abbreviated cardinal / intercardinal etc. direction", "WNW"),
                                         I18N_NOOP2("Abbreviated cardinal / intercardinal etc. direction", "NW"),
                                         I18N_NOOP2("Abbreviated cardinal / intercardinal etc. direction", "NNW"),
-                                        I18N_NOOP2("Unknown cardinal / intercardinal direction", "???") };
+                                        I18N_NOOP2("Unknown cardinal / intercardinal direction", "???")
+                                      };
 
     int index = (int)((angle.reduce().Degrees() + 11.25) / 22.5); // A number between 0 and 16 (inclusive) is expected
 
@@ -953,11 +964,11 @@ void Logging::UseStderr()
 void Logging::Stderr(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     QTextStream stream(stderr, QIODevice::WriteOnly);
-    Write(stream, type,context,  msg);
+    Write(stream, type, context,  msg);
 }
 
 void Logging::Write(QTextStream &stream, QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{    
+{
 
     stream << QDateTime::currentDateTime().toString("[yyyy-MM-ddThh:mm:ss.zzz t ");
 
@@ -1014,16 +1025,16 @@ void Logging::SyncFilterRules()
                             "org.kde.kstars.ekos.mount.debug=%8\n"
                             "org.kde.kstars.ekos.scheduler.debug=%9\n"
                             "org.kde.kstars.debug=%1").arg(
-                            Options::verboseLogging() ? "true" : "false",
-                            Options::iNDILogging() ? "true" : "false",
-                            Options::fITSLogging() ? "true" : "false",
-                            Options::captureLogging() ? "true" : "false",
-                            Options::focusLogging() ? "true" : "false",
-                            Options::guideLogging() ? "true" : "false",
-                            Options::alignmentLogging() ? "true" : "false",
-                            Options::mountLogging() ? "true" : "false",
-                            Options::schedulerLogging() ? "true" : "false"
-                            );
+                        Options::verboseLogging() ? "true" : "false",
+                        Options::iNDILogging() ? "true" : "false",
+                        Options::fITSLogging() ? "true" : "false",
+                        Options::captureLogging() ? "true" : "false",
+                        Options::focusLogging() ? "true" : "false",
+                        Options::guideLogging() ? "true" : "false",
+                        Options::alignmentLogging() ? "true" : "false",
+                        Options::mountLogging() ? "true" : "false",
+                        Options::schedulerLogging() ? "true" : "false"
+                    );
 
     QLoggingCategory::setFilterRules(rules);
 }
@@ -1097,6 +1108,16 @@ QString getDefaultPath(QString option)
         else
             return snap + "/etc/astrometry.cfg";
     }
+    else if (option == "AstrometryIndexFileLocation")
+    {
+#ifdef Q_OS_OSX
+        return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/Astrometry/";
+#endif
+        if (flat.isEmpty() == false)
+            return flat + "/usr/share/astrometry/";
+        else
+            return snap + "/usr/share/astrometry/";
+    }
     else if (option == "XplanetPath")
     {
 #ifdef Q_OS_OSX
@@ -1113,10 +1134,11 @@ QString getDefaultPath(QString option)
 
 #ifdef Q_OS_OSX
 //Note that this will copy and will not overwrite, so that the user's changes in the files are preserved.
-void copyResourcesFolderFromAppBundle(QString folder){
+void copyResourcesFolderFromAppBundle(QString folder)
+{
     QString folderLocation = QStandardPaths::locate(QStandardPaths::GenericDataLocation, folder, QStandardPaths::LocateDirectory);
     QDir folderSourceDir;
-    if(folder=="kstars")
+    if(folder == "kstars")
         folderSourceDir = QDir(QCoreApplication::applicationDirPath() + "/../Resources/data").absolutePath();
     else
         folderSourceDir = QDir(QCoreApplication::applicationDirPath() + "/../Resources/" + folder).absolutePath();
@@ -1172,67 +1194,151 @@ bool copyDataFolderFromAppBundleIfNeeded() //The method returns true if the data
     return true; //This means the data directory was good to go from the start and the wizard did not run.
 }
 
-void configureDefaultAstrometry()
+bool getAstrometryDataDir(QString &dataDir)
 {
-    QDir writableDir;
-    QString astrometryPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/Astrometry/";
-    if (!astrometryPath.isEmpty())
+    QString confPath;
+
+    if (Options::astrometryConfFileIsInternal())
+        confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
+    else
+        confPath = Options::astrometryConfFile();
+
+    QFile confFile(confPath);
+
+    if (confFile.open(QIODevice::ReadOnly) == false)
     {
-        writableDir.mkdir(astrometryPath);
-        astrometryPath =
-            QStandardPaths::locate(QStandardPaths::GenericDataLocation, "Astrometry", QStandardPaths::LocateDirectory);
-        if (astrometryPath.isEmpty())
-            KMessageBox::sorry(
-                0, i18n("The Astrometry Index File Directory does not exist and was not able to be created."));
-        else
+        KMessageBox::error(nullptr, i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
+                                         "configuration file full path in INDI options.",
+                                         Options::astrometryConfFile()));
+        return false;
+    }
+
+    QTextStream in(&confFile);
+    QString line;
+    while (!in.atEnd())
+    {
+        line = in.readLine();
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
+
+        line = line.trimmed();
+        if (line.startsWith(QLatin1String("add_path")))
         {
-            QString confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
-            QFile confFile(confPath);
-            QString contents;
-            if (confFile.open(QIODevice::ReadOnly) == false)
-                KMessageBox::error(0, i18n("Internal Astrometry Configuration File Read Error."));
-            else
+            dataDir = line.trimmed().mid(9).trimmed();
+            return true;
+        }
+    }
+
+    KMessageBox::error(nullptr, i18n("Unable to find data dir in astrometry configuration file."));
+    return false;
+}
+
+bool setAstrometryDataDir(QString dataDir)
+{
+    if(Options::astrometryIndexFileLocation() != dataDir)
+        Options::setAstrometryIndexFileLocation(dataDir);
+    QString confPath;
+    if (Options::astrometryConfFileIsInternal())
+        confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
+    else
+        confPath = Options::astrometryConfFile();
+
+    QFile confFile(confPath);
+    QString contents;
+    if (confFile.open(QIODevice::ReadOnly) == false)
+    {
+        KMessageBox::error(0, i18n("Astrometry Configuration File Read Error."));
+        return false;
+    }
+    else
+    {
+        QTextStream in(&confFile);
+        QString line;
+        bool foundPathBefore   = false;
+        bool fileNeedsUpdating = false;
+        while (!in.atEnd())
+        {
+            line = in.readLine();
+            if (line.trimmed().startsWith(QLatin1String("add_path")))
             {
-                QTextStream in(&confFile);
-                QString line;
-                bool foundPathBefore   = false;
-                bool fileNeedsUpdating = false;
-                while (!in.atEnd())
+                if (!foundPathBefore) //This will ensure there is not more than one add_path line in the file.
                 {
-                    line = in.readLine();
-                    if (line.trimmed().startsWith(QLatin1String("add_path")))
+                    foundPathBefore = true;
+                    QString dataDirInFile = line.trimmed().mid(9).trimmed();
+                    if (dataDirInFile != dataDir) //Update to the correct path.
                     {
-                        if (!foundPathBefore) //This will ensure there is not more than one add_path line in the file.
-                        {
-                            foundPathBefore = true;
-                            QString dataDir = line.trimmed().mid(9).trimmed();
-                            if (dataDir != astrometryPath) //Update to the correct path.
-                            {
-                                contents += "add_path " + astrometryPath + '\n';
-                                fileNeedsUpdating = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        contents += line + '\n';
-                    }
-                }
-                confFile.close();
-                if (fileNeedsUpdating)
-                {
-                    if (confFile.open(QIODevice::WriteOnly) == false)
-                        KMessageBox::error(0, i18n("Internal Astrometry Configuration File Write Error."));
-                    else
-                    {
-                        QTextStream out(&confFile);
-                        out << contents;
-                        confFile.close();
+                        contents += "add_path " + dataDir + '\n';
+                        fileNeedsUpdating = true;
                     }
                 }
             }
+            else
+            {
+                contents += line + '\n';
+            }
+        }
+        confFile.close();
+        if (fileNeedsUpdating)
+        {
+            if (confFile.open(QIODevice::WriteOnly) == false)
+            {
+                KMessageBox::error(0, i18n("Internal Astrometry Configuration File Write Error."));
+                return false;
+            }
+            else
+            {
+                QTextStream out(&confFile);
+                out << contents;
+                confFile.close();
+            }
         }
     }
+    return true;
+}
+
+bool configureAstrometry()
+{
+    QString astrometryDataDir;
+    if (KSUtils::getAstrometryDataDir(astrometryDataDir) == false)
+        return false;
+    if(Options::astrometryIndexFileLocation() != astrometryDataDir)
+    {
+        if (KMessageBox::warningYesNo(
+                    nullptr, i18n("The Astrometry Index File Location Stored in KStars: \n %1 \n does not match the Index file location in the config file: \n %2 \n  Do you want to update the config file?", Options::astrometryIndexFileLocation(), astrometryDataDir),
+                    i18n("Update Config File?")) == KMessageBox::Yes)
+        {
+            astrometryDataDir = Options::astrometryIndexFileLocation();
+            setAstrometryDataDir(astrometryDataDir);
+        }
+        else
+        {
+            return false;
+        }
+    }
+    if (QDir(astrometryDataDir).exists() == false)
+    {
+        if (KMessageBox::warningYesNo(
+                    nullptr, i18n("The selected Astrometry Index File Location:\n %1 \n does not exist.  Do you want to make the directory?", astrometryDataDir),
+                    i18n("Make Astrometry Index File Directory?")) == KMessageBox::Yes)
+        {
+            if(QDir(astrometryDataDir).mkdir(astrometryDataDir))
+            {
+                KMessageBox::information(nullptr, i18n("The Astrometry Index File Location was created."));
+            }
+            else
+            {
+                KMessageBox::sorry(nullptr, i18n("The Astrometry Index File Directory does not exist and was not able to be created."));
+            }
+        }
+        else
+        {
+
+            return false;
+        }
+    }
+
+    //If the Index File Directories match and the directory exists, we are good to go.
+    return true;
 }
 
 bool copyRecursively(QString sourceFolder, QString destFolder)

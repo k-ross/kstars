@@ -15,14 +15,14 @@
  ***************************************************************************/
 
 /** @class KSUtils
-	*@short KStars utility functions
-	*@author Mark Hollomon
-	*@version 1.0
-	*Static functions for various purposes.
-	*The openDataFile() function searches the standard KDE directories
-	*for the data filename given as an argument.
-	*(it is impossible to instantiate a KSUtils object; just use the static functions).
-	*/
+    *@short KStars utility functions
+    *@author Mark Hollomon
+    *@version 1.0
+    *Static functions for various purposes.
+    *The openDataFile() function searches the standard KDE directories
+    *for the data filename given as an argument.
+    *(it is impossible to instantiate a KSUtils object; just use the static functions).
+    */
 
 #pragma once
 
@@ -54,6 +54,11 @@ class StarObject;
 
 namespace KSUtils
 {
+
+// Quick checks whether hardware is limited or not
+// right now the only check is architecture. arm processors are limited while x86 are sufficient
+bool isHardwareLimited();
+
 /** Attempt to open the data file named filename, using the QFile object "file".
  *First look in the standard KDE directories, then look in a local "data"
  *subdirectory.  If the data file cannot be found or opened, display a warning
@@ -204,45 +209,45 @@ QString constGenetiveToAbbrev(const QString &genetive_);
 */
 class Logging
 {
-  public:
-    /**
-         * Store all logs into the specified file
+    public:
+        /**
+             * Store all logs into the specified file
+             */
+        static void UseFile();
+
+        /**
+             * Output logs to stdout
+             */
+        static void UseStdout();
+
+        /**
+             * Output logs to stderr
+             */
+        static void UseStderr();
+
+        /**
+             * Use the default logging mechanism
+             */
+        static void UseDefault();
+
+        /**
+             * Disable logging
+             */
+        static void Disable();
+
+        /**
+         * @brief SyncFilterRules Sync QtLogging filter rules from Options
          */
-    static void UseFile();
+        static void SyncFilterRules();
 
-    /**
-         * Output logs to stdout
-         */
-    static void UseStdout();
+    private:
+        static QString _filename;
 
-    /**
-         * Output logs to stderr
-         */
-    static void UseStderr();
-
-    /**
-         * Use the default logging mechanism
-         */
-    static void UseDefault();
-
-    /**
-         * Disable logging
-         */
-    static void Disable();
-
-    /**
-     * @brief SyncFilterRules Sync QtLogging filter rules from Options
-     */
-    static void SyncFilterRules();
-
-  private:
-    static QString _filename;
-
-    static void Disabled(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-    static void File(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-    static void Stdout(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-    static void Stderr(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-    static void Write(QTextStream &stream, QtMsgType type, const QMessageLogContext &context, const QString &msg);
+        static void Disabled(QtMsgType type, const QMessageLogContext &context, const QString &msg);
+        static void File(QtMsgType type, const QMessageLogContext &context, const QString &msg);
+        static void Stdout(QtMsgType type, const QMessageLogContext &context, const QString &msg);
+        static void Stderr(QtMsgType type, const QMessageLogContext &context, const QString &msg);
+        static void Write(QTextStream &stream, QtMsgType type, const QMessageLogContext &context, const QString &msg);
 };
 
 QString getDefaultPath(QString option);
@@ -250,7 +255,9 @@ QString getDefaultPath(QString option);
 #ifdef Q_OS_OSX
 void copyResourcesFolderFromAppBundle(QString folder);
 bool copyDataFolderFromAppBundleIfNeeded(); //The boolean returns true if the data folders are good to go.
-void configureDefaultAstrometry();
+bool getAstrometryDataDir(QString &dataDir);
+bool setAstrometryDataDir(QString dataDir);
+bool configureAstrometry();
 bool copyRecursively(QString sourceFolder, QString destFolder);
 #endif
 

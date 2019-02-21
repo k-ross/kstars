@@ -3,6 +3,7 @@
 
 #include "align.h"
 #include "kstars.h"
+#include "ksutils.h"
 #include "Options.h"
 #include "ui_opsastrometrycfg.h"
 
@@ -25,6 +26,7 @@ OpsAstrometryCfg::OpsAstrometryCfg(Align *parent) : QDialog(KStars::Instance())
     connect(astrometryCFGDisplay, SIGNAL(textChanged()), SLOT(slotCFGEditorUpdated()));
 
     connect(loadCFG, SIGNAL(clicked()), this, SLOT(slotLoadCFG()));
+    connect(setIndexFileB, SIGNAL(clicked()), this, SLOT(slotSetAstrometryIndexFileLocation()));
 
     slotLoadCFG();
 }
@@ -44,9 +46,9 @@ void OpsAstrometryCfg::slotLoadCFG()
 
     if (confFile.open(QIODevice::ReadOnly) == false)
     {
-        KMessageBox::error(0, i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
-                                   "configuration file full path in INDI options.",
-                                   Options::astrometryConfFile()));
+        KMessageBox::error(nullptr, i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
+                                         "configuration file full path in INDI options.",
+                                         Options::astrometryConfFile()));
         return;
     }
 
@@ -57,6 +59,14 @@ void OpsAstrometryCfg::slotLoadCFG()
     astrometryCFGDisplay->setPlainText(currentCFGText);
 
     confFile.close();
+}
+
+void OpsAstrometryCfg::slotSetAstrometryIndexFileLocation()
+{
+#ifdef Q_OS_OSX
+    KSUtils::setAstrometryDataDir(kcfg_AstrometryIndexFileLocation->text());
+#endif
+    slotLoadCFG();
 }
 
 void OpsAstrometryCfg::slotApply()
@@ -72,14 +82,20 @@ void OpsAstrometryCfg::slotApply()
 
         QFile confFile(confPath);
         if (confFile.open(QIODevice::WriteOnly) == false)
-            KMessageBox::error(0, i18n("Internal Astrometry configuration file write error."));
+            KMessageBox::error(nullptr, i18n("Internal Astrometry configuration file write error."));
         else
         {
             QTextStream out(&confFile);
             out << astrometryCFGDisplay->toPlainText();
             confFile.close();
-            KMessageBox::information(0, i18n("Astrometry.cfg successfully saved."));
+            KMessageBox::information(nullptr, i18n("Astrometry.cfg successfully saved."));
             currentCFGText = astrometryCFGDisplay->toPlainText();
+            QString astrometryDataDir;
+#ifdef Q_OS_OSX
+            KSUtils::getAstrometryDataDir(astrometryDataDir);
+#endif
+            if(astrometryDataDir != kcfg_AstrometryIndexFileLocation->text())
+                kcfg_AstrometryIndexFileLocation->setText(astrometryDataDir);
         }
     }
 }

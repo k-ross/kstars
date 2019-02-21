@@ -293,7 +293,7 @@ bool CCDChip::resetFrame()
     if (xarg && yarg && warg && harg)
     {
         if (xarg->value == xarg->min && yarg->value == yarg->min && warg->value == warg->max &&
-            harg->value == harg->max)
+                harg->value == harg->max)
             return false;
 
         xarg->value = xarg->min;
@@ -308,7 +308,7 @@ bool CCDChip::resetFrame()
     return false;
 }
 
-bool CCDChip::setFrame(int x, int y, int w, int h)
+bool CCDChip::setFrame(int x, int y, int w, int h, bool force)
 {
     INumberVectorProperty *frameProp = nullptr;
 
@@ -333,7 +333,7 @@ bool CCDChip::setFrame(int x, int y, int w, int h)
 
     if (xarg && yarg && warg && harg)
     {
-        if (xarg->value == x && yarg->value == y && warg->value == w && harg->value == h)
+        if (!force && xarg->value == x && yarg->value == y && warg->value == w && harg->value == h)
             return true;
 
         xarg->value = x;
@@ -637,7 +637,7 @@ CCDBinType CCDChip::getBinning()
     if (!horBin || !verBin)
         return binType;
 
-    switch ((int)horBin->value)
+    switch (static_cast<int>(horBin->value))
     {
         case 2:
             binType = DOUBLE_BIN;
@@ -777,10 +777,13 @@ CCD::CCD(GDInterface *iPtr) : DeviceDecorator(iPtr)
     readyTimer.get()->setSingleShot(true);
     connect(readyTimer.get(), &QTimer::timeout, this, &CCD::ready);
 
-    connect(clientManager, &ClientManager::newBLOBManager, [&](const char *device, INDI::Property *prop)
+    m_Media.reset(new WSMedia(this));
+    connect(m_Media.get(), &WSMedia::newFile, this, &CCD::setWSBLOB);
+
+    connect(clientManager, &ClientManager::newBLOBManager, [&](const char *device, INDI::Property * prop)
     {
-       if (!strcmp(device, getDeviceName()))
-               emit newBLOBManager(prop);
+        if (!strcmp(device, getDeviceName()))
+            emit newBLOBManager(prop);
     });
 }
 
@@ -893,6 +896,18 @@ void CCD::registerProperty(INDI::Property *prop)
                 telescopeType = TELESCOPE_GUIDE;
         }
     }
+    else if (!strcmp(prop->getName(), "CCD_WEBSOCKET_SETTINGS"))
+    {
+        INumberVectorProperty *np = prop->getNumber();
+        m_Media->setURL(QUrl(QString("ws://%1:%2").arg(clientManager->getHost()).arg(np->np[0].value)));
+        m_Media->connectServer();
+    }
+    else if (!strcmp(prop->getName(), "CCD1"))
+    {
+        IBLOBVectorProperty *bp = prop->getBLOB();
+        primaryCCDBLOB = bp->bp;
+        primaryCCDBLOB->bvp = bp;
+    }
     // try to find gain property, if any
     else if (gainN == nullptr && prop->getType() == INDI_NUMBER)
     {
@@ -917,6 +932,16 @@ void CCD::registerProperty(INDI::Property *prop)
     }
 
     DeviceDecorator::registerProperty(prop);
+}
+
+void CCD::removeProperty(INDI::Property *prop)
+{
+    if (!strcmp(prop->getName(), "CCD_WEBSOCKET_SETTINGS"))
+    {
+        m_Media->disconnectServer();
+    }
+
+    DeviceDecorator::removeProperty(prop);
 }
 
 void CCD::processLight(ILightVectorProperty *lvp)
@@ -1098,7 +1123,7 @@ void CCD::processSwitch(ISwitchVectorProperty *svp)
         ISwitch *looping = IUFindSwitch(svp, "LOOP_ON");
         if (looping && looping->s == ISS_ON)
             IsLooping = true;
-         else
+        else
             IsLooping = false;
     }
     else if (!strcmp(svp->name, "CONNECTION"))
@@ -1132,6 +1157,20 @@ void CCD::processText(ITextVectorProperty *tvp)
     DeviceDecorator::processText(tvp);
 }
 
+void CCD::setWSBLOB(const QByteArray &message, const QString &extension)
+{
+    if (!primaryCCDBLOB)
+        return;
+
+    primaryCCDBLOB->blob = const_cast<char *>(message.data());
+    primaryCCDBLOB->size = message.size();
+    strncpy(primaryCCDBLOB->format, extension.toLatin1().constData(), MAXINDIFORMAT);
+    processBLOB(primaryCCDBLOB);
+
+    // Disassociate
+    primaryCCDBLOB->blob = nullptr;
+}
+
 void CCD::processBLOB(IBLOB *bp)
 {
     // Ignore write-only BLOBs since we only receive it for state-change
@@ -1140,7 +1179,7 @@ void CCD::processBLOB(IBLOB *bp)
 
     BType = BLOB_OTHER;
 
-    QString format(bp->format);
+    QString format = QString(bp->format).toLower();
 
     // If stream, process it first
     if (format.contains("stream") && streamWindow.get() != nullptr)
@@ -1189,14 +1228,15 @@ void CCD::processBLOB(IBLOB *bp)
         return;
     }
 
-    QByteArray fmt = QString(bp->format).toLower().remove('.').toUtf8();
+    // Format without leading . (.jpg --> jpg)
+    QString shortFormat = format.mid(1);
 
     // If it's not FITS or an image, don't process it.
-    if ((QImageReader::supportedImageFormats().contains(fmt)))
+    if ((QImageReader::supportedImageFormats().contains(shortFormat.toLatin1())))
         BType = BLOB_IMAGE;
     else if (format.contains("fits"))
         BType = BLOB_FITS;
-    else if (RAWFormats.contains(fmt))
+    else if (RAWFormats.contains(shortFormat))
         BType = BLOB_RAW;
 
     if (BType == BLOB_OTHER)
@@ -1220,7 +1260,7 @@ void CCD::processBLOB(IBLOB *bp)
         currentDir = fitsDir.isEmpty() ? Options::fitsDir() : fitsDir;
 
     int nr, n = 0;
-    QTemporaryFile tmpFile(QDir::tempPath() + "/fitsXXXXXX");
+    QTemporaryFile tmpFile(QDir::tempPath() + "/fitsXXXXXX" + format);
 
     //if (currentDir.endsWith('/'))
     //currentDir.truncate(currentDir.size()-1);
@@ -1249,7 +1289,7 @@ void CCD::processBLOB(IBLOB *bp)
 
         QDataStream out(&tmpFile);
 
-        for (nr = 0; nr < (int)bp->size; nr += n)
+        for (nr = 0; nr < static_cast<int>(bp->size); nr += n)
             n = out.writeRawData(static_cast<char *>(bp->blob) + nr, bp->size - nr);
 
         tmpFile.close();
@@ -1267,11 +1307,11 @@ void CCD::processBLOB(IBLOB *bp)
         {
             QString finalPrefix = seqPrefix;
             finalPrefix.replace("ISO8601", ts);
-            filename += finalPrefix + QString("_%1.%2").arg(QString().sprintf("%03d", nextSequenceID), QString(fmt));
+            filename += finalPrefix + QString("_%1%2").arg(QString().sprintf("%03d", nextSequenceID), format);
         }
         else
             filename += seqPrefix + (seqPrefix.isEmpty() ? "" : "_") +
-                        QString("%1.%2").arg(QString().sprintf("%03d", nextSequenceID), QString(fmt));
+                        QString("%1%2").arg(QString().sprintf("%03d", nextSequenceID), format);
 
         QFile fits_temp_file(filename);
 
@@ -1284,7 +1324,7 @@ void CCD::processBLOB(IBLOB *bp)
 
         QDataStream out(&fits_temp_file);
 
-        for (nr = 0; nr < (int)bp->size; nr += n)
+        for (nr = 0; nr < static_cast<int>(bp->size); nr += n)
             n = out.writeRawData(static_cast<char *>(bp->blob) + nr, bp->size - nr);
 
         fits_temp_file.close();
@@ -1301,8 +1341,8 @@ void CCD::processBLOB(IBLOB *bp)
 
     if (targetChip->getCaptureMode() == FITS_NORMAL && targetChip->isBatchMode() == true)
     {
-        KStars::Instance()->statusBar()->showMessage(i18n("%1 file saved to %2", QString(fmt).toUpper(), filename), 0);
-        qCInfo(KSTARS_INDI) << QString(fmt).toUpper() << "file saved to" << filename;
+        KStars::Instance()->statusBar()->showMessage(i18n("%1 file saved to %2", shortFormat.toUpper(), filename), 0);
+        qCInfo(KSTARS_INDI) << shortFormat.toUpper() << "file saved to" << filename;
     }
 
     // FIXME: Why is this leaking memory in Valgrind??!
@@ -1314,9 +1354,12 @@ void CCD::processBLOB(IBLOB *bp)
         return;
     }*/
 
+    // Check if we need to process RAW or regular image
     if (BType == BLOB_IMAGE || BType == BLOB_RAW)
     {
-        if (BType == BLOB_RAW)
+        // For raw image, we only process them to JPG if we need to open them in the image
+        // viewer
+        if ((Options::useDSLRImageViewer() || targetChip->isBatchMode() == false) && BType == BLOB_RAW)
         {
 #ifdef HAVE_LIBRAW
             QString rawFileName  = filename;
@@ -1367,7 +1410,7 @@ void CCD::processBLOB(IBLOB *bp)
                 return;
             }
             else
-            // We have successfully unpacked the thumbnail, now let us write it to a file
+                // We have successfully unpacked the thumbnail, now let us write it to a file
             {
                 //snprintf(thumbfn,sizeof(thumbfn),"%s.%s",av[i],T.tformat == LIBRAW_THUMBNAIL_JPEG ? "thumb.jpg" : "thumb.ppm");
                 if (LIBRAW_SUCCESS != (ret = RawProcessor.dcraw_thumb_writer(preview_filename.toLatin1().data())))
@@ -1404,7 +1447,7 @@ void CCD::processBLOB(IBLOB *bp)
             m_ImageViewerWindow->loadImage(filename);
         }
     }
-// Unless we have cfitsio, we're done.
+    // Unless we have cfitsio, we're done.
 #ifdef HAVE_CFITSIO
     if (BType == BLOB_FITS)
     {
@@ -1416,7 +1459,7 @@ void CCD::processBLOB(IBLOB *bp)
         if (Options::useFITSViewer() || targetChip->isBatchMode() == false)
         {
             if (m_FITSViewerWindows.isNull() && targetChip->getCaptureMode() != FITS_GUIDE &&
-                targetChip->getCaptureMode() != FITS_FOCUS && targetChip->getCaptureMode() != FITS_ALIGN)
+                    targetChip->getCaptureMode() != FITS_FOCUS && targetChip->getCaptureMode() != FITS_ALIGN)
             {
                 normalTabID = calibrationTabID = focusTabID = guideTabID = alignTabID = -1;
 
@@ -1428,17 +1471,18 @@ void CCD::processBLOB(IBLOB *bp)
                     KStars::Instance()->addFITSViewer(m_FITSViewerWindows);
                 }
 
-                connect(m_FITSViewerWindows, &FITSViewer::closed, [&](int tabIndex) {
-                   if (tabIndex == normalTabID)
-                       normalTabID = -1;
-                   else if (tabIndex == calibrationTabID)
-                       calibrationTabID = -1;
-                   else if (tabIndex == focusTabID)
-                       focusTabID = -1;
-                   else if (tabIndex == guideTabID)
-                       guideTabID = -1;
-                   else if (tabIndex == alignTabID)
-                       alignTabID = -1;
+                connect(m_FITSViewerWindows, &FITSViewer::closed, [&](int tabIndex)
+                {
+                    if (tabIndex == normalTabID)
+                        normalTabID = -1;
+                    else if (tabIndex == calibrationTabID)
+                        calibrationTabID = -1;
+                    else if (tabIndex == focusTabID)
+                        focusTabID = -1;
+                    else if (tabIndex == guideTabID)
+                        guideTabID = -1;
+                    else if (tabIndex == alignTabID)
+                        alignTabID = -1;
                 });
 
                 //connect(fv, SIGNAL(destroyed()), this, SLOT(FITSViewerDestroyed()));
@@ -1461,7 +1505,7 @@ void CCD::processBLOB(IBLOB *bp)
             if (Options::singleWindowCapturedFITS())
                 previewTitle = i18n("%1 Preview", getDeviceName());
             else
-            // Otherwise, just use "Preview"
+                // Otherwise, just use "Preview"
                 previewTitle = i18n("Preview");
         }
 
@@ -1476,7 +1520,8 @@ void CCD::processBLOB(IBLOB *bp)
                 {
                     m_FITSViewerWindows->disconnect(this);
                     auto m_Loaded = std::make_shared<QMetaObject::Connection>();
-                    *m_Loaded = connect(m_FITSViewerWindows, &FITSViewer::loaded, [=](int tabIndex) {
+                    *m_Loaded = connect(m_FITSViewerWindows, &FITSViewer::loaded, [ = ](int tabIndex)
+                    {
                         *tabID = tabIndex;
                         targetChip->setImageView(m_FITSViewerWindows->getView(tabIndex), captureMode);
                         if (Options::focusFITSOnNewImage())
@@ -1486,7 +1531,8 @@ void CCD::processBLOB(IBLOB *bp)
                     });
 
                     auto m_Failed = std::make_shared<QMetaObject::Connection>();
-                    *m_Failed = connect(m_FITSViewerWindows, &FITSViewer::failed, [=]() {
+                    *m_Failed = connect(m_FITSViewerWindows, &FITSViewer::failed, [ = ]()
+                    {
                         // If opening file fails, we treat it the same as exposure failure and recapture again if possible
                         emit newExposureValue(targetChip, 0, IPS_ALERT);
                         QObject::disconnect(*m_Failed);
@@ -1525,20 +1571,22 @@ void CCD::loadImageInView(IBLOB *bp, ISD::CCDChip *targetChip)
     if (view)
     {
         auto m_Loaded = std::make_shared<QMetaObject::Connection>();
-        *m_Loaded = connect(view, &FITSView::loaded, [=]() {
+        *m_Loaded = connect(view, &FITSView::loaded, [ = ]()
+        {
             //view->updateFrame();
             // FITSViewer is shown if:
             // Image in preview mode, or useFITSViewre is true; AND
             // Image type is either NORMAL or CALIBRATION since the rest have their dedicated windows.
             // NORMAL is used for raw INDI drivers without Ekos.
             if ( (Options::useFITSViewer() || targetChip->isBatchMode() == false) && (mode == FITS_NORMAL || mode == FITS_CALIBRATE))
-                    m_FITSViewerWindows->show();
+                m_FITSViewerWindows->show();
 
             QObject::disconnect(*m_Loaded);
             emit BLOBUpdated(bp);
         });
         auto m_Failed = std::make_shared<QMetaObject::Connection>();
-        *m_Failed = connect(view, &FITSView::failed, [=]() {
+        *m_Failed = connect(view, &FITSView::failed, [ = ]()
+        {
             QObject::disconnect(*m_Failed);
             emit newExposureValue(targetChip, 0, IPS_ALERT);
             return;
@@ -1550,7 +1598,7 @@ void CCD::loadImageInView(IBLOB *bp, ISD::CCDChip *targetChip)
 
 }
 
-void CCD::addFITSKeywords(const QString& filename)
+void CCD::addFITSKeywords(const QString &filename)
 {
 #ifdef HAVE_CFITSIO
     int status = 0;
@@ -1697,11 +1745,9 @@ CCDChip *CCD::getChip(CCDChip::ChipType cType)
     {
         case CCDChip::PRIMARY_CCD:
             return primaryChip.get();
-            break;
 
         case CCDChip::GUIDE_CCD:
             return guideChip.get();
-            break;
     }
 
     return nullptr;
@@ -1760,8 +1806,8 @@ bool CCD::configureRapidGuide(CCDChip *targetChip, bool autoLoop, bool sendImage
 
     // If everything is already set, let's return.
     if (((autoLoop && autoLoopS->s == ISS_ON) || (!autoLoop && autoLoopS->s == ISS_OFF)) &&
-        ((sendImage && sendImageS->s == ISS_ON) || (!sendImage && sendImageS->s == ISS_OFF)) &&
-        ((showMarker && showMarkerS->s == ISS_ON) || (!showMarker && showMarkerS->s == ISS_OFF)))
+            ((sendImage && sendImageS->s == ISS_ON) || (!sendImage && sendImageS->s == ISS_OFF)) &&
+            ((showMarker && showMarkerS->s == ISS_ON) || (!showMarker && showMarkerS->s == ISS_OFF)))
         return true;
 
     autoLoopS->s   = autoLoop ? ISS_ON : ISS_OFF;
@@ -1999,7 +2045,7 @@ bool CCD::resetStreamingFrame()
     if (xarg && yarg && warg && harg)
     {
         if (xarg->value == xarg->min && yarg->value == yarg->min && warg->value == warg->max &&
-            harg->value == harg->max)
+                harg->value == harg->max)
             return false;
 
         xarg->value = xarg->min;

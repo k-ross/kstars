@@ -1396,19 +1396,19 @@
    </entry>
    <entry name="AutoDebayer" type="Bool">
       <label>Automatically debayer a FITS image if it is contains a bayer pattern</label>
-      <default>true</default>
+      <default>!KSUtils::isHardwareLimited()</default>
    </entry>
    <entry name="Auto3DCube" type="Bool">
       <label>Process 3D FITS Cube (RGB). If false, only first channel is processed.</label>
-      <default>true</default>
+      <default>!KSUtils::isHardwareLimited()</default>
    </entry>
    <entry name="AutoWCS" type="Bool">
       <label>Automatically process World-Coordinate-System (WCS) data when loading a FITS file.</label>
-      <default>true</default>
+      <default>!KSUtils::isHardwareLimited()</default>
    </entry>
    <entry name="LimitedResourcesMode" type="Bool">
       <label>Conserve CPU and memory by disabling all resource-intensive features in FITS Viewer</label>
-      <default>false</default>
+      <default>KSUtils::isHardwareLimited()</default>
    </entry>
    </group>
    <group name="WISettings">
@@ -1641,11 +1641,11 @@
       </entry>
       <entry name="useSummaryPreview" type="Bool">
          <label>Display every image captured sequence image in the Ekos summary screen preview window.</label>
-         <default>true</default>
+         <default>!KSUtils::isHardwareLimited()</default>
       </entry>
       <entry name="useDSLRImageViewer" type="Bool">
          <label>Display every captured DSLR image in the Image Viewer window.</label>
-         <default>true</default>
+         <default>!KSUtils::isHardwareLimited()</default>
       </entry>
       <entry name="CaptureFormatIndex" type="UInt">
          <label>Index of desired capture format (FITS or Native).</label>
@@ -1714,8 +1714,18 @@
          <default>true</default>
       </entry>
       <entry name="FocusUseFullField" type="Bool">
-         <label>Use full frame field to measure HFR.</label>
+         <label>Measure average HFR from all stars combined in a full frame. This method defaults to the Centroid detection, but can use SEP detection too. Its performance decreases as the number of stars increases.</label>
          <default>false</default>
+      </entry>
+      <entry name="FocusFullFieldInnerRadius" type="Double">
+         <label>Full field inner radius.</label>
+         <whatsthis>During full field focusing, stars which are inside this percentage of the frame are filtered out of HFR calculation (default 0%). Detection algorithms may also have an inherent filter.</whatsthis>
+         <default>0.0</default>
+      </entry>
+      <entry name="FocusFullFieldOuterRadius" type="Double">
+         <label>Full field outer radius.</label>
+         <whatsthis>During full field focusing, stars which are outside this percentage of the frame are filtered out of HFR calculation (default 100%). Detection algorithms may also have an inherent filter.</whatsthis>
+         <default>100.0</default>
       </entry>
       <entry name="FocusAutoStarEnabled" type="Bool">
          <label>Automatically select a star to focus.</label>
@@ -1900,6 +1910,11 @@
          <label>astrometry.net configuration file</label>
          <whatsthis>Path to astrometry.net file location.</whatsthis>
          <default code="true">KSUtils::getDefaultPath("AstrometryConfFile")</default>
+      </entry>
+      <entry name="AstrometryIndexFileLocation" type="String">
+         <label>Astrometry.net Index files Location</label>
+         <whatsthis>Astrometry.net Index files Location.</whatsthis>
+         <default code="true">KSUtils::getDefaultPath("AstrometryIndexFileLocation")</default>
       </entry>
       <entry name="AstrometryConfFileIsInternal" type="Bool">
          <label>Internal or External Astrometry.net Conf File?</label>

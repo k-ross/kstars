@@ -43,7 +43,10 @@ OfflineAstrometryParser::OfflineAstrometryParser() : AstrometryParser()
     astrometryIndex[2000] = "index-4219";
 
     // Reset parity on solver failure
-    connect(this, &OfflineAstrometryParser::solverFailed, this, [&]() { parity = QString(); });
+    connect(this, &OfflineAstrometryParser::solverFailed, this, [&]()
+    {
+        parity = QString();
+    });
 
 }
 
@@ -51,7 +54,17 @@ bool OfflineAstrometryParser::init()
 {
 #ifdef Q_OS_OSX
     if (Options::astrometryConfFileIsInternal())
-        KSUtils::configureDefaultAstrometry();
+    {
+        if(KSUtils::configureAstrometry() == false)
+        {
+            KMessageBox::information(
+                nullptr,
+                i18n(
+                    "Failed to properly configure astrometry config file.  Please click the options button in the lower right of the Astrometry Tab in Ekos to correct your settings.  Then try starting Ekos again."),
+                i18n("Astrometry Config File Error"), "astrometry_configuration_failure_warning");
+            return false;
+        }
+    }
 #endif
 
     if (astrometryFilesOK)
@@ -63,7 +76,7 @@ bool OfflineAstrometryParser::init()
             KMessageBox::information(
                 nullptr,
                 i18n(
-                    "Failed to find astrometry.net binaries. Please ensure astrometry.net is installed and try again."),
+                    "Failed to find astrometry.net binaries. Please click the options button in the lower right of the Astrometry Tab in Ekos to correct your settings and make sure that astrometry.net is installed. Then try starting Ekos again."),
                 i18n("Missing astrometry files"), "missing_astrometry_binaries_warning");
 
         return false;
@@ -81,7 +94,7 @@ bool OfflineAstrometryParser::init()
     QProcess solveField;
 
     solveField.start("bash", QStringList() << "-c"
-                                           << (solverPath + " --help | grep Revision"));
+                     << (solverPath + " --help | grep Revision"));
     solveField.waitForFinished();
     QString output = solveField.readAllStandardOutput();
     qCDebug(KSTARS_EKOS_ALIGN) << "solve-field Revision" << output;
@@ -122,7 +135,7 @@ bool OfflineAstrometryParser::astrometryNetOK()
         solverOK = solverFileInfo.exists() && solverFileInfo.isFile();
 
 #ifdef Q_OS_LINUX
-        QString confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1Literal("astrometry")+ QLatin1Literal("/astrometry.cfg");
+        QString confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1Literal("astrometry") + QLatin1Literal("/astrometry.cfg");
         if (QFileInfo(confPath).exists() == false)
             createLocalAstrometryConf();
 #endif
@@ -157,8 +170,10 @@ void OfflineAstrometryParser::verifyIndexFiles(double fov_x, double fov_y)
     QString astrometryDataDir;
     bool indexesOK = true;
 
-    if (getAstrometryDataDir(astrometryDataDir) == false)
+#ifdef Q_OS_OSX
+    if (KSUtils::getAstrometryDataDir(astrometryDataDir) == false)
         return;
+#endif
 
     QStringList nameFilter("*.fits");
     QDir directory(astrometryDataDir);
@@ -223,8 +238,8 @@ bool OfflineAstrometryParser::getAstrometryDataDir(QString &dataDir)
     if (confFile.open(QIODevice::ReadOnly) == false)
     {
         KMessageBox::error(nullptr, i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
-                                   "configuration file full path in INDI options.",
-                                   Options::astrometryConfFile()));
+                                         "configuration file full path in INDI options.",
+                                         Options::astrometryConfFile()));
         return false;
     }
 
@@ -256,7 +271,7 @@ bool OfflineAstrometryParser::startSovler(const QString &filename, const QString
 
     // Use parity if it is: 1. Already known from previous solve. 2. This is NOT a blind solve
     if (Options::astrometryDetectParity() && (parity.isEmpty() == false) && (args.contains("parity") == false) &&
-        (args.contains("-3") || args.contains("-L")))
+            (args.contains("-3") || args.contains("-L")))
         solverArgs << "--parity" << parity;
 
     QString confPath;
@@ -265,11 +280,11 @@ bool OfflineAstrometryParser::startSovler(const QString &filename, const QString
     else
     {
         // JM 2018-09-26: On Linux, load the local config file.
-        #ifdef Q_OS_LINUX
-        confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1Literal("astrometry")+ QLatin1Literal("/astrometry.cfg");
-        #else
+#ifdef Q_OS_LINUX
+        confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1Literal("astrometry") + QLatin1Literal("/astrometry.cfg");
+#else
         confPath = Options::astrometryConfFile();
-        #endif
+#endif
     }
     solverArgs << "--config" << confPath;
 
@@ -294,13 +309,21 @@ bool OfflineAstrometryParser::startSovler(const QString &filename, const QString
         env.insert("PATH", "/usr/local/bin:" + path);
     }
     solver->setProcessEnvironment(env);
+
+    if (Options::alignmentLogging())
+    {
+        align->appendLogText("export PATH=" + env.value("PATH", ""));
+        align->appendLogText("export PYTHONPATH=" + env.value("PYTHONPATH", ""));
+    }
+
 #endif
 
     connect(solver, SIGNAL(finished(int)), this, SLOT(solverComplete(int)));
     connect(solver, SIGNAL(readyReadStandardOutput()), this, SLOT(logSolver()));
 
 #if QT_VERSION > QT_VERSION_CHECK(5, 6, 0)
-    connect(solver.data(), &QProcess::errorOccurred, this, [&]() {
+    connect(solver.data(), &QProcess::errorOccurred, this, [&]()
+    {
         align->appendLogText(i18n("Error starting solver: %1", solver->errorString()));
         emit solverFailed();
     });
@@ -456,14 +479,14 @@ bool OfflineAstrometryParser::createLocalAstrometryConf()
     {
         QString all = localConf.readAll();
         QStringList lines = all.split("\n");
-        for (int i=0; i < lines.count(); i++)
+        for (int i = 0; i < lines.count(); i++)
         {
             if (lines[i].startsWith("add_path"))
             {
-               lines.insert(i+1, QString("add_path %1astrometry").arg(KSPaths::writableLocation(QStandardPaths::GenericDataLocation)));
-               break;
-           }
-       }
+                lines.insert(i + 1, QString("add_path %1astrometry").arg(KSPaths::writableLocation(QStandardPaths::GenericDataLocation)));
+                break;
+            }
+        }
 
         // Clear contents
         localConf.resize(0);
