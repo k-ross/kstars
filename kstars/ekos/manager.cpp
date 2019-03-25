@@ -22,6 +22,7 @@
 #include "capture/sequencejob.h"
 #include "fitsviewer/fitstab.h"
 #include "fitsviewer/fitsview.h"
+#include "fitsviewer/fitsdata.h"
 #include "indi/clientmanager.h"
 #include "indi/driverinfo.h"
 #include "indi/drivermanager.h"
@@ -112,6 +113,14 @@ Manager::Manager(QWidget * parent) : QDialog(parent)
 
     ekosLiveB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     ekosLiveClient.reset(new EkosLive::Client(this));
+    connect(ekosLiveClient.get(), &EkosLive::Client::connected, [this]()
+    {
+        emit ekosLiveStatusChanged(true);
+    });
+    connect(ekosLiveClient.get(), &EkosLive::Client::disconnected, [this]()
+    {
+        emit ekosLiveStatusChanged(false);
+    });
 
     // INDI Control Panel
     //connect(controlPanelB, &QPushButton::clicked, GUIManager::Instance(), SLOT(show()));
@@ -1917,11 +1926,17 @@ void Manager::initCapture()
     connect(captureProcess.get(), &Ekos::Capture::newLog, this, &Ekos::Manager::updateLog);
     connect(captureProcess.get(), &Ekos::Capture::newStatus, this, &Ekos::Manager::updateCaptureStatus);
     connect(captureProcess.get(), &Ekos::Capture::newImage, this, &Ekos::Manager::updateCaptureProgress);
-    connect(captureProcess.get(), &Ekos::Capture::newSequenceImage, [&](const QString & filename)
+    connect(captureProcess.get(), &Ekos::Capture::newSequenceImage, [&](const QString & filename, const QString & previewFITS)
     {
         if (Options::useSummaryPreview() && QFile::exists(filename))
         {
-            summaryPreview->loadFITS(filename);
+            if (Options::autoImageToFITS())
+            {
+                if (previewFITS.isEmpty() == false)
+                    summaryPreview->loadFITS(previewFITS);
+            }
+            else
+                summaryPreview->loadFITS(filename);
         }
     });
     connect(captureProcess.get(), &Ekos::Capture::newExposureProgress, this, &Ekos::Manager::updateExposureProgress);
@@ -2316,6 +2331,52 @@ bool Manager::setProfile(const QString &profileName)
     profileCombo->setCurrentIndex(index);
 
     return true;
+}
+
+void Manager::addNamedProfile(const QJsonObject &profileInfo)
+{
+    ProfileEditor editor(this);
+
+    editor.setSettings(profileInfo);
+    editor.saveProfile();
+    profiles.clear();
+    loadProfiles();
+    profileCombo->setCurrentIndex(profileCombo->count() - 1);
+    currentProfile = getCurrentProfile();
+}
+
+void Manager::deleteNamedProfile(const QString &name)
+{
+    currentProfile = getCurrentProfile();
+
+    for (auto &pi : profiles)
+    {
+        // Do not delete an actively running profile
+        // Do not delete simulator profile
+        if (pi->name == "Simulators" || pi->name != name || (pi.get() == currentProfile && ekosStatus() != Idle))
+            continue;
+
+        KStarsData::Instance()->userdb()->DeleteProfile(pi.get());
+
+        profiles.clear();
+        loadProfiles();
+        currentProfile = getCurrentProfile();
+        return;
+    }
+}
+
+QJsonObject Manager::getNamedProfile(const QString &name)
+{
+    QJsonObject profileInfo;
+
+    // Get current profile
+    for (auto &pi : profiles)
+    {
+        if (name == pi->name)
+            return pi->toJson();
+    }
+
+    return QJsonObject();
 }
 
 QStringList Manager::getProfiles()
@@ -2981,6 +3042,10 @@ void Manager::connectModules()
     // Capture <---> Mount connections
     if (captureProcess.get() && mountProcess.get())
     {
+        // Meridian Flip Setup Values
+        connect(captureProcess.get(), &Ekos::Capture::newMeridianFlipSetup, mountProcess.get(), &Ekos::Mount::setMeridianFlipValues, Qt::UniqueConnection);
+        connect(mountProcess.get(), &Ekos::Mount::newMeridianFlipSetup, captureProcess.get(), &Ekos::Capture::setMeridianFlipValues, Qt::UniqueConnection);
+
         // Meridian Flip states
         connect(captureProcess.get(), &Ekos::Capture::meridianFlipStarted, mountProcess.get(), &Ekos::Mount::disableAltLimits, Qt::UniqueConnection);
         connect(captureProcess.get(), &Ekos::Capture::meridianFlipCompleted, mountProcess.get(), &Ekos::Mount::enableAltLimits, Qt::UniqueConnection);
@@ -3044,4 +3109,25 @@ void Manager::connectModules()
         connect(alignProcess.get(), &Ekos::Align::newCorrectionVector, ekosLiveClient.get()->media(), &EkosLive::Media::setCorrectionVector);
     }
 }
+
+void Manager::setEkosLiveConnected(bool enabled)
+{
+    ekosLiveClient.get()->setConnected(enabled);
+}
+
+void Manager::setEkosLiveConfig(bool onlineService, bool rememberCredentials, bool autoConnect)
+{
+    ekosLiveClient.get()->setConfig(onlineService, rememberCredentials, autoConnect);
+}
+
+void Manager::setEkosLiveUser(const QString &username, const QString &password)
+{
+    ekosLiveClient.get()->setUser(username, password);
+}
+
+bool Manager::ekosLiveStatus()
+{
+    return ekosLiveClient.get()->isConnected();
+}
+
 }

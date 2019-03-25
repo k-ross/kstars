@@ -71,7 +71,7 @@ class KPageWidgetItem;
  *  Ekos Manager provides a summary of operations progress in the <i>Summary</i> section of the <i>Setup</i> tab.
  *
  * @author Jasem Mutlaq
- * @version 1.6
+ * @version 1.7
  */
 namespace Ekos
 {
@@ -83,11 +83,12 @@ class Manager : public QDialog, public Ui::Manager
 
         Q_SCRIPTABLE Q_PROPERTY(CommunicationStatus indiStatus READ indiStatus NOTIFY indiStatusChanged)
         Q_SCRIPTABLE Q_PROPERTY(CommunicationStatus ekosStatus READ ekosStatus NOTIFY ekosStatusChanged)
+        Q_SCRIPTABLE Q_PROPERTY(bool ekosLiveStatus READ ekosLiveStatus NOTIFY ekosLiveStatusChanged)
         Q_SCRIPTABLE Q_PROPERTY(QStringList logText READ logText NOTIFY newLog)
 
     public:
         explicit Manager(QWidget *parent);
-        ~Manager();
+        ~Manager() override;
 
         void appendLogText(const QString &);
         //void refreshRemoteDrivers();
@@ -133,7 +134,51 @@ class Manager : public QDialog, public Ui::Manager
         void announceEvent(const QString &message, KSNotification::EventType event);
 
         /**
-         * Manager interface provides advanced scripting capabilities to establish and shutdown Ekos services.
+         * @brief addProfile Add a new profile to the database.
+         * @param profileInfo Collection of profile parameters to include the following:
+         * 1. name: Profile name
+         * 2. auto_connect: True of False for Autoconnect?
+         * 3. Mode: "local" or "remote"
+         * 4. remote_host: Optional. remote host (default localhost)
+         * 5. remote_port: Optional. remote port (default 7624)
+         * 6. guiding: 0 for "Internal", 1 for "PHD2", or 2 for "LinGuider"
+         * 7. remote_guiding_host: Optional. remote host for guider application (default localhost)
+         * 8. remote_guide_port: Optional. remote port for guider application.
+         * 9. use_web_manager: True or False?
+         * 10. web_manager_port. Optional. INDI Web Manager port (default 8624)
+         * 12. primary_scope: ID of primary scope to use. This is the ID from OAL::Scope list in the database.
+         * 13. guide_scope: ID of guide scope to use. This is the ID from OAL::Scope list in the database.
+         * 14. mount: Mount driver label (default --).
+         * 15. ccd: CCD driver label (default --).
+         * 16. guider: Guider driver label (default --).
+         * 17. focuser: Focuser driver label (default --).
+         * 18. filter: Filter Wheel driver label (default --).
+         * 19. ao: Adaptive Optics driver label (default --).
+         * 20. dome: Dome driver label (default --).
+         * 21. Weather: Weather station driver label (default --).
+         * 22. aux1: aux1 driver label (default --).
+         * 23. aux2: aux2 driver label (default --).
+         * 24. aux3: aux3 driver label (default --).
+         * 25. aux4: aux4 driver label (default --).
+         */
+        void addNamedProfile(const QJsonObject &profileInfo);
+
+        /**
+         * @brief deleteProfile Delete existing equipment profile
+         * @param name Name of profile
+         * @warning Ekos must be stopped for this to work. It will fail if Ekos is online.
+         */
+        void deleteNamedProfile(const QString &name);
+
+        /**
+         * @brief getProfile Get a single profile information.
+         * @param name Profile name
+         * @return A JSon object with the detail profile info as described in addProfile function.
+         */
+        QJsonObject getNamedProfile(const QString &name);
+
+        /**
+         * DBus commands to manage equipment profiles.
          */
 
         /*@{*/
@@ -152,6 +197,15 @@ class Manager : public QDialog, public Ui::Manager
          * @return List of device profiles
          */
         Q_SCRIPTABLE QStringList getProfiles();
+
+        /** @}*/
+
+
+        /**
+         * Manager interface provides advanced scripting capabilities to establish and shutdown Ekos services.
+         */
+
+        /*@{*/
 
         /**
          * DBUS interface function.
@@ -202,10 +256,35 @@ class Manager : public QDialog, public Ui::Manager
             return m_LogText;
         }
 
+        Q_SCRIPTABLE bool ekosLiveStatus();
+
+        /**
+         * DBUS interface function.
+         * @param enabled Connect to EkosLive if true, otherwise disconnect.
+        */
+        Q_SCRIPTABLE void setEkosLiveConnected(bool enabled);
+
+        /**
+         * @brief setEkosLiveConfig Set EkosLive settings
+         * @param onlineService If true, connect to EkosLive Online Service. Otherwise, EkosLive offline service.
+         * @param rememberCredentials Remember username and password for next session.
+         * @param autoConnect If true, it will automatically connect to EkosLive service.
+         */
+        Q_SCRIPTABLE void setEkosLiveConfig(bool onlineService, bool rememberCredentials, bool autoConnect);
+
+        /**
+         * @brief setEkosLiveUser Save EkosLive username and password
+         * @param username User name
+         * @param password Password
+         */
+        Q_SCRIPTABLE void setEkosLiveUser(const QString &username, const QString &password);
+
     signals:
         // Have to use full Ekos::CommunicationStatus for DBus signal to work
         void ekosStatusChanged(Ekos::CommunicationStatus status);
         void indiStatusChanged(Ekos::CommunicationStatus status);
+        void ekosLiveStatusChanged(bool status);
+
         void newLog(const QString &text);
         void newModule(const QString &name);
 

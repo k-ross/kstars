@@ -78,7 +78,11 @@ Client::Client(Ekos::Manager *manager) : QDialog(manager), m_Manager(manager)
     m_serviceURL.setUrl("https://live.stellarmate.com");
     m_wsURL.setUrl("wss://live.stellarmate.com");
 
-    ekosLiveOnlineR->setChecked(Options::ekosLiveOnline());
+    if (Options::ekosLiveOnline())
+        ekosLiveOnlineR->setChecked(true);
+    else
+        ekosLiveOfflineR->setChecked(true);
+
     connect(ekosLiveOnlineR, &QRadioButton::toggled, [&](bool toggled)
     {
         Options::setEkosLiveOnline(toggled);
@@ -285,6 +289,31 @@ void Client::onResult(QNetworkReply *reply)
     modeLabel->setEnabled(false);
     ekosLiveOnlineR->setEnabled(false);
     ekosLiveOfflineR->setEnabled(false);
+}
+
+void Client::setConnected(bool enabled)
+{
+    // Return if there is no change.
+    if (enabled == m_isConnected)
+        return;
+
+    connectB->click();
+}
+
+void Client::setConfig(bool onlineService, bool rememberCredentials, bool autoConnect)
+{
+    ekosLiveOnlineR->setChecked(onlineService);
+    ekosLiveOfflineR->setChecked(!onlineService);
+
+    rememberCredentialsCheck->setChecked(rememberCredentials);
+
+    autoStartCheck->setChecked(autoConnect);
+}
+
+void Client::setUser(const QString &user, const QString &pass)
+{
+    username->setText(user);
+    password->setText(pass);
 }
 
 }

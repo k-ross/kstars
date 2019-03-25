@@ -68,6 +68,12 @@ Capture::Capture()
 
     KStarsData::Instance()->userdb()->GetAllDSLRInfos(DSLRInfos);
 
+    if (DSLRInfos.count() > 0)
+    {
+        qCDebug(KSTARS_EKOS_CAPTURE) << "DSLR Cameras Info:";
+        qCDebug(KSTARS_EKOS_CAPTURE) << DSLRInfos;
+    }
+
     dirPath = QUrl::fromLocalFile(QDir::homePath());
 
     //isAutoGuiding   = false;
@@ -130,7 +136,7 @@ Capture::Capture()
     //connect( seqWatcher, SIGNAL(dirty(QString)), this, &Ekos::Capture::checkSeqFile(QString)));
 
     connect(addToQueueB, &QPushButton::clicked, this, &Ekos::Capture::addJob);
-    connect(removeFromQueueB, &QPushButton::clicked, this, &Ekos::Capture::removeJob);
+    connect(removeFromQueueB, &QPushButton::clicked, this, &Ekos::Capture::removeJobFromQueue);
     connect(queueUpB, &QPushButton::clicked, this, &Ekos::Capture::moveJobUp);
     connect(queueDownB, &QPushButton::clicked, this, &Ekos::Capture::moveJobDown);
     connect(selectFITSDirB, &QPushButton::clicked, this, &Ekos::Capture::saveFITSDirectory);
@@ -249,6 +255,10 @@ Capture::Capture()
         customPropertiesDialog.get()->show();
         customPropertiesDialog.get()->raise();
     });
+
+    // meridian flip
+    connect(meridianCheck, &QCheckBox::toggled, this, &Ekos::Capture::meridianFlipSetupChanged);
+    connect(meridianHours, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), this, &Ekos::Capture::meridianFlipSetupChanged);
 
     flatFieldSource = static_cast<FlatFieldSource>(Options::calibrationFlatSourceIndex());
     flatFieldDuration = static_cast<FlatFieldDuration>(Options::calibrationFlatDurationIndex());
@@ -414,8 +424,8 @@ void Capture::start()
     Options::setEnforceAutofocus(autofocusCheck->isChecked());
     Options::setEnforceRefocusEveryN(refocusEveryNCheck->isChecked());
 
-    setMeridianFlip(meridianCheck->isChecked());
-    setMeridianFlipHour(meridianHours->value());
+    // propagate the meridian flip values
+    meridianFlipSetupChanged();
 
     // Reset progress option if there is no captured frame map set at the time of start - fixes the end-user setting the option just before starting
     ignoreJobProgress = !capturedFramesMap.count() && Options::alwaysResetSequenceWhenStarting();
@@ -551,7 +561,6 @@ void Capture::stop(CaptureState targetState)
                 m_SequenceArray.replace(index, oneSequence);
                 emit sequenceChanged(m_SequenceArray);
             }
-            emit newStatus(targetState);
         }
 
         // In case of batch job
@@ -582,6 +591,9 @@ void Capture::stop(CaptureState targetState)
     calibrationStage = CAL_NONE;
     m_State            = targetState;
 
+    if (activeJob != nullptr)
+        emit newStatus(targetState);
+
     // Turn off any calibration light, IF they were turned on by Capture module
     if (dustCap && dustCapLightEnabled)
     {
@@ -598,6 +610,7 @@ void Capture::stop(CaptureState targetState)
         secondsLabel->clear();
     disconnect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Capture::newFITS);
     disconnect(currentCCD, &ISD::CCD::newExposureValue, this,  &Ekos::Capture::setExposureProgress);
+    disconnect(currentCCD, &ISD::CCD::previewFITSGenerated, this, &Ekos::Capture::setGeneratedPreviewFITS);
     disconnect(currentCCD, &ISD::CCD::ready, this, &Ekos::Capture::ready);
 
     currentCCD->setFITSDir("");
@@ -641,7 +654,10 @@ void Capture::sendNewImage(const QString &filename, ISD::CCDChip * myChip)
         emit newImage(activeJob);
         // We only emit this for client/both images since remote images already send this automatically
         if (currentCCD->getUploadMode() != ISD::CCD::UPLOAD_LOCAL && activeJob->isPreview() == false)
-            emit newSequenceImage(filename);
+        {
+            emit newSequenceImage(filename, m_GeneratedPreviewFITS);
+            m_GeneratedPreviewFITS.clear();
+        }
     }
 }
 
@@ -1797,6 +1813,7 @@ void Capture::captureImage()
     }
 
     connect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Capture::newFITS, Qt::UniqueConnection);
+    connect(currentCCD, &ISD::CCD::previewFITSGenerated, this, &Ekos::Capture::setGeneratedPreviewFITS, Qt::UniqueConnection);
 
     if (activeJob->getFrameType() == FRAME_FLAT)
     {
@@ -1993,7 +2010,7 @@ void Capture::checkSeqBoundary(const QString &path)
         // This remove any additional extension (e.g. m42_001.fits.fz)
         // the completeBaseName() would return m42_001.fits
         // and this remove .fits so we end up with m42_001
-        tempName = tempName.left(tempName.lastIndexOf("."));
+        tempName = tempName.remove(".fits");
 
         QString finalSeqPrefix = seqPrefix;
         finalSeqPrefix.remove(SequenceJob::ISOMarker);
@@ -2378,6 +2395,16 @@ bool Capture::addJob(bool preview)
     return true;
 }
 
+void Capture::removeJobFromQueue()
+{
+    int currentRow = queueTable->currentRow();
+
+    if (currentRow < 0)
+        currentRow = queueTable->rowCount() - 1;
+
+    removeJob(currentRow);
+}
+
 void Capture::removeJob(int index)
 {
     if (m_State != CAPTURE_IDLE && m_State != CAPTURE_ABORTED && m_State != CAPTURE_COMPLETE)
@@ -2389,23 +2416,16 @@ void Capture::removeJob(int index)
         return;
     }
 
-    int currentRow = queueTable->currentRow();
-    if (index >= 0)
-        currentRow = index;
+    if (index < 0)
+        return;
 
-    if (currentRow < 0)
-    {
-        currentRow = queueTable->rowCount() - 1;
-        if (currentRow < 0)
-            return;
-    }
 
-    queueTable->removeRow(currentRow);
+    queueTable->removeRow(index);
 
-    m_SequenceArray.removeAt(currentRow);
+    m_SequenceArray.removeAt(index);
     emit sequenceChanged(m_SequenceArray);
 
-    SequenceJob * job = jobs.at(currentRow);
+    SequenceJob * job = jobs.at(index);
     jobs.removeOne(job);
     if (job == activeJob)
         activeJob = nullptr;
@@ -3231,6 +3251,7 @@ void Capture::meridianFlipStatusChanged(Mount::MeridianFlipStatus status)
 
         case Mount::FLIP_COMPLETED:
             setMeridianFlipStage(MF_COMPLETED);
+            emit newStatus(Ekos::CAPTURE_IDLE);
             processFlipCompleted();
             break;
 
@@ -4440,27 +4461,17 @@ void Capture::setGuideStatus(GuideState state)
         case GUIDE_IDLE:
         case GUIDE_ABORTED:
             // If Autoguiding was started before and now stopped, let's abort (unless we're doing a meridian flip)
-            if (guideState == GUIDE_GUIDING && meridianFlipStage == MF_NONE && activeJob &&
-                    activeJob->getStatus() == SequenceJob::JOB_BUSY)
+        if (guideState == GUIDE_GUIDING && meridianFlipStage == MF_NONE &&
+                ((activeJob && activeJob->getStatus() == SequenceJob::JOB_BUSY) ||
+                 this->m_State == CAPTURE_SUSPENDED || this->m_State == CAPTURE_PAUSED))
             {
                 appendLogText(i18n("Autoguiding stopped. Aborting..."));
                 abort();
-                autoGuideAbortedCapture = true;
             }
             break;
 
         case GUIDE_GUIDING:
         case GUIDE_CALIBRATION_SUCESS:
-            // If capture was aborted due to guide abort
-            // then let's resume capture once we are guiding again.
-            if (autoGuideAbortedCapture &&
-                    (guideState == GUIDE_ABORTED || guideState == GUIDE_IDLE) &&
-                    (this->m_State == CAPTURE_ABORTED || this->m_State == CAPTURE_SUSPENDED))
-            {
-                start();
-                autoGuideAbortedCapture = false;
-            }
-
             autoGuideReady = true;
             break;
 
@@ -4659,24 +4670,18 @@ void Capture::setDirty()
     m_Dirty = true;
 }
 
-void Capture::setMeridianFlip(bool enable)
+void Capture::meridianFlipSetupChanged()
 {
-    Options::setAutoMeridianFlip(enable);
-    QDBusReply<void> const reply = mountInterface->call("activateMeridianFlip", enable);
-
-    if (reply.error().type() != QDBusError::NoError)
-        qCCritical(KSTARS_EKOS_CAPTURE) << QString("Warning: setting meridian flip request received DBUS error: %1").arg(QDBusError::errorString(reply.error().type()));
+    emit newMeridianFlipSetup(meridianCheck->isChecked(), meridianHours->value());
 }
 
-void Capture::setMeridianFlipHour(double hours)
+
+void Capture::setMeridianFlipValues(bool activate, double hours)
 {
-    Options::setAutoMeridianHours(hours);
-
-    QDBusReply<void> const reply = mountInterface->call("setMeridianFlipLimit", hours);
-
-    if (reply.error().type() != QDBusError::NoError)
-        qCCritical(KSTARS_EKOS_CAPTURE) << QString("Warning: setting meridian flip time limit request received DBUS error: %1").arg(QDBusError::errorString(reply.error().type()));
+    meridianCheck->setChecked(activate);
+    meridianHours->setValue(hours);
 }
+
 
 bool Capture::hasCoolerControl()
 {
@@ -4864,6 +4869,20 @@ IPState Capture::processPreCaptureCalibrationStage()
                 }
             }
         }
+        else if (m_TelescopeCoveredDarkExposure || m_TelescopeCoveredFlatExposure)
+        {
+            // Uncover telescope
+            if (KMessageBox::warningContinueCancel(
+                        nullptr, i18n("Remove cover from the telescope in order to continue."), i18n("Telescope Covered"),
+                        KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                        "uncover_scope_dialog_notification", KMessageBox::WindowModal | KMessageBox::Notify) == KMessageBox::Cancel)
+            {
+                return IPS_ALERT;
+            }
+
+            m_TelescopeCoveredDarkExposure = false;
+            m_TelescopeCoveredFlatExposure = false;
+        }
 
         // step 2: check if meridian flip already is ongoing
         if (meridianFlipStage != MF_NONE)
@@ -4883,6 +4902,49 @@ IPState Capture::processPreCaptureCalibrationStage()
 
         return IPS_OK;
     }
+    else if (activeJob->getFrameType() == FRAME_DARK && m_TelescopeCoveredDarkExposure == false)
+    {
+        QStringList shutterfulCCDs  = Options::shutterfulCCDs();
+        QStringList shutterlessCCDs = Options::shutterlessCCDs();
+        QString deviceName = currentCCD->getDeviceName();
+
+        bool hasShutter   = shutterfulCCDs.contains(deviceName);
+        bool hasNoShutter = shutterlessCCDs.contains(deviceName) || ISOCombo->count() > 0;
+
+        // If we have no information, we ask
+        if (hasShutter == false && hasNoShutter == false)
+        {
+            if (KMessageBox::questionYesNo(nullptr, i18n("Does %1 have a shutter?", deviceName),
+                                           i18n("Dark Exposure")) == KMessageBox::Yes)
+            {
+                hasNoShutter = false;
+                shutterfulCCDs.append(deviceName);
+                Options::setShutterfulCCDs(shutterfulCCDs);
+            }
+            else
+            {
+                hasNoShutter = true;
+                shutterlessCCDs.append(deviceName);
+                Options::setShutterlessCCDs(shutterlessCCDs);
+            }
+        }
+
+        // If camera was flagged before as shutterless, or if it is a DSLR, then it is for sure shutterless.
+        if (hasNoShutter)
+        {
+            if (KMessageBox::warningContinueCancel(
+                        nullptr, i18n("Cover the telescope in order to take a dark exposure."), i18n("Dark Exposure"),
+                        KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                        "cover_scope_dialog_notification", KMessageBox::WindowModal | KMessageBox::Notify) == KMessageBox::Cancel)
+            {
+                abort();
+                return IPS_ALERT;
+            }
+
+            m_TelescopeCoveredDarkExposure = true;
+            m_TelescopeCoveredFlatExposure = false;
+        }
+    }
 
     if (activeJob->getFrameType() != FRAME_LIGHT && guideState == GUIDE_GUIDING)
     {
@@ -4894,6 +4956,21 @@ IPState Capture::processPreCaptureCalibrationStage()
     switch (activeJob->getFlatFieldSource())
     {
         case SOURCE_MANUAL:
+            if (activeJob->getFrameType() == FRAME_FLAT &&
+                    m_TelescopeCoveredFlatExposure == false)
+            {
+                if (KMessageBox::warningContinueCancel(
+                            nullptr, i18n("Cover telescope with evenly illuminated light source."), i18n("Flat Frame"),
+                            KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                            "flat_light_cover_dialog_notification", KMessageBox::WindowModal | KMessageBox::Notify) == KMessageBox::Cancel)
+                {
+                    abort();
+                    return IPS_ALERT;
+                }
+                m_TelescopeCoveredFlatExposure = true;
+                m_TelescopeCoveredDarkExposure = false;
+            }
+            break;
         case SOURCE_DAWN_DUSK: // Not yet implemented
             break;
 
@@ -5320,7 +5397,7 @@ bool Capture::processPostCaptureCalibrationStage()
 void Capture::setNewRemoteFile(QString file)
 {
     appendLogText(i18n("Remote image saved to %1", file));
-    emit newSequenceImage(file);
+    emit newSequenceImage(file, QString());
 }
 
 /*
@@ -5922,6 +5999,11 @@ void Capture::processCaptureTimeout()
     targetChip->abortExposure();
     targetChip->capture(exposureIN->value());
     captureTimeout.start(exposureIN->value() * 1000 + CAPTURE_TIMEOUT_THRESHOLD);
+}
+
+void Capture::setGeneratedPreviewFITS(const QString &previewFITS)
+{
+    m_GeneratedPreviewFITS = previewFITS;
 }
 
 }

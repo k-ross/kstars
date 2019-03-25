@@ -51,10 +51,13 @@ class Cloud : public QObject
         void connected();
         void disconnected();
 
+        void newMetadata(const QByteArray &metadata);
+        void newImage(const QByteArray &image);
+
     public slots:
         void connectServer();
         void disconnectServer();
-        void setOptions(QMap<int,bool> options)
+        void setOptions(QMap<int, bool> options)
         {
             m_Options = options;
         }
@@ -70,6 +73,10 @@ class Cloud : public QObject
 
         // Send image
         void sendImage();
+
+        // Metadata and Image upload
+        void uploadMetadata(const QByteArray &metadata);
+        void uploadImage(const QByteArray &image);
 
     private:
         void asyncUpload();
@@ -90,7 +97,7 @@ class Cloud : public QObject
         bool m_isConnected {false};
         bool m_sendBlobs {true};
 
-        QMap<int,bool> m_Options;
+        QMap<int, bool> m_Options;
 
         // Image width for high-bandwidth setting
         static const uint16_t HB_WIDTH = 640;

@@ -26,6 +26,7 @@ enum COMMANDS
     GET_FILTER_WHEELS,
     GET_DOMES,
     GET_CAPS,
+    GET_DRIVERS,
     NEW_CONNECTION_STATE,
     NEW_MOUNT_STATE,
     NEW_CAPTURE_STATE,
@@ -47,6 +48,9 @@ enum COMMANDS
     GET_PROFILES,
     START_PROFILE,
     STOP_PROFILE,
+    ADD_PROFILE,
+    GET_PROFILE,
+    DELETE_PROFILE,
 
     // Capture
     CAPTURE_PREVIEW,
@@ -128,6 +132,7 @@ static QMap<COMMANDS, QString> const commands =
     {GET_FILTER_WHEELS, "get_filter_wheels"},
     {GET_DOMES, "get_domes"},
     {GET_CAPS, "get_caps"},
+    {GET_DRIVERS, "get_drivers"},
     {NEW_CONNECTION_STATE, "new_connection_state"},
     {NEW_MOUNT_STATE, "new_mount_state"},
     {NEW_CAPTURE_STATE, "new_capture_state"},
@@ -148,6 +153,9 @@ static QMap<COMMANDS, QString> const commands =
     {GET_PROFILES, "get_profiles"},
     {START_PROFILE, "profile_start"},
     {STOP_PROFILE, "profile_stop"},
+    {ADD_PROFILE, "profile_add"},
+    {GET_PROFILE, "profile_get"},
+    {DELETE_PROFILE, "profile_delete"},
 
     {CAPTURE_PREVIEW, "capture_preview"},
     {CAPTURE_TOGGLE_VIDEO, "capture_toggle_video"},

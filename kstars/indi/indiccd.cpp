@@ -32,10 +32,6 @@
 
 #include <basedevice.h>
 
-#ifdef HAVE_LIBRAW
-#include <libraw/libraw.h>
-#endif
-
 const QStringList RAWFormats = { "cr2", "crw", "nef", "raf", "dng", "arw" };
 
 namespace ISD
@@ -1348,20 +1344,15 @@ void CCD::processBLOB(IBLOB *bp)
     // FIXME: Why is this leaking memory in Valgrind??!
     KNotification::event(QLatin1String("FITSReceived"), i18n("Image file is received"));
 
-    /*if (targetChip->showFITS() == false && targetChip->getCaptureMode() == FITS_NORMAL)
-    {
-        emit BLOBUpdated(bp);
-        return;
-    }*/
-
     // Check if we need to process RAW or regular image
     if (BType == BLOB_IMAGE || BType == BLOB_RAW)
     {
+        bool useFITSViewer = Options::autoImageToFITS() &&  (Options::useFITSViewer() || (Options::useDSLRImageViewer() == false && targetChip->isBatchMode() == false));
+        bool useDSLRViewer = (Options::useDSLRImageViewer() || targetChip->isBatchMode() == false);
         // For raw image, we only process them to JPG if we need to open them in the image
         // viewer
-        if ((Options::useDSLRImageViewer() || targetChip->isBatchMode() == false) && BType == BLOB_RAW)
+        if (BType == BLOB_RAW && (useFITSViewer || useDSLRViewer))
         {
-#ifdef HAVE_LIBRAW
             QString rawFileName  = filename;
             rawFileName          = rawFileName.remove(0, rawFileName.lastIndexOf(QLatin1Literal("/")));
 
@@ -1372,74 +1363,42 @@ void CCD::processBLOB(IBLOB *bp)
             imgPreview.open();
             imgPreview.close();
             QString preview_filename = imgPreview.fileName();
+            QString errorMessage;
 
-            int ret = 0;
-            // Creation of image processing object
-            LibRaw RawProcessor;
-
-            // Let us open the file
-            if ((ret = RawProcessor.open_file(filename.toLatin1().data())) != LIBRAW_SUCCESS)
+            if (KSUtils::RAWToJPEG(filename, preview_filename, errorMessage) == false)
             {
-                KStars::Instance()->statusBar()->showMessage(
-                    i18n("Cannot open %1: %2", rawFileName, libraw_strerror(ret)));
-                RawProcessor.recycle();
+                KStars::Instance()->statusBar()->showMessage(errorMessage);
                 emit BLOBUpdated(bp);
                 return;
             }
 
-            // Let us unpack the image
-            /*if( (ret = RawProcessor.unpack() ) != LIBRAW_SUCCESS)
-            {
-                KStars::Instance()->statusBar()->showMessage(i18n("Cannot unpack_thumb %1: %2", rawFileName, libraw_strerror(ret)));
-                if(LIBRAW_FATAL_ERROR(ret))
-                {
-                    RawProcessor.recycle();
-                    emit BLOBUpdated(bp);
-                    return;
-                }
-                // if there has been a non-fatal error, we will try to continue
-            }*/
-
-            // Let us unpack the thumbnail
-            if ((ret = RawProcessor.unpack_thumb()) != LIBRAW_SUCCESS)
-            {
-                KStars::Instance()->statusBar()->showMessage(
-                    i18n("Cannot unpack_thumb %1: %2", rawFileName, libraw_strerror(ret)));
-                RawProcessor.recycle();
-                emit BLOBUpdated(bp);
-                return;
-            }
-            else
-                // We have successfully unpacked the thumbnail, now let us write it to a file
-            {
-                //snprintf(thumbfn,sizeof(thumbfn),"%s.%s",av[i],T.tformat == LIBRAW_THUMBNAIL_JPEG ? "thumb.jpg" : "thumb.ppm");
-                if (LIBRAW_SUCCESS != (ret = RawProcessor.dcraw_thumb_writer(preview_filename.toLatin1().data())))
-                {
-                    KStars::Instance()->statusBar()->showMessage(
-                        i18n("Cannot write %s %1: %2", preview_filename, libraw_strerror(ret)));
-                    RawProcessor.recycle();
-                    emit BLOBUpdated(bp);
-                    return;
-                }
-            }
+            // Remove tempeorary CR2 files
+            if (targetChip->isBatchMode() == false)
+                QFile::remove(filename);
 
             filename = preview_filename;
-
-#else
-            // Silently fail if KStars was not compiled with libraw
-            //KStars::Instance()->statusBar()->showMessage(i18n("Unable to find dcraw and cjpeg. Please install the required tools to convert CR2/NEF to JPEG."));
-            emit BLOBUpdated(bp);
-            return;
-#endif
+            format = ".jpg";
+            shortFormat = "jpg";
         }
 
         // store file name in
-        strncpy(BLOBFilename, filename.toLatin1(), MAXINDIFILENAME);
-        bp->aux0 = targetChip;
-        bp->aux1 = &BType;
-        bp->aux2 = BLOBFilename;
+        //        strncpy(BLOBFilename, filename.toLatin1(), MAXINDIFILENAME);
+        //        bp->aux0 = targetChip;
+        //        bp->aux1 = &BType;
+        //        bp->aux2 = BLOBFilename;
 
-        if (Options::useDSLRImageViewer() || targetChip->isBatchMode() == false)
+        // Convert to FITS if checked.
+        QString output;
+        if (useFITSViewer && (FITSData::ImageToFITS(filename, shortFormat, output)))
+        {
+            if (BType == BLOB_RAW || targetChip->isBatchMode() == false)
+                QFile::remove(filename);
+            filename = output;
+            BType = BLOB_FITS;
+
+            emit previewFITSGenerated(output);
+        }
+        else if (useDSLRViewer)
         {
             if (m_ImageViewerWindow.isNull())
                 m_ImageViewerWindow = new ImageViewer(getDeviceName(), KStars::Instance());

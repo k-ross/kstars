@@ -13,7 +13,7 @@
 #include "message.h"
 #include "commands.h"
 #include "profileinfo.h"
-
+#include "indi/drivermanager.h"
 #include "ekos_debug.h"
 
 #include <basedevice.h>
@@ -148,6 +148,8 @@ void Message::onTextReceived(const QString &message)
         sendDomes();
     else if (command == commands[GET_CAPS])
         sendCaps();
+    else if (command == commands[GET_DRIVERS])
+        sendDrivers();
     else if (command.startsWith("capture_"))
         processCaptureCommands(command, payload);
     else if (command.startsWith("mount_"))
@@ -300,6 +302,14 @@ void Message::sendCaps()
     }
 
     sendResponse(commands[GET_CAPS], capList);
+}
+
+void Message::sendDrivers()
+{
+     if (m_isConnected == false)
+         return;
+
+     sendResponse(commands[GET_DRIVERS], DriverManager::Instance()->getDriverList());
 }
 
 void Message::sendScopes()
@@ -706,6 +716,18 @@ void Message::processProfileCommands(const QString &command, const QJsonObject &
     else if (command == commands[STOP_PROFILE])
     {
         m_Manager->stop();
+    }
+    else if (command == commands[ADD_PROFILE])
+    {
+        m_Manager->addNamedProfile(payload);
+    }
+    else if (command == commands[GET_PROFILE])
+    {
+        m_Manager->getNamedProfile(payload["name"].toString());
+    }
+    else if (command == commands[DELETE_PROFILE])
+    {
+        m_Manager->deleteNamedProfile(payload["name"].toString());
     }
 }
 
