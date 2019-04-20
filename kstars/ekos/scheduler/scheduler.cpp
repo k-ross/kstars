@@ -3378,8 +3378,8 @@ void Scheduler::checkJobStage()
             {
                 appendLogText(i18n("Job '%1' current altitude (%2 degrees) crossed minimum constraint altitude (%3 degrees), "
                                    "marking aborted.", currentJob->getName(),
-                                   QString("%L1").arg(0, p.alt().Degrees(), minAltitude->decimals()),
-                                   QString("%L1").arg(0, currentJob->getMinAltitude(), minAltitude->decimals())));
+                                   QString("%L1").arg(p.alt().Degrees(), 0, 'f', minAltitude->decimals()),
+                                   QString("%L1").arg(currentJob->getMinAltitude(), 0, 'f', minAltitude->decimals())));
 
                 currentJob->setState(SchedulerJob::JOB_ABORTED);
                 stopCurrentJobAction();
@@ -4673,15 +4673,18 @@ void Scheduler::findNextJob()
         evaluateJobs();
 
         /* If current job is actually complete because of previous duplicates, prepare for next job */
-        if (currentJob->getRepeatsRemaining() == 0)
+        if (currentJob == nullptr || currentJob->getRepeatsRemaining() == 0)
         {
             stopCurrentJobAction();
             stopGuiding();
 
-            appendLogText(i18np("Job '%1' is complete after #%2 batch.",
-                                "Job '%1' is complete after #%2 batches.",
-                                currentJob->getName(), currentJob->getRepeatsRequired()));
-            setCurrentJob(nullptr);
+            if (currentJob != nullptr)
+            {
+                appendLogText(i18np("Job '%1' is complete after #%2 batch.",
+                                    "Job '%1' is complete after #%2 batches.",
+                                    currentJob->getName(), currentJob->getRepeatsRequired()));
+                setCurrentJob(nullptr);
+            }
             schedulerTimer.start();
         }
         /* If job requires more work, continue current observation */
@@ -5053,15 +5056,27 @@ void Scheduler::updateCompletedJobsCount(bool forced)
             newFramesCount[signature] = getCompletedFiles(signature, oneSeqJob->getFullPrefix());
         }
 
-        int lightFramesRequired = 0;
-        for (SequenceJob *oneSeqJob : seqjobs)
+        // determine whether we need to continue capturing, depending on captured frames
+        bool lightFramesRequired = false;
+        switch (oneJob->getCompletionCondition())
         {
-            QString const signature = oneSeqJob->getSignature();
-            /* If frame is LIGHT, how hany do we have left? */
-            if (oneSeqJob->getFrameType() == FRAME_LIGHT)
-                lightFramesRequired += oneSeqJob->getCount() - newFramesCount[signature];
+        case SchedulerJob::FINISH_SEQUENCE:
+        case SchedulerJob::FINISH_REPEAT:
+            for (SequenceJob *oneSeqJob : seqjobs)
+            {
+                QString const signature = oneSeqJob->getSignature();
+                /* If frame is LIGHT, how hany do we have left? */
+                if (oneSeqJob->getFrameType() == FRAME_LIGHT && oneSeqJob->getCount()*oneJob->getRepeatsRequired() > newFramesCount[signature])
+                    lightFramesRequired = true;
+            }
+            break;
+        default:
+            // in all other cases it does not depend on the number of captured frames
+            lightFramesRequired = true;
         }
-        oneJob->setLightFramesRequired(lightFramesRequired > 0);
+
+
+        oneJob->setLightFramesRequired(lightFramesRequired);
     }
 
     capturedFramesCount = newFramesCount;
@@ -5103,6 +5118,11 @@ bool Scheduler::estimateJobTime(SchedulerJob *schedJob)
 
     int totalSequenceCount = 0, totalCompletedCount = 0;
     double totalImagingTime  = 0;
+
+    // Determine number of captures in the scheduler job
+    int capturesPerRepeat = 0;
+    foreach (SequenceJob *seqJob, seqJobs)
+        capturesPerRepeat += seqJob->getCount();
 
     // Loop through sequence jobs to calculate the number of required frames and estimate duration.
     foreach (SequenceJob *seqJob, seqJobs)
@@ -5211,8 +5231,8 @@ bool Scheduler::estimateJobTime(SchedulerJob *schedJob)
             // From now on, 'captures_completed' is the number of frames completed for the *current* sequence job
         }
         // Else rely on the captures done during this session
-        else captures_completed = schedJob->getCompletedCount();
-
+        else
+            captures_completed = schedJob->getCompletedCount() / capturesPerRepeat * seqJob->getCount();
 
         // Check if we still need any light frames. Because light frames changes the flow of the observatory startup
         // Without light frames, there is no need to do focusing, alignment, guiding...etc
@@ -5266,7 +5286,10 @@ bool Scheduler::estimateJobTime(SchedulerJob *schedJob)
 
     schedJob->setCapturedFramesMap(capture_map);
     schedJob->setSequenceCount(totalSequenceCount);
-    schedJob->setCompletedCount(totalCompletedCount);
+
+    // only in case we remember the job progress, we change the completion count
+    if (rememberJobProgress)
+        schedJob->setCompletedCount(totalCompletedCount);
 
     qDeleteAll(seqJobs);
 
@@ -6657,14 +6680,18 @@ void Scheduler::setEkosCommunicationStatus(Ekos::CommunicationStatus status)
 
 void Scheduler::registerNewModule(const QString &name)
 {
+    qCDebug(KSTARS_EKOS_SCHEDULER) << "Registering new Module (" << name << ")";
+
     if (name == "Focus")
     {
+        delete focusInterface;
         focusInterface   = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Focus", "org.kde.kstars.Ekos.Focus",
                                               QDBusConnection::sessionBus(), this);
         connect(focusInterface, SIGNAL(newStatus(Ekos::FocusState)), this, SLOT(setFocusStatus(Ekos::FocusState)), Qt::UniqueConnection);
     }
     else if (name == "Capture")
     {
+        delete captureInterface;
         captureInterface = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Capture", "org.kde.kstars.Ekos.Capture",
                                               QDBusConnection::sessionBus(), this);
 
@@ -6673,6 +6700,7 @@ void Scheduler::registerNewModule(const QString &name)
     }
     else if (name == "Mount")
     {
+        delete mountInterface;
         mountInterface   = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Mount", "org.kde.kstars.Ekos.Mount",
                                               QDBusConnection::sessionBus(), this);
 
@@ -6681,18 +6709,21 @@ void Scheduler::registerNewModule(const QString &name)
     }
     else if (name == "Align")
     {
+        delete alignInterface;
         alignInterface   = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Align", "org.kde.kstars.Ekos.Align",
                                               QDBusConnection::sessionBus(), this);
         connect(alignInterface, SIGNAL(newStatus(Ekos::AlignState)), this, SLOT(setAlignStatus(Ekos::AlignState)), Qt::UniqueConnection);
     }
     else if (name == "Guide")
     {
+        delete guideInterface;
         guideInterface   = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Guide", "org.kde.kstars.Ekos.Guide",
                                               QDBusConnection::sessionBus(), this);
         connect(guideInterface, SIGNAL(newStatus(Ekos::GuideState)), this, SLOT(setGuideStatus(Ekos::GuideState)), Qt::UniqueConnection);
     }
     else if (name == "Dome")
     {
+        delete domeInterface;
         domeInterface    = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Dome", "org.kde.kstars.Ekos.Dome",
                                               QDBusConnection::sessionBus(), this);
 
@@ -6700,6 +6731,7 @@ void Scheduler::registerNewModule(const QString &name)
     }
     else if (name == "Weather")
     {
+        delete weatherInterface;
         weatherInterface = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/Weather", "org.kde.kstars.Ekos.Weather",
                                               QDBusConnection::sessionBus(), this);
 
@@ -6708,6 +6740,7 @@ void Scheduler::registerNewModule(const QString &name)
     }
     else if (name == "DustCap")
     {
+        delete capInterface;
         capInterface = new QDBusInterface("org.kde.kstars", "/KStars/Ekos/DustCap", "org.kde.kstars.Ekos.DustCap",
                                           QDBusConnection::sessionBus(), this);
 

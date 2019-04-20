@@ -601,6 +601,10 @@ void Mount::setMeridianFlipValues(bool activate, double hours)
 
 void Mount::meridianFlipSetupChanged()
 {
+    if (meridianFlipCheckBox->isChecked() == false)
+        // reset meridian flip
+        setMeridianFlipStatus(FLIP_NONE);
+
     emit newMeridianFlipSetup(meridianFlipCheckBox->isChecked(), meridianFlipTimeBox->value());
 }
 
@@ -1377,34 +1381,34 @@ int Mount::slewRate()
     return currentTelescope->getSlewRate();
 }
 
-QJsonArray Mount::getScopes() const
-{
-    QJsonArray scopes;
-    if (currentTelescope == nullptr)
-        return scopes;
+//QJsonArray Mount::getScopes() const
+//{
+//    QJsonArray scopes;
+//    if (currentTelescope == nullptr)
+//        return scopes;
 
-    QJsonObject primary =
-    {
-        {"name", "Primary"},
-        {"mount", currentTelescope->getDeviceName()},
-        {"aperture", primaryScopeApertureIN->value()},
-        {"focalLength", primaryScopeFocalIN->value()},
-    };
+//    QJsonObject primary =
+//    {
+//        {"name", "Primary"},
+//        {"mount", currentTelescope->getDeviceName()},
+//        {"aperture", primaryScopeApertureIN->value()},
+//        {"focalLength", primaryScopeFocalIN->value()},
+//    };
 
-    scopes.append(primary);
+//    scopes.append(primary);
 
-    QJsonObject guide =
-    {
-        {"name", "Guide"},
-        {"mount", currentTelescope->getDeviceName()},
-        {"aperture", primaryScopeApertureIN->value()},
-        {"focalLength", primaryScopeFocalIN->value()},
-    };
+//    QJsonObject guide =
+//    {
+//        {"name", "Guide"},
+//        {"mount", currentTelescope->getDeviceName()},
+//        {"aperture", primaryScopeApertureIN->value()},
+//        {"focalLength", primaryScopeFocalIN->value()},
+//    };
 
-    scopes.append(guide);
+//    scopes.append(guide);
 
-    return scopes;
-}
+//    return scopes;
+//}
 
 void Mount::startParkTimer()
 {
