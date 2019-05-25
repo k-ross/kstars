@@ -132,6 +132,7 @@ Capture::Capture()
         updateHFRThreshold();
     });
     connect(previewB, &QPushButton::clicked, this, &Ekos::Capture::captureOne);
+    connect(loopB, &QPushButton::clicked, this, &Ekos::Capture::startFraming);
 
     //connect( seqWatcher, SIGNAL(dirty(QString)), this, &Ekos::Capture::checkSeqFile(QString)));
 
@@ -144,6 +145,7 @@ Capture::Capture()
     connect(queueSaveAsB, &QPushButton::clicked, this, &Ekos::Capture::saveSequenceQueueAs);
     connect(queueLoadB, &QPushButton::clicked, this, static_cast<void(Ekos::Capture::*)()>(&Ekos::Capture::loadSequenceQueue));
     connect(resetB, &QPushButton::clicked, this, &Ekos::Capture::resetJobs);
+    connect(queueTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &Ekos::Capture::selectedJobChanged);
     connect(queueTable, &QAbstractItemView::doubleClicked, this, &Ekos::Capture::editJob);
     connect(queueTable, &QTableWidget::itemSelectionChanged, this, &Ekos::Capture::resetJobEdit);
     connect(setTemperatureB, &QPushButton::clicked, [&]()
@@ -201,12 +203,64 @@ Capture::Capture()
     for (auto &filter : FITSViewer::filterTypes)
         filterCombo->addItem(filter);
 
+    ////////////////////////////////////////////////////////////////////////
+    /// Settings
+    ////////////////////////////////////////////////////////////////////////
+    // #1 Guide Deviation Check
     guideDeviationCheck->setChecked(Options::enforceGuideDeviation());
-    guideDeviation->setValue(Options::guideDeviation());
+    connect(guideDeviationCheck, &QCheckBox::toggled, [ = ](bool checked)
+    {
+        Options::setEnforceGuideDeviation(checked);
+    });
+
+    // #2 Guide Deviation Value
+    guideDeviation->setValue(Options::hFRDeviation());
+    connect(guideDeviation, &QDoubleSpinBox::editingFinished, [ = ]()
+    {
+        Options::setGuideDeviation(guideDeviation->value());
+    });
+
+    // 3. Autofocus HFR Check
     autofocusCheck->setChecked(Options::enforceAutofocus());
+    connect(autofocusCheck, &QCheckBox::toggled, [ = ](bool checked)
+    {
+        Options::setEnforceAutofocus(checked);
+    });
+
+    // 4. Autofocus HFR Deviation
+    HFRPixels->setValue(Options::hFRDeviation());
+    connect(HFRPixels, &QDoubleSpinBox::editingFinished, [ = ]()
+    {
+        Options::setHFRDeviation(HFRPixels->value());
+    });
+
+    // 5. Refocus Every Check
     refocusEveryNCheck->setChecked(Options::enforceRefocusEveryN());
+    connect(refocusEveryNCheck, &QCheckBox::toggled, [ = ](bool checked)
+    {
+        Options::setEnforceRefocusEveryN(checked);
+    });
+
+    // 6. Refocus Every Value
+    refocusEveryN->setValue(Options::refocusEveryN());
+    connect(refocusEveryN, &QDoubleSpinBox::editingFinished, [ = ]()
+    {
+        Options::setRefocusEveryN(refocusEveryN->value());
+    });
+
+    // 7. Meridian Check
     meridianCheck->setChecked(Options::autoMeridianFlip());
+    connect(meridianCheck, &QCheckBox::toggled, [ = ](bool checked)
+    {
+        Options::setAutoMeridianFlip(checked);
+    });
+
+    // 8. Meridian hours
     meridianHours->setValue(Options::autoMeridianHours());
+    connect(meridianHours, &QDoubleSpinBox::editingFinished, [ = ]()
+    {
+        Options::setAutoMeridianHours(meridianHours->value());
+    });
 
     QCheckBox * const checkBoxes[] =
     {
@@ -419,11 +473,6 @@ void Capture::start()
         return;
     }
 
-    Options::setGuideDeviation(guideDeviation->value());
-    Options::setEnforceGuideDeviation(guideDeviationCheck->isChecked());
-    Options::setEnforceAutofocus(autofocusCheck->isChecked());
-    Options::setEnforceRefocusEveryN(refocusEveryNCheck->isChecked());
-
     // propagate the meridian flip values
     meridianFlipSetupChanged();
 
@@ -591,8 +640,11 @@ void Capture::stop(CaptureState targetState)
     calibrationStage = CAL_NONE;
     m_State            = targetState;
 
-    if (activeJob != nullptr)
-        emit newStatus(targetState);
+    //    if (activeJob != nullptr)
+    //        emit newStatus(targetState);
+
+    // JM 2019-05-18: Why we didn't emit the signal on preview before??
+    emit newStatus(targetState);
 
     // Turn off any calibration light, IF they were turned on by Capture module
     if (dustCap && dustCapLightEnabled)
@@ -625,6 +677,7 @@ void Capture::stop(CaptureState targetState)
     fullImgCountOUT->setText(QString());
     currentImgCountOUT->setText(QString());
     exposeOUT->setText(QString());
+    m_isLooping = false;
 
     setBusy(false);
 
@@ -1285,6 +1338,10 @@ bool Capture::startNextExposure()
         return false;
     }
 
+    if (checkMeridianFlip())
+        // execute flip before next capture
+        return false;
+
     if (seqDelay > 0)
     {
         secondsLabel->setText(i18n("Waiting..."));
@@ -1335,7 +1392,9 @@ void Capture::newFITS(IBLOB * bp)
         if (QString(bp->bvp->device) != currentCCD->getDeviceName() || m_State == CAPTURE_IDLE || m_State == CAPTURE_ABORTED)
             return;
 
-        if (currentCCD->isLooping() == false)
+        // m_isLooping client-side looping (next capture starts after image is downloaded to client)
+        // currentCCD->isLooping driver side looping (without any delays, next capture starts after driver reads data)
+        if (m_isLooping == false && currentCCD->isLooping() == false)
         {
             disconnect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Capture::newFITS);
 
@@ -1369,6 +1428,15 @@ bool Capture::setCaptureComplete()
 {
     captureTimeout.stop();
     captureTimeoutCounter = 0;
+
+    // In case we're framing, let's start
+    if (m_isLooping)
+    {
+        sendNewImage(blobFilename, blobChip);
+        secondsLabel->setText(i18n("Framing..."));
+        activeJob->capture(darkSubCheck->isChecked() ? true : false);
+        return true;
+    }
 
     if (currentCCD->isLooping() == false)
     {
@@ -1456,10 +1524,6 @@ bool Capture::setCaptureComplete()
         return true;
     }
 
-    // Check if meridian condition is met
-    if (checkMeridianFlip())
-        return true;
-
     return resumeSequence();
 }
 
@@ -1477,11 +1541,6 @@ void Capture::processJobCompletion()
     }
 
     stop();
-
-    // Check if meridian condition is met IF there are more pending jobs in the queue
-    // Otherwise, no need to check meridian flip is all jobs are over.
-    if (getPendingJobCount() > 0 && checkMeridianFlip())
-        return;
 
     // Check if there are more pending jobs and execute them
     if (resumeSequence())
@@ -1759,6 +1818,13 @@ void Capture::captureOne()
 
     if (addJob(true))
         prepareJob(jobs.last());
+}
+
+void Capture::startFraming()
+{
+    m_isLooping = true;
+    appendLogText(i18n("Starting framing..."));
+    captureOne();
 }
 
 void Capture::captureImage()
@@ -2403,6 +2469,15 @@ void Capture::removeJobFromQueue()
         currentRow = queueTable->rowCount() - 1;
 
     removeJob(currentRow);
+
+    // update selection
+    if (queueTable->rowCount() == 0)
+        return;
+
+    if (currentRow > queueTable->rowCount())
+        queueTable->selectRow(queueTable->rowCount() - 1);
+    else
+        queueTable->selectRow(currentRow);
 }
 
 void Capture::removeJob(int index)
@@ -2444,7 +2519,10 @@ void Capture::removeJob(int index)
     for (int i = 0; i < jobs.count(); i++)
         jobs.at(i)->setStatusCell(queueTable->item(i, 0));
 
-    queueTable->selectRow(queueTable->currentRow());
+    if (index < queueTable->rowCount())
+        queueTable->selectRow(index);
+    else if (queueTable->rowCount() > 0)
+        queueTable->selectRow(queueTable->rowCount() - 1);
 
     if (queueTable->rowCount() == 0)
     {
@@ -2538,6 +2616,7 @@ void Capture::setBusy(bool enable)
 
     enable ? pi->startAnimation() : pi->stopAnimation();
     previewB->setEnabled(!enable);
+    loopB->setEnabled(!enable);
 
     foreach (QAbstractButton * button, queueEditButtonGroup->buttons())
         button->setEnabled(!enable);
@@ -2547,7 +2626,12 @@ void Capture::prepareJob(SequenceJob * job)
 {
     activeJob = job;
 
-    qCDebug(KSTARS_EKOS_CAPTURE) << "Preparing capture job" << job->getSignature() << "for execution.";
+    if (m_isLooping == false)
+        qCDebug(KSTARS_EKOS_CAPTURE) << "Preparing capture job" << job->getSignature() << "for execution.";
+
+    int index = jobs.indexOf(job);
+    if (index >= 0)
+        queueTable->selectRow(index);
 
     if (activeJob->getActiveCCD() != currentCCD)
     {
@@ -3139,6 +3223,12 @@ void Capture::updateHFRThreshold()
     else
     {
         filterHFRList = HFRMap["--"];
+    }
+
+    if (filterHFRList.empty())
+    {
+        HFRPixels->setValue(Options::hFRDeviation());
+        return;
     }
 
     double median = 0;
@@ -3996,8 +4086,17 @@ void Capture::syncGUIToJob(SequenceJob * job)
     emit settingsUpdated(settings);
 }
 
-void Capture::editJob(QModelIndex i)
+void Capture::selectedJobChanged(QModelIndex current, QModelIndex previous)
 {
+    Q_UNUSED(previous);
+    selectJob(current);
+}
+
+void Capture::selectJob(QModelIndex i)
+{
+    if (i.row() < 0 || (i.row() + 1) > jobs.size())
+        return;
+
     SequenceJob * job = jobs.at(i.row());
 
     if (job == nullptr)
@@ -4005,6 +4104,16 @@ void Capture::editJob(QModelIndex i)
 
     syncGUIToJob(job);
 
+    if (isBusy || jobs.size() < 2)
+        return;
+
+    queueUpB->setEnabled(i.row() > 0);
+    queueDownB->setEnabled(i.row() + 1 < jobs.size());
+}
+
+void Capture::editJob(QModelIndex i)
+{
+    selectJob(i);
     appendLogText(i18n("Editing job #%1...", i.row() + 1));
 
     addToQueueB->setIcon(QIcon::fromTheme("dialog-ok-apply"));
@@ -4217,10 +4326,10 @@ void Capture::clearSequenceQueue()
     activeJob = nullptr;
     //m_TargetName.clear();
     //stop();
-    qDeleteAll(jobs);
-    jobs.clear();
     while (queueTable->rowCount() > 0)
         queueTable->removeRow(0);
+    qDeleteAll(jobs);
+    jobs.clear();
 }
 
 QString Capture::getSequenceQueueStatus()
@@ -4377,7 +4486,8 @@ bool Capture::checkMeridianFlip()
     if (activeJob && activeJob->getFrameType() == FRAME_FLAT && activeJob->getFlatFieldSource() == SOURCE_WALL)
         return false;
 
-    if (meridianFlipStage == MF_NONE)
+    if (meridianFlipStage == MF_NONE || meridianFlipStage > MF_READY)
+        // if no flip has been requested or is already ongoing
         return false;
 
     // meridian flip requested or already in action
@@ -4461,9 +4571,9 @@ void Capture::setGuideStatus(GuideState state)
         case GUIDE_IDLE:
         case GUIDE_ABORTED:
             // If Autoguiding was started before and now stopped, let's abort (unless we're doing a meridian flip)
-        if (guideState == GUIDE_GUIDING && meridianFlipStage == MF_NONE &&
-                ((activeJob && activeJob->getStatus() == SequenceJob::JOB_BUSY) ||
-                 this->m_State == CAPTURE_SUSPENDED || this->m_State == CAPTURE_PAUSED))
+            if (guideState == GUIDE_GUIDING && meridianFlipStage == MF_NONE &&
+                    ((activeJob && activeJob->getStatus() == SequenceJob::JOB_BUSY) ||
+                     this->m_State == CAPTURE_SUSPENDED || this->m_State == CAPTURE_PAUSED))
             {
                 appendLogText(i18n("Autoguiding stopped. Aborting..."));
                 abort();

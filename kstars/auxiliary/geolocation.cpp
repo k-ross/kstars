@@ -102,8 +102,8 @@ QString GeoLocation::translatedName() const
 QString GeoLocation::translatedProvince() const
 {
     return Province.isEmpty() ?
-               QString() :
-               i18nc(QString("Region/state in " + country()).toUtf8().data(), Province.toUtf8().data());
+           QString() :
+           i18nc(QString("Region/state in " + country()).toUtf8().data(), Province.toUtf8().data());
 }
 
 QString GeoLocation::translatedCountry() const
@@ -130,7 +130,7 @@ void GeoLocation::cartToGeod()
 
         lat1 = latd;
         xn   = axis / (sqrt(1 - e2 * s1 * s1));
-        latd = atan2((long double)rpro * (1 + e2 * xn * s1), PosCartZ);
+        latd = atan2(static_cast<long double>(rpro) * (1 + e2 * xn * s1), PosCartZ);
     }
 
     sinl = sin(latd);
@@ -220,4 +220,20 @@ KStarsDateTime GeoLocation::LTtoUT(const KStarsDateTime &lt) const
     //ut.setUtcOffset(0);
 
     return ut;
+}
+
+double GeoLocation::distanceTo(const dms &longitude, const dms &latitude)
+{
+    const double R = 6378.135;
+
+    double diffLongitude = (Longitude - longitude).radians();
+    double diffLatitude  = (Latitude - latitude).radians();
+
+    double a = sin(diffLongitude / 2) * sin(diffLongitude / 2) + cos(Longitude.radians()) * cos(longitude.radians()) *
+               sin(diffLatitude / 2) * sin(diffLatitude / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    double distance = R * c;
+
+    return distance;
 }

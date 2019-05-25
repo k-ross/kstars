@@ -496,6 +496,8 @@ bool Manager::stop()
 
     profileGroup->setEnabled(true);
 
+    setWindowTitle(i18n("Ekos"));
+
     return true;
 }
 
@@ -833,6 +835,8 @@ bool Manager::start()
     processINDIB->setIcon(QIcon::fromTheme("media-playback-stop"));
     processINDIB->setToolTip(i18n("Stop"));
 
+    setWindowTitle(i18n("Ekos - %1 Profile", currentProfile->name));
+
     return true;
 }
 
@@ -1030,6 +1034,8 @@ void Manager::processNewDevice(ISD::GDInterface * devInterface)
     connect(devInterface, &ISD::GDInterface::Connected, this, &Ekos::Manager::deviceConnected);
     connect(devInterface, &ISD::GDInterface::Disconnected, this, &Ekos::Manager::deviceDisconnected);
     connect(devInterface, &ISD::GDInterface::propertyDefined, this, &Ekos::Manager::processNewProperty);
+    connect(devInterface, &ISD::GDInterface::interfaceDefined, this, &Ekos::Manager::syncActiveDevices);
+
     if (currentProfile->isStellarMate)
     {
         connect(devInterface, &ISD::GDInterface::systemPortDetected, [this, devInterface]()
@@ -1630,6 +1636,9 @@ void Manager::processNewProperty(INDI::Property * prop)
         ekosLiveClient.get()->message()->sendFilterWheels();
 
     if (!strcmp(prop->getName(), "FILTER_NAME"))
+        filterManager.data()->initFilterProperties();
+
+    if (!strcmp(prop->getName(), "CONFIRM_FILTER_SET"))
         filterManager.data()->initFilterProperties();
 
     if (!strcmp(prop->getName(), "CCD_INFO") || !strcmp(prop->getName(), "GUIDER_INFO"))
@@ -3138,6 +3147,38 @@ void Manager::setEkosLiveUser(const QString &username, const QString &password)
 bool Manager::ekosLiveStatus()
 {
     return ekosLiveClient.get()->isConnected();
+}
+
+void Manager::syncActiveDevices()
+{
+    for (auto oneDevice : genericDevices)
+    {
+        uint32_t devInterface = oneDevice->getDriverInterface();
+        if (devInterface & (INDI::BaseDevice::TELESCOPE_INTERFACE | INDI::BaseDevice::DOME_INTERFACE))
+        {
+            for (auto otherDevice : genericDevices)
+            {
+                if (otherDevice == oneDevice)
+                    continue;
+
+                ITextVectorProperty *tvp = otherDevice->getBaseDevice()->getText("ACTIVE_DEVICES");
+                if (tvp)
+                {
+                    IText *snoopProperty = nullptr;
+                    if (devInterface & INDI::BaseDevice::TELESCOPE_INTERFACE)
+                        snoopProperty = IUFindText(tvp, "ACTIVE_TELESCOPE");
+                    else
+                        snoopProperty = IUFindText(tvp, "ACTIVE_DOME");
+
+                    if (snoopProperty && strcmp(snoopProperty->text, oneDevice->getDeviceName()))
+                    {
+                        IUSaveText(snoopProperty, oneDevice->getDeviceName());
+                        otherDevice->getDriverInfo()->getClientManager()->sendNewText(tvp);
+                    }
+                }
+            }
+        }
+    }
 }
 
 }

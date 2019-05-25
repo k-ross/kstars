@@ -324,6 +324,11 @@
          <whatsthis>If true, focus changes will cause the sky to visibly spin to the new position. Otherwise, the display will "snap" instantly to the new position.</whatsthis>
          <default>true</default>
       </entry>
+      <entry name="LeftClickSelectsObject" type="Bool">
+         <label>Select objects on left click?</label>
+         <whatsthis>If true, clicking on the skymap will select the closest object and highlights it.</whatsthis>
+         <default>false</default>
+      </entry>
       <entry name="FOVNames" type="StringList">
          <label>Name of selected FOV indicators</label>
          <whatsthis>The names of the currently selected field-of-view indicators. The list of defined FOV indicator names is listed in the "Settings|FOV Symbols" menu.</whatsthis>
@@ -871,6 +876,10 @@
          <label>This is the angular distance from the zenith, in degrees, below which you can easily point your telescope.</label>
          <whatsthis>This specifies the angular radius of the Dobsonian hole, i.e. the region where a large Dobsonian telescope cannot be pointed easily.</whatsthis>
          <default>15.00</default>
+      </entry>
+      <entry name="ObsListCoverage" type="Double">
+         <label>The object must obey the minimum and maximum altitudes at least this much percentage of the indicated time range.</label>
+         <default>40.00</default>
       </entry>
    </group>
    <group name="Colors">
@@ -1677,9 +1686,6 @@
       <entry name="DefaultFocusFilterWheel" type="String">
          <label>Default focus module filter wheel.</label>
       </entry>
-      <entry name="DefaultFocusFilterWheelFilter" type="String">
-         <label>Default focus module filter wheel filter.</label>
-      </entry>
       <entry name="FocusTicks" type="UInt">
          <label>Default Focuser step ticks</label>
          <whatsthis>Step size of the absolute focuser. The step size TICKS should be adjusted so that when the focuser moves TICKS steps, the difference in HFR is more than 0.1 pixels. Lower the value when you are close to optimal focus.</whatsthis>
@@ -1703,10 +1709,10 @@
          <whatsthis>Set the maximum travel distance of an absolute focuser.</whatsthis>
          <default>10000</default>
       </entry>
-      <entry name="FocusExposure" type="Double">
-         <label>Default Focuser exposure value</label>
-         <whatsthis>Specifies exposure value of CCD when performing focusing. Lower this value to avoid saturation of bright stars which adversely affects HFR measurement. Increase the value if no stars are detected.</whatsthis>
-         <default>0.5</default>
+      <entry name="FocusGain" type="Double">
+         <label>Default Focuser gain value</label>
+         <whatsthis>Specifies gain value of CCD when performing focusing if supported by camera.</whatsthis>
+         <default>0</default>
       </entry>
       <entry name="FocusBoxSize" type="UInt">
          <label>Default Focuser star selection box size</label>
