@@ -3075,6 +3075,14 @@ void Manager::connectModules()
         connect(mountProcess.get(), &Ekos::Mount::newStatus, captureProcess.get(), &Ekos::Capture::setMountStatus, Qt::UniqueConnection);
     }
 
+    // Capture <---> EkosLive connections
+    if (captureProcess.get() && ekosLiveClient.get())
+    {
+        captureProcess.get()->disconnect(ekosLiveClient.get()->message());
+
+        connect(captureProcess.get(), &Ekos::Capture::dslrInfoRequested, ekosLiveClient.get()->message(), &EkosLive::Message::requestDSLRInfo);
+    }
+
     // Focus <---> Align connections
     if (focusProcess.get() && alignProcess.get())
     {
@@ -3108,7 +3116,8 @@ void Manager::connectModules()
     // Align <--> EkosLive connections
     if (alignProcess.get() && ekosLiveClient.get())
     {
-        alignProcess.get()->disconnect(ekosLiveClient.get());
+        alignProcess.get()->disconnect(ekosLiveClient.get()->message());
+        alignProcess.get()->disconnect(ekosLiveClient.get()->media());
 
         connect(alignProcess.get(), &Ekos::Align::newStatus, ekosLiveClient.get()->message(), &EkosLive::Message::setAlignStatus);
         connect(alignProcess.get(), &Ekos::Align::newSolution, ekosLiveClient.get()->message(), &EkosLive::Message::setAlignSolution);

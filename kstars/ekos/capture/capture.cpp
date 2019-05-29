@@ -10,7 +10,6 @@
 #include "capture.h"
 
 #include "captureadaptor.h"
-#include "dslrinfodialog.h"
 #include "kstars.h"
 #include "kstarsdata.h"
 #include "Options.h"
@@ -634,17 +633,16 @@ void Capture::stop(CaptureState targetState)
             // Delete preview job
             delete (activeJob);
             activeJob = nullptr;
+
+            emit newStatus(targetState);
         }
     }
 
     calibrationStage = CAL_NONE;
     m_State            = targetState;
 
-    //    if (activeJob != nullptr)
-    //        emit newStatus(targetState);
-
-    // JM 2019-05-18: Why we didn't emit the signal on preview before??
-    emit newStatus(targetState);
+    if (activeJob != nullptr)
+        emit newStatus(targetState);
 
     // Turn off any calibration light, IF they were turned on by Capture module
     if (dustCap && dustCapLightEnabled)
@@ -889,11 +887,7 @@ void Capture::checkCCD(int ccdNum)
                 // The zeros above are the initial packets so we can safely ignore them
                 if (isModelInDB == false)
                 {
-                    DSLRInfo infoDialog(this, currentCCD);
-                    if (infoDialog.exec() == QDialog::Accepted)
-                    {
-                        addDSLRInfo(QString(currentCCD->getDeviceName()), infoDialog.sensorMaxWidth, infoDialog.sensorMaxHeight, infoDialog.sensorPixelW, infoDialog.sensorPixelH);
-                    }
+                    createDSLRDialog();
                 }
                 else
                 {
@@ -5926,6 +5920,10 @@ void Capture::addDSLRInfo(const QString &model, uint32_t maxW, uint32_t maxH, do
 
     KStarsData::Instance()->userdb()->AddDSLRInfo(oneDSLRInfo);
     KStarsData::Instance()->userdb()->GetAllDSLRInfos(DSLRInfos);
+
+    // In case the dialog was opened, let's close it
+    if (dslrInfoDialog)
+        dslrInfoDialog.reset();
 }
 
 bool Capture::isModelinDSLRInfo(const QString &model)
@@ -6034,6 +6032,12 @@ void Capture::setSettings(const QJsonObject &settings)
         customPropertiesDialog->setCustomProperties(customProps);
     }
 
+    int format = settings["format"].toInt(Ekos::INVALID_VALUE);
+    if (format != Ekos::INVALID_VALUE)
+    {
+        transferFormatCombo->setCurrentIndex(format);
+    }
+
     frameTypeCombo->setCurrentIndex(settings["frameType"].toInt(0));
 
     // ISO
@@ -6069,13 +6073,7 @@ void Capture::clearCameraConfiguration()
     // For DSLRs, immediately ask them to enter the values again.
     if (ISOCombo->count() > 0)
     {
-        DSLRInfo infoDialog(this, currentCCD);
-        if (infoDialog.exec() == QDialog::Accepted)
-        {
-            addDSLRInfo(QString(currentCCD->getDeviceName()), infoDialog.sensorMaxWidth, infoDialog.sensorMaxHeight, infoDialog.sensorPixelW, infoDialog.sensorPixelH);
-            updateFrameProperties();
-            resetFrame();
-        }
+        createDSLRDialog();
     }
 }
 
@@ -6114,6 +6112,29 @@ void Capture::processCaptureTimeout()
 void Capture::setGeneratedPreviewFITS(const QString &previewFITS)
 {
     m_GeneratedPreviewFITS = previewFITS;
+}
+
+void Capture::createDSLRDialog()
+{
+    dslrInfoDialog.reset(new DSLRInfo(this, currentCCD));
+
+    connect(dslrInfoDialog.get(), &DSLRInfo::infoChanged, [this]()
+    {
+        addDSLRInfo(QString(currentCCD->getDeviceName()),
+                    dslrInfoDialog->sensorMaxWidth,
+                    dslrInfoDialog->sensorMaxHeight,
+                    dslrInfoDialog->sensorPixelW,
+                    dslrInfoDialog->sensorPixelH);
+
+        dslrInfoDialog.reset();
+
+        updateFrameProperties();
+        resetFrame();
+    });
+
+    dslrInfoDialog->show();
+
+    emit dslrInfoRequested(currentCCD->getDeviceName());
 }
 
 }
