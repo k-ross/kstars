@@ -17,6 +17,7 @@
 
 #include <QObject>
 #include <QVariant>
+#include <QJsonArray>
 
 #ifndef KSTARS_LITE
 #include <QDBusArgument>
@@ -81,6 +82,7 @@ class GDInterface : public QObject
         virtual DeviceInfo *getDeviceInfo()             = 0;
         virtual INDI::BaseDevice *getBaseDevice()       = 0;
         virtual uint32_t getDriverInterface()           = 0;
+        virtual QString getDriverVersion()              = 0;
 
         // Convenience functions
         virtual bool setConfig(INDIConfig tConfig)           = 0;
@@ -91,6 +93,8 @@ class GDInterface : public QObject
         virtual IPState getState(const QString &propName)    = 0;
         virtual IPerm getPermission(const QString &propName) = 0;
         virtual INDI::Property *getProperty(const QString &propName) = 0;
+        virtual QJsonObject getJSONProperty(const QString &propName, bool compact) = 0;
+        virtual bool setJSONProperty(const QString &propName, const QJsonArray &propValue) = 0;
 
         virtual ~GDInterface() = default;
 
@@ -103,6 +107,7 @@ class GDInterface : public QObject
     protected:
         DeviceFamily dType { KSTARS_CCD };
         uint32_t driverInterface { 0 };
+        QString driverVersion;
         QList<INDI::Property *> properties;
 
     signals:
@@ -169,6 +174,10 @@ class GenericDevice : public GDInterface
         {
             return driverInterface;
         }
+        virtual QString getDriverVersion() override
+        {
+            return driverVersion;
+        }
 
         virtual bool setConfig(INDIConfig tConfig) override;
         virtual bool isConnected() override
@@ -184,6 +193,8 @@ class GenericDevice : public GDInterface
         virtual IPState getState(const QString &propName) override;
         virtual IPerm getPermission(const QString &propName) override;
         virtual INDI::Property *getProperty(const QString &propName) override;
+        virtual QJsonObject getJSONProperty(const QString &propName, bool compact) override;
+        virtual bool setJSONProperty(const QString &propName, const QJsonArray &propValue) override;
 
     public slots:
         virtual bool Connect() override;
@@ -222,7 +233,7 @@ class DeviceDecorator : public GDInterface
 
     public:
         explicit DeviceDecorator(GDInterface *iPtr);
-        ~DeviceDecorator();
+        virtual ~DeviceDecorator() override;
 
         virtual void registerProperty(INDI::Property *prop) override;
         virtual void removeProperty(INDI::Property *prop) override;
@@ -242,6 +253,7 @@ class DeviceDecorator : public GDInterface
         DeviceInfo *getDeviceInfo() override;
         QList<INDI::Property *> getProperties() override;
         uint32_t getDriverInterface() override;
+        QString getDriverVersion() override;
         virtual INDI::BaseDevice *getBaseDevice() override;
 
 
@@ -249,6 +261,8 @@ class DeviceDecorator : public GDInterface
         IPState getState(const QString &propName) override;
         IPerm getPermission(const QString &propName) override;
         INDI::Property *getProperty(const QString &propName) override;
+        QJsonObject getJSONProperty(const QString &propName, bool compact) override;
+        bool setJSONProperty(const QString &propName, const QJsonArray &propValue) override;
 
     public slots:
         virtual bool Connect() override;

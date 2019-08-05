@@ -169,6 +169,7 @@ class CCD : public DeviceDecorator
 
     public:
         explicit CCD(GDInterface *iPtr);
+        virtual ~CCD() override;
 
         typedef enum { UPLOAD_CLIENT, UPLOAD_LOCAL, UPLOAD_BOTH } UploadMode;
         typedef enum { FORMAT_FITS, FORMAT_NATIVE } TransferFormat;
@@ -313,6 +314,8 @@ class CCD : public DeviceDecorator
     public slots:
         void FITSViewerDestroyed();
         void StreamWindowHidden();
+        // Blob manager
+        void setBLOBManager(const char *device, INDI::Property * prop);
 
     protected slots:
         void setWSBLOB(const QByteArray &message, const QString &extension);
@@ -330,6 +333,7 @@ class CCD : public DeviceDecorator
         void newVideoFrame(std::unique_ptr<QImage> &frame);
         void coolerToggled(bool enabled);
         void previewFITSGenerated(const QString &previewFITS);
+        void previewJPEGGenerated(const QString &previewJPEG, QJsonObject metadata);
         void ready();
 
     private:
@@ -373,5 +377,7 @@ class CCD : public DeviceDecorator
 
         QPointer<FITSViewer> m_FITSViewerWindows;
         QPointer<ImageViewer> m_ImageViewerWindow;
+
+        QDateTime m_LastNotificationTS;
 };
 }

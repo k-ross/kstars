@@ -116,6 +116,12 @@ void GenericDevice::registerProperty(INDI::Property *prop)
                 driverInterface = static_cast<uint32_t>(atoi(tp->text));
                 emit interfaceDefined();
             }
+
+            tp = IUFindText(tvp, "DRIVER_VERSION");
+            if (tp)
+            {
+                driverVersion = QString(tp->text);
+            }
         }
     }
     else if (!strcmp(prop->getName(), "SYSTEM_PORTS"))
@@ -229,9 +235,8 @@ void GenericDevice::processNumber(INumberVectorProperty *nvp)
         // Update KStars Location once we receive update from INDI, if the source is set to DEVICE
         dms lng, lat;
         double elev = 0;
-        INumber *np = nullptr;
 
-        np = IUFindNumber(nvp, "LONG");
+        INumber *np = IUFindNumber(nvp, "LONG");
         if (!np)
             return;
 
@@ -311,13 +316,12 @@ void GenericDevice::processText(ITextVectorProperty *tvp)
             ( (Options::useMountSource() && (getDriverInterface() & INDI::BaseDevice::TELESCOPE_INTERFACE)) ||
               (Options::useGPSSource() && (getDriverInterface() & INDI::BaseDevice::GPS_INTERFACE))))
     {
-        IText *tp = nullptr;
         int d, m, y, min, sec, hour;
         float utcOffset;
         QDate indiDate;
         QTime indiTime;
 
-        tp = IUFindText(tvp, "UTC");
+        IText *tp = IUFindText(tvp, "UTC");
 
         if (!tp)
         {
@@ -488,6 +492,15 @@ bool GenericDevice::setConfig(INDIConfig tConfig)
 
         case LOAD_DEFAULT_CONFIG:
             sp = IUFindSwitch(svp, "CONFIG_DEFAULT");
+            if (sp == nullptr)
+                return false;
+
+            IUResetSwitch(svp);
+            sp->s = ISS_ON;
+            break;
+
+        case PURGE_CONFIG:
+            sp = IUFindSwitch(svp, "CONFIG_PURGE");
             if (sp == nullptr)
                 return false;
 
@@ -739,7 +752,6 @@ bool GenericDevice::setProperty(QObject *setPropCommand)
 
             return true;
         }
-        break;
 
         case INDI_NUMBER:
         {
@@ -813,6 +825,200 @@ INDI::Property *GenericDevice::getProperty(const QString &propName)
     return nullptr;
 }
 
+bool GenericDevice::setJSONProperty(const QString &propName, const QJsonArray &propValue)
+{
+    for (auto &oneProp : properties)
+    {
+        if (propName == QString(oneProp->getName()))
+        {
+            switch (oneProp->getType())
+            {
+                case INDI_SWITCH:
+                {
+                    ISwitchVectorProperty *svp = oneProp->getSwitch();
+                    if (svp->r == ISR_1OFMANY || svp->r == ISR_ATMOST1)
+                        IUResetSwitch(svp);
+
+                    for (auto oneElement : propValue)
+                    {
+                        QJsonObject oneElementObject = oneElement.toObject();
+                        ISwitch *sp = IUFindSwitch(svp, oneElementObject["name"].toString().toLatin1().constData());
+                        if (sp)
+                        {
+                            sp->s = static_cast<ISState>(oneElementObject["state"].toInt());
+                        }
+                    }
+
+                    clientManager->sendNewSwitch(svp);
+                    return true;
+                }
+
+                case INDI_NUMBER:
+                {
+                    INumberVectorProperty *nvp = oneProp->getNumber();
+                    for (auto oneElement : propValue)
+                    {
+                        QJsonObject oneElementObject = oneElement.toObject();
+                        INumber *np = IUFindNumber(nvp, oneElementObject["name"].toString().toLatin1().constData());
+                        if (np)
+                            np->value = oneElementObject["value"].toDouble();
+                    }
+
+                    clientManager->sendNewNumber(nvp);
+                    return true;
+                }
+
+                case INDI_TEXT:
+                {
+                    ITextVectorProperty *tvp = oneProp->getText();
+                    for (auto oneElement : propValue)
+                    {
+                        QJsonObject oneElementObject = oneElement.toObject();
+                        IText *tp = IUFindText(tvp, oneElementObject["name"].toString().toLatin1().constData());
+                        if (tp)
+                            IUSaveText(tp, oneElementObject["text"].toString().toLatin1().constData());
+                    }
+
+                    clientManager->sendNewText(tvp);
+                    return true;
+                }
+
+                case INDI_BLOB:
+                    // TODO
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    return false;
+}
+
+QJsonObject GenericDevice::getJSONProperty(const QString &propName, bool compact)
+{
+    for (auto &oneProp : properties)
+    {
+        if (propName == QString(oneProp->getName()))
+        {
+            switch (oneProp->getType())
+            {
+                case INDI_SWITCH:
+                {
+                    ISwitchVectorProperty *svp = oneProp->getSwitch();
+                    QJsonArray switches;
+                    for (int i = 0; i < svp->nsp; i++)
+                    {
+                        QJsonObject oneSwitch = {{"name", svp->sp[i].name}, {"state", svp->sp[i].s}};
+                        if (!compact)
+                            oneSwitch.insert("label", svp->sp[i].label);
+                        switches.append(oneSwitch);
+                    }
+
+                    QJsonObject switchVector = {{"name", svp->name}, {"state", svp->s}, {"switches", switches}};
+                    if (!compact)
+                    {
+                        switchVector.insert("label", svp->label);
+                        switchVector.insert("group", svp->group);
+                        switchVector.insert("perm", svp->p);
+                        switchVector.insert("rule", svp->r);
+                    };
+
+                    return switchVector;
+                }
+
+                case INDI_NUMBER:
+                {
+                    INumberVectorProperty *nvp = oneProp->getNumber();
+                    QJsonArray numbers;
+                    for (int i = 0; i < nvp->nnp; i++)
+                    {
+                        QJsonObject oneNumber = {{"name", nvp->np[i].name}, {"value", nvp->np[i].value}};
+                        if (!compact)
+                        {
+                            oneNumber.insert("label", nvp->np[i].label);
+                            oneNumber.insert("min", nvp->np[i].min);
+                            oneNumber.insert("mix", nvp->np[i].max);
+                            oneNumber.insert("step", nvp->np[i].step);
+                        }
+                        numbers.append(oneNumber);
+                    }
+
+                    QJsonObject numberVector = {{"name", nvp->name}, {"state", nvp->s}, {"numbers", numbers}};
+                    if (!compact)
+                    {
+                        numberVector.insert("label", nvp->label);
+                        numberVector.insert("group", nvp->group);
+                        numberVector.insert("perm", nvp->p);
+                    };
+
+                    return numberVector;
+                }
+
+                case INDI_TEXT:
+                {
+                    ITextVectorProperty *tvp = oneProp->getText();
+                    QJsonArray Texts;
+                    for (int i = 0; i < tvp->ntp; i++)
+                    {
+                        QJsonObject oneText = {{"name", tvp->tp[i].name}, {"value", tvp->tp[i].text}};
+                        if (!compact)
+                        {
+                            oneText.insert("label", tvp->tp[i].label);
+                        }
+                        Texts.append(oneText);
+                    }
+
+                    QJsonObject TextVector = {{"name", tvp->name}, {"state", tvp->s}, {"texts", Texts}};
+                    if (!compact)
+                    {
+                        TextVector.insert("label", tvp->label);
+                        TextVector.insert("group", tvp->group);
+                        TextVector.insert("perm", tvp->p);
+                    };
+
+                    return TextVector;
+                }
+
+
+                case INDI_LIGHT:
+                {
+                    ILightVectorProperty *tvp = oneProp->getLight();
+                    QJsonArray Lights;
+                    for (int i = 0; i < tvp->nlp; i++)
+                    {
+                        QJsonObject oneLight = {{"name", tvp->lp[i].name}, {"state", tvp->lp[i].s}};
+                        if (!compact)
+                        {
+                            oneLight.insert("label", tvp->lp[i].label);
+                        }
+                        Lights.append(oneLight);
+                    }
+
+                    QJsonObject LightVector = {{"name", tvp->name}, {"state", tvp->s}, {"lights", Lights}};
+                    if (!compact)
+                    {
+                        LightVector.insert("label", tvp->label);
+                        LightVector.insert("group", tvp->group);
+                    };
+
+                    return LightVector;
+                }
+
+                case INDI_BLOB:
+                    // TODO
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    return QJsonObject();
+}
+
 void GenericDevice::resetWatchdog()
 {
     INumberVectorProperty *nvp = baseDevice->getNumber("WATCHDOG_HEARTBEAT");
@@ -822,9 +1028,11 @@ void GenericDevice::resetWatchdog()
         clientManager->sendNewNumber(nvp);
 }
 
-DeviceDecorator::DeviceDecorator(GDInterface *iPtr)
+DeviceDecorator::DeviceDecorator(GDInterface * iPtr)
 {
     interfacePtr = iPtr;
+    baseDevice    = interfacePtr->getBaseDevice();
+    clientManager = interfacePtr->getDriverInfo()->getClientManager();
 
     connect(iPtr, SIGNAL(Connected()), this, SIGNAL(Connected()));
     connect(iPtr, SIGNAL(Disconnected()), this, SIGNAL(Disconnected()));
@@ -836,9 +1044,6 @@ DeviceDecorator::DeviceDecorator(GDInterface *iPtr)
     connect(iPtr, SIGNAL(textUpdated(ITextVectorProperty*)), this, SIGNAL(textUpdated(ITextVectorProperty*)));
     connect(iPtr, SIGNAL(BLOBUpdated(IBLOB*)), this, SIGNAL(BLOBUpdated(IBLOB*)));
     connect(iPtr, SIGNAL(lightUpdated(ILightVectorProperty*)), this, SIGNAL(lightUpdated(ILightVectorProperty*)));
-
-    baseDevice    = interfacePtr->getBaseDevice();
-    clientManager = interfacePtr->getDriverInfo()->getClientManager();
 }
 
 DeviceDecorator::~DeviceDecorator()
@@ -851,32 +1056,32 @@ bool DeviceDecorator::runCommand(int command, void *ptr)
     return interfacePtr->runCommand(command, ptr);
 }
 
-bool DeviceDecorator::setProperty(QObject *setPropCommand)
+bool DeviceDecorator::setProperty(QObject * setPropCommand)
 {
     return interfacePtr->setProperty(setPropCommand);
 }
 
-void DeviceDecorator::processBLOB(IBLOB *bp)
+void DeviceDecorator::processBLOB(IBLOB * bp)
 {
     interfacePtr->processBLOB(bp);
 }
 
-void DeviceDecorator::processLight(ILightVectorProperty *lvp)
+void DeviceDecorator::processLight(ILightVectorProperty * lvp)
 {
     interfacePtr->processLight(lvp);
 }
 
-void DeviceDecorator::processNumber(INumberVectorProperty *nvp)
+void DeviceDecorator::processNumber(INumberVectorProperty * nvp)
 {
     interfacePtr->processNumber(nvp);
 }
 
-void DeviceDecorator::processSwitch(ISwitchVectorProperty *svp)
+void DeviceDecorator::processSwitch(ISwitchVectorProperty * svp)
 {
     interfacePtr->processSwitch(svp);
 }
 
-void DeviceDecorator::processText(ITextVectorProperty *tvp)
+void DeviceDecorator::processText(ITextVectorProperty * tvp)
 {
     interfacePtr->processText(tvp);
 }
@@ -886,12 +1091,12 @@ void DeviceDecorator::processMessage(int messageID)
     interfacePtr->processMessage(messageID);
 }
 
-void DeviceDecorator::registerProperty(INDI::Property *prop)
+void DeviceDecorator::registerProperty(INDI::Property * prop)
 {
     interfacePtr->registerProperty(prop);
 }
 
-void DeviceDecorator::removeProperty(INDI::Property *prop)
+void DeviceDecorator::removeProperty(INDI::Property * prop)
 {
     interfacePtr->removeProperty(prop);
 }
@@ -931,6 +1136,11 @@ uint32_t DeviceDecorator::getDriverInterface()
     return interfacePtr->getDriverInterface();
 }
 
+QString DeviceDecorator::getDriverVersion()
+{
+    return interfacePtr->getDriverVersion();
+}
+
 QList<INDI::Property *> DeviceDecorator::getProperties()
 {
     return interfacePtr->getProperties();
@@ -939,6 +1149,16 @@ QList<INDI::Property *> DeviceDecorator::getProperties()
 INDI::Property *DeviceDecorator::getProperty(const QString &propName)
 {
     return interfacePtr->getProperty(propName);
+}
+
+QJsonObject DeviceDecorator::getJSONProperty(const QString &propName, bool compact)
+{
+    return interfacePtr->getJSONProperty(propName, compact);
+}
+
+bool DeviceDecorator::setJSONProperty(const QString &propName, const QJsonArray &propValue)
+{
+    return interfacePtr->setJSONProperty(propName, propValue);
 }
 
 bool DeviceDecorator::isConnected()
@@ -956,8 +1176,8 @@ bool DeviceDecorator::Disconnect()
     return interfacePtr->Disconnect();
 }
 
-bool DeviceDecorator::getMinMaxStep(const QString &propName, const QString &elementName, double *min, double *max,
-                                    double *step)
+bool DeviceDecorator::getMinMaxStep(const QString &propName, const QString &elementName, double * min, double * max,
+                                    double * step)
 {
     return interfacePtr->getMinMaxStep(propName, elementName, min, max, step);
 }
@@ -972,7 +1192,7 @@ IPerm DeviceDecorator::getPermission(const QString &propName)
     return interfacePtr->getPermission(propName);
 }
 
-ST4::ST4(INDI::BaseDevice *bdv, ClientManager *cm)
+ST4::ST4(INDI::BaseDevice * bdv, ClientManager * cm)
 {
     baseDevice    = bdv;
     clientManager = cm;

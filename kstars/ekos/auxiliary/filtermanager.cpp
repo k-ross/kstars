@@ -14,6 +14,7 @@
 #include "kstars.h"
 #include "Options.h"
 #include "auxiliary/kspaths.h"
+#include "auxiliary/ksmessagebox.h"
 #include "ekos/auxiliary/filterdelegate.h"
 
 #include <QTimer>
@@ -93,6 +94,13 @@ void FilterManager::refreshFilterModel()
     //delete (filterModel);
 
     //filterModel = new QSqlTableModel(this, userdb);
+    if (!filterModel)
+    {
+        QSqlDatabase userdb = QSqlDatabase::cloneDatabase(KStarsData::Instance()->userdb()->GetDatabase(), "filter_db");
+        userdb.open();
+        filterModel = new QSqlTableModel(this, userdb);
+        filterView->setModel(filterModel);
+    }
     filterModel->setTable("filter");
     filterModel->setFilter(QString("vendor='%1'").arg(vendor));
     filterModel->select();
@@ -469,6 +477,9 @@ bool FilterManager::executeOperationQueue()
     {
         case FILTER_CHANGE:
         {
+            if (m_ConfirmationPending)
+                return true;
+
             state = FILTER_CHANGE;
             if (m_useTargetFilter)
                 targetFilterPosition = m_ActiveFilters.indexOf(targetFilter) + 1;
@@ -477,10 +488,29 @@ bool FilterManager::executeOperationQueue()
 
             if (m_FilterConfirmSet)
             {
-                if (KMessageBox::questionYesNo(KStars::Instance(),
-                                               i18n("Set filter to %1. Is filter set?", targetFilter->color()),
-                                               i18n("Confirm Filter")) == KMessageBox::Yes)
+                //                if (KMessageBox::questionYesNo(KStars::Instance(),
+                //                        i18n("Set filter to %1. Is filter set?", targetFilter->color()),
+                //                        i18n("Confirm Filter")) == KMessageBox::Yes)
+                //                    m_currentFilterDevice->runCommand(INDI_CONFIRM_FILTER);
+
+                connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this]()
+                {
+                    //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+                    KSMessageBox::Instance()->disconnect(this);
+                    m_ConfirmationPending = false;
                     m_currentFilterDevice->runCommand(INDI_CONFIRM_FILTER);
+                });
+                connect(KSMessageBox::Instance(), &KSMessageBox::rejected, this, [this]()
+                {
+                    //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+                    KSMessageBox::Instance()->disconnect(this);
+                    m_ConfirmationPending = false;
+                });
+
+                m_ConfirmationPending = true;
+
+                KSMessageBox::Instance()->questionYesNo(i18n("Set filter to %1. Is filter set?", targetFilter->color()),
+                                                        i18n("Confirm Filter"));
             }
         }
         break;
@@ -544,7 +574,9 @@ void FilterManager::setFocusOffsetComplete()
 
 double FilterManager::getFilterExposure(const QString &name) const
 {
-    if (m_currentFilterLabels.empty())
+    if (m_currentFilterLabels.empty() ||
+            m_currentFilterPosition < 1 ||
+            m_currentFilterPosition > m_currentFilterLabels.count())
         return 1;
 
     QString color = name;

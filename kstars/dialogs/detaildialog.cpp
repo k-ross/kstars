@@ -22,6 +22,7 @@
 #include "addlinkdialog.h"
 #include "kspaths.h"
 #include "kstars.h"
+#include "ksnotification.h"
 #include "kstarsdata.h"
 #include "ksutils.h"
 #include "observinglist.h"
@@ -180,16 +181,16 @@ void DetailDialog::createGeneralTab()
         case SkyObject::MOON:     //[fall through to planets]
         case SkyObject::PLANET:
         {
-            KSPlanetBase *ps = (KSPlanetBase *)selectedObject;
+            KSPlanetBase *ps = dynamic_cast<KSPlanetBase *>(selectedObject);
 
             Data->Names->setText(ps->longname());
 
             //Type is "G5 star" for Sun
-            if (ps->name() == "Sun")
+            if (ps->name() == i18n("Sun"))
             {
                 objecttyp = i18n("G5 star");
             }
-            else if (ps->name() == "Moon")
+            else if (ps->name() == i18n("Moon"))
             {
                 objecttyp = ps->translatedName();
             }
@@ -204,7 +205,7 @@ void DetailDialog::createGeneralTab()
             }
 
             //The moon displays illumination fraction and updateMag is called to calculate moon's current magnitude
-            if (selectedObject->name() == "Moon")
+            if (selectedObject->name() == i18n("Moon"))
             {
                 Data->IllumLabel->setVisible(true);
                 Data->Illumination->setVisible(true);
@@ -226,7 +227,7 @@ void DetailDialog::createGeneralTab()
             //}
 
             //Distance from Earth.  The moon requires a unit conversion
-            if (ps->name() == "Moon")
+            if (ps->name() == i18n("Moon"))
             {
                 Data->Distance->setText(
                     i18nc("distance in kilometers", "%1 km", QLocale().toString(ps->rearth() * AU_KM, 'f', 2)));
@@ -240,13 +241,13 @@ void DetailDialog::createGeneralTab()
             //Angular size; moon and sun in arcmin, others in arcsec
             if (ps->angSize())
             {
-                if (ps->name() == "Sun" || ps->name() == "Moon")
+                if (ps->name() == i18n("Sun") || ps->name() == i18n("Moon"))
                 {
                     Data->AngSize->setText(i18nc(
-                        "angular size in arcminutes", "%1 arcmin",
-                        QLocale().toString(
-                            ps->angSize(), 'f',
-                            1))); // Needn't be a plural form because sun / moon will never contract to 1 arcminute
+                                               "angular size in arcminutes", "%1 arcmin",
+                                               QLocale().toString(
+                                                   ps->angSize(), 'f',
+                                                   1))); // Needn't be a plural form because sun / moon will never contract to 1 arcminute
                 }
                 else
                 {
@@ -263,7 +264,7 @@ void DetailDialog::createGeneralTab()
         }
         case SkyObject::SUPERNOVA:
         {
-            Supernova *sup = (Supernova *)selectedObject;
+            Supernova *sup = dynamic_cast<Supernova *>(selectedObject);
 
             objecttyp = i18n("Supernova");
             Data->Names->setText(sup->name());
@@ -304,7 +305,7 @@ void DetailDialog::createGeneralTab()
         }
         default: //deep-sky objects
         {
-            DeepSkyObject *dso = (DeepSkyObject *)selectedObject;
+            DeepSkyObject *dso = dynamic_cast<DeepSkyObject *>(selectedObject);
 
             //Show all names recorded for the object
             QStringList nameList;
@@ -427,7 +428,7 @@ void DetailDialog::createGeneralTab()
                 DataComet->Rotation->setText(i18nc("Rotation period in hours", "%1 h", QString::number(ast->getRotationPeriod())));
             // Period
             if (ast->getPeriod() == 0.0)
-                 DataComet->Period->setText("--");
+                DataComet->Period->setText("--");
             else
                 DataComet->Period->setText(i18nc("Orbit period in years", "%1 y", QString::number(ast->getPeriod())));
             break;
@@ -476,7 +477,7 @@ void DetailDialog::createGeneralTab()
                 DataComet->Rotation->setText(i18nc("Rotation period in hours", "%1 h", QString::number(com->getRotationPeriod())));
             // Period
             if (com->getPeriod() == 0.0)
-                 DataComet->Period->setText("--");
+                DataComet->Period->setText("--");
             else
                 DataComet->Period->setText(i18nc("Orbit period in years", "%1 y", QString::number(com->getPeriod())));
             break;
@@ -648,15 +649,15 @@ void DetailDialog::createLinksTab()
     connect(Links->RemoveLinkButton, SIGNAL(clicked()), this, SLOT(removeLinkDialog()));
 
     // When an item is selected in info list, selected items are cleared image list.
-    connect(Links->InfoTitleList, SIGNAL(currentItemChanged(QListWidgetItem*,QListWidgetItem*)), this,
+    connect(Links->InfoTitleList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)), this,
             SLOT(setCurrentLink(QListWidgetItem*)));
-    connect(Links->InfoTitleList, SIGNAL(currentItemChanged(QListWidgetItem*,QListWidgetItem*)),
+    connect(Links->InfoTitleList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)),
             Links->ImageTitleList, SLOT(clearSelection()));
 
     // vice versa
-    connect(Links->ImageTitleList, SIGNAL(currentItemChanged(QListWidgetItem*,QListWidgetItem*)), this,
+    connect(Links->ImageTitleList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)), this,
             SLOT(setCurrentLink(QListWidgetItem*)));
-    connect(Links->ImageTitleList, SIGNAL(currentItemChanged(QListWidgetItem*,QListWidgetItem*)),
+    connect(Links->ImageTitleList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)),
             Links->InfoTitleList, SLOT(clearSelection()));
 
     connect(Links->InfoTitleList, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(viewLink()));
@@ -693,7 +694,7 @@ void DetailDialog::addLink()
             {
                 QString message =
                     i18n("Custom image-links file could not be opened.\nLink cannot be recorded for future sessions.");
-                KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+                KSNotification::sorry(message, i18n("Could Not Open File"));
                 delete adialog;
                 return;
             }
@@ -718,8 +719,8 @@ void DetailDialog::addLink()
             if (!file.open(QIODevice::ReadWrite | QIODevice::Append))
             {
                 QString message = i18n(
-                    "Custom information-links file could not be opened.\nLink cannot be recorded for future sessions.");
-                KMessageBox::sorry(nullptr, message, i18n("Could not Open File"));
+                                      "Custom information-links file could not be opened.\nLink cannot be recorded for future sessions.");
+                KSNotification::sorry(message, i18n("Could not Open File"));
                 delete adialog;
                 return;
             }
@@ -741,14 +742,14 @@ void DetailDialog::createAdvancedTab()
     // Don't create an adv tab for an unnamed star or if advinterface file failed loading
     // We also don't need adv dialog for solar system objects.
     if (selectedObject->name() == QString("star") || KStarsData::Instance()->avdTree().isEmpty() ||
-        selectedObject->type() == SkyObject::PLANET || selectedObject->type() == SkyObject::COMET ||
-        selectedObject->type() == SkyObject::ASTEROID)
+            selectedObject->type() == SkyObject::PLANET || selectedObject->type() == SkyObject::COMET ||
+            selectedObject->type() == SkyObject::ASTEROID)
         return;
 
     Adv = new DatabaseWidget(this);
     addPage(Adv, i18n("Advanced"));
 
-    connect(Adv->ADVTree, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)), this, SLOT(viewADVData()));
+    connect(Adv->ADVTree, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)), this, SLOT(viewADVData()));
 
     populateADVTree();
 }
@@ -1194,7 +1195,7 @@ void DetailDialog::centerTelescope()
 
     if (INDIListener::Instance()->size() == 0)
     {
-        KMessageBox::sorry(0, i18n("KStars did not find any active telescopes."));
+        KSNotification::sorry(i18n("KStars did not find any active telescopes."));
         return;
     }
 
@@ -1210,16 +1211,16 @@ void DetailDialog::centerTelescope()
 
         if (bd->isConnected() == false)
         {
-            KMessageBox::error(0,
-                               i18n("Telescope %1 is offline. Please connect and retry again.", gd->getDeviceName()));
+            KSNotification::error(
+                i18n("Telescope %1 is offline. Please connect and retry again.", gd->getDeviceName()));
             return;
         }
 
         // Display Sun warning on slew
-        if (selectedObject && selectedObject->name() == "Sun")
+        if (selectedObject && selectedObject->name() == i18n("Sun"))
         {
             if (KMessageBox::warningContinueCancel(nullptr, i18n("Danger! Viewing the Sun without adequate solar filters is dangerous and will result in permanent eye damage!"))
-                                               ==KMessageBox::Cancel)
+                    == KMessageBox::Cancel)
                 return;
         }
 
@@ -1231,7 +1232,7 @@ void DetailDialog::centerTelescope()
         return;
     }
 
-    KMessageBox::sorry(0, i18n("KStars did not find any active telescopes."));
+    KSNotification::sorry(i18n("KStars did not find any active telescopes."));
 
 #endif
 }
@@ -1283,7 +1284,7 @@ void DetailDialog::updateThumbnail()
             bool rc = Data->Image->pixmap()->save(fname, "PNG");
             if (rc == false)
             {
-                KMessageBox::error(nullptr, i18n("Unable to save image to %1", fname), i18n("Save Thumbnail"));
+                KSNotification::error(i18n("Unable to save image to %1", fname), i18n("Save Thumbnail"));
             }
             else
                 *Thumbnail = *(Data->Image->pixmap());

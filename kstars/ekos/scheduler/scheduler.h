@@ -372,6 +372,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
 
         void toggleScheduler();
         void pause();
+        void setPaused();
         void save();
         void saveAs();
         void load();
@@ -651,6 +652,10 @@ class Scheduler : public QWidget, public Ui::Scheduler
                                bool &hasAutoFocus);
         int getCompletedFiles(const QString &path, const QString &seqPrefix);
 
+        // retrieve the guiding status
+        GuideState getGuidingStatus();
+
+
         Ekos::Scheduler *ui { nullptr };
         //DBus interfaces
         QPointer<QDBusInterface> focusInterface { nullptr };
@@ -739,6 +744,8 @@ class Scheduler : public QWidget, public Ui::Scheduler
         QTimer schedulerTimer;
         /// To call checkJobStage
         QTimer jobTimer;
+        /// Delay for restarting the guider
+        QTimer restartGuidingTimer;
 
         /// Generic time to track timeout of current operation in progress
         QTime currentOperationTime;

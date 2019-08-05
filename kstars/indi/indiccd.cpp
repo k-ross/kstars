@@ -812,11 +812,20 @@ CCD::CCD(GDInterface *iPtr) : DeviceDecorator(iPtr)
     m_Media.reset(new WSMedia(this));
     connect(m_Media.get(), &WSMedia::newFile, this, &CCD::setWSBLOB);
 
-    connect(clientManager, &ClientManager::newBLOBManager, [&](const char *device, INDI::Property * prop)
-    {
-        if (!strcmp(device, getDeviceName()))
-            emit newBLOBManager(prop);
-    });
+    connect(clientManager, &ClientManager::newBLOBManager, this, &CCD::setBLOBManager, Qt::UniqueConnection);
+    m_LastNotificationTS = QDateTime::currentDateTime();
+}
+
+CCD::~CCD()
+{
+    if (m_ImageViewerWindow)
+        m_ImageViewerWindow->close();
+}
+
+void CCD::setBLOBManager(const char *device, INDI::Property *prop)
+{
+    if (!strcmp(device, getDeviceName()))
+        emit newBLOBManager(prop);
 }
 
 void CCD::registerProperty(INDI::Property *prop)
@@ -1381,8 +1390,12 @@ void CCD::processBLOB(IBLOB *bp)
         qCInfo(KSTARS_INDI) << shortFormat.toUpper() << "file saved to" << filename;
     }
 
-    // FIXME: Why is this leaking memory in Valgrind??!
-    KNotification::event(QLatin1String("FITSReceived"), i18n("Image file is received"));
+    // Don't spam, just one notification per 3 seconds
+    if (QDateTime::currentDateTime().secsTo(m_LastNotificationTS) <= -3)
+    {
+        KNotification::event(QLatin1String("FITSReceived"), i18n("Image file is received"));
+        m_LastNotificationTS = QDateTime::currentDateTime();
+    }
 
     // Check if we need to process RAW or regular image
     if (BType == BLOB_IMAGE || BType == BLOB_RAW)
@@ -1444,6 +1457,8 @@ void CCD::processBLOB(IBLOB *bp)
                 m_ImageViewerWindow = new ImageViewer(getDeviceName(), KStars::Instance());
 
             m_ImageViewerWindow->loadImage(filename);
+
+            emit previewJPEGGenerated(filename, m_ImageViewerWindow->metadata());
         }
     }
     // Unless we have cfitsio, we're done.

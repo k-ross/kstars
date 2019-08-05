@@ -31,9 +31,10 @@
 
 #include <ekos_scheduler_debug.h>
 
-#define BAD_SCORE               -1000
-#define MAX_FAILURE_ATTEMPTS    5
-#define UPDATE_PERIOD_MS        1000
+#define BAD_SCORE                -1000
+#define MAX_FAILURE_ATTEMPTS      5
+#define UPDATE_PERIOD_MS          1000
+#define RESTART_GUIDING_DELAY_MS  5000
 
 #define DEFAULT_CULMINATION_TIME    -60
 #define DEFAULT_MIN_ALTITUDE        15
@@ -86,6 +87,13 @@ Scheduler::Scheduler()
 
     connect(&schedulerTimer, &QTimer::timeout, this, &Scheduler::checkStatus);
     connect(&jobTimer, &QTimer::timeout, this, &Scheduler::checkJobStage);
+
+    restartGuidingTimer.setSingleShot(true);
+    restartGuidingTimer.setInterval(RESTART_GUIDING_DELAY_MS);
+    connect(&restartGuidingTimer, &QTimer::timeout, this, [this]()
+    {
+        startGuiding(true);
+    });
 
     pi = new QProgressIndicator(this);
     bottomLayout->addWidget(pi, 0, nullptr);
@@ -177,6 +185,7 @@ Scheduler::Scheduler()
     startB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     pauseB->setIcon(QIcon::fromTheme("media-playback-pause"));
     pauseB->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    pauseB->setCheckable(false);
 
     connect(startB, &QPushButton::clicked, this, &Scheduler::toggleScheduler);
     connect(pauseB, &QPushButton::clicked, this, &Scheduler::pause);
@@ -1165,6 +1174,7 @@ void Scheduler::stop()
 
     schedulerTimer.stop();
     jobTimer.stop();
+    restartGuidingTimer.stop();
 
     state     = SCHEDULER_IDLE;
     emit newStatus(state);
@@ -1276,6 +1286,7 @@ void Scheduler::start()
             startB->setIcon(QIcon::fromTheme("media-playback-stop"));
             startB->setToolTip(i18n("Stop Scheduler"));
             pauseB->setEnabled(true);
+            pauseB->setChecked(false);
 
             /* Disable edit-related buttons */
             queueLoadB->setEnabled(false);
@@ -1292,6 +1303,7 @@ void Scheduler::start()
             emit newStatus(state);
             schedulerTimer.start();
 
+            appendLogText(i18n("Scheduler started."));
             qCDebug(KSTARS_EKOS_SCHEDULER) << "Scheduler started.";
             break;
 
@@ -1299,14 +1311,19 @@ void Scheduler::start()
             /* Update UI to reflect resume */
             startB->setIcon(QIcon::fromTheme("media-playback-stop"));
             startB->setToolTip(i18n("Stop Scheduler"));
+            pauseB->setEnabled(true);
+            pauseB->setCheckable(false);
+            pauseB->setChecked(false);
 
             /* Edit-related buttons are still disabled */
 
             /* The end-user cannot update the schedule, don't re-evaluate jobs. Timer schedulerTimer is already running. */
             state = SCHEDULER_RUNNING;
             emit newStatus(state);
+            schedulerTimer.start();
 
-            qCDebug(KSTARS_EKOS_SCHEDULER) << "Scheduler paused.";
+            appendLogText(i18n("Scheduler resuming."));
+            qCDebug(KSTARS_EKOS_SCHEDULER) << "Scheduler resuming.";
             break;
 
         default:
@@ -1318,11 +1335,19 @@ void Scheduler::pause()
 {
     state = SCHEDULER_PAUSED;
     emit newStatus(state);
-    appendLogText(i18n("Scheduler paused."));
+    appendLogText(i18n("Scheduler pause planned..."));
     pauseB->setEnabled(false);
 
     startB->setIcon(QIcon::fromTheme("media-playback-start"));
     startB->setToolTip(i18n("Resume Scheduler"));
+}
+
+void Scheduler::setPaused()
+{
+    pauseB->setCheckable(true);
+    pauseB->setChecked(true);
+    schedulerTimer.stop();
+    appendLogText(i18n("Scheduler paused."));
 }
 
 void Scheduler::setCurrentJob(SchedulerJob *job)
@@ -1758,7 +1783,11 @@ void Scheduler::evaluateJobs()
                 if (dawnDateTime < currentJob->getStartupTime())
                 {
                     // Compute dusk time for the startup date of the job - no lead time on dusk
-                    QDateTime const duskDateTime(currentJob->getStartupTime().date(), QTime(0, 0).addSecs(Dusk * 24 * 3600));
+                    QDateTime duskDateTime(currentJob->getStartupTime().date(), QTime(0, 0).addSecs(Dusk * 24 * 3600));
+
+                    // Near summer solstice, dusk may happen before dawn on the same day, shift dusk by one day in that case
+                    if (duskDateTime < dawnDateTime)
+                        duskDateTime = duskDateTime.addDays(1);
 
                     // Check if the job starts before dusk
                     if (currentJob->getStartupTime() < duskDateTime)
@@ -2217,8 +2246,8 @@ void Scheduler::calculateDawnDusk()
     Dawn = ksal.getDawnAstronomicalTwilight();
     Dusk = ksal.getDuskAstronomicalTwilight();
 
-    QTime now  = KStarsData::Instance()->lt().time();
-    QTime dawn = QTime(0, 0, 0).addSecs(Dawn * 24 * 3600);
+    //QTime now  = KStarsData::Instance()->lt().time();
+    //QTime dawn = QTime(0, 0, 0).addSecs(Dawn * 24 * 3600);
     QTime dusk = QTime(0, 0, 0).addSecs(Dusk * 24 * 3600);
 
     duskDateTime.setDate(KStars::Instance()->data()->lt().date());
@@ -2267,6 +2296,10 @@ void Scheduler::executeJob(SchedulerJob *job)
     }
 
     updatePreDawn();
+
+    // Reset autofocus so that focus step is applied properly when checked
+    // When the focus step is not checked, the capture module will eventually run focus periodically
+    autofocusCompleted = false;
 
     qCInfo(KSTARS_EKOS_SCHEDULER) << "Executing Job " << currentJob->getName();
 
@@ -2929,7 +2962,26 @@ void Scheduler::checkProcessExit(int exitCode)
 bool Scheduler::checkStatus()
 {
     if (state == SCHEDULER_PAUSED)
-        return true;
+    {
+        if (currentJob == nullptr)
+        {
+            setPaused();
+            return false;
+        }
+        switch (currentJob->getState())
+        {
+            case  SchedulerJob::JOB_BUSY:
+                // do nothing
+                break;
+            case  SchedulerJob::JOB_COMPLETE:
+                // start finding next job before pausing
+                break;
+            default:
+                // in all other cases pause
+                setPaused();
+                break;
+        }
+    }
 
     // #1 If no current job selected, let's check if we need to shutdown or evaluate jobs
     if (currentJob == nullptr)
@@ -3026,8 +3078,12 @@ bool Scheduler::checkStatus()
         if (startupState > STARTUP_SCRIPT && startupState < STARTUP_ERROR && checkStartupState() == false)
             return false;
 
-        // #8 Execute the job
-        executeJob(currentJob);
+        // #8 Check it it already completed (should only happen starting a paused job)
+        //    Find the next job in this case, otherwise execute the current one
+        if (currentJob->getState() == SchedulerJob::JOB_COMPLETE)
+            findNextJob();
+        else
+            executeJob(currentJob);
     }
 
     return true;
@@ -3035,9 +3091,6 @@ bool Scheduler::checkStatus()
 
 void Scheduler::checkJobStage()
 {
-    if (state == SCHEDULER_PAUSED)
-        return;
-
     Q_ASSERT_X(currentJob, __FUNCTION__, "Actual current job is required to check job stage");
     if (!currentJob)
         return;
@@ -3235,8 +3288,7 @@ void Scheduler::checkJobStage()
             // Let's make sure guide module does not become unresponsive
             if (currentOperationTime.elapsed() > GUIDE_INACTIVITY_TIMEOUT)
             {
-                QVariant const status = guideInterface->property("status");
-                Ekos::GuideState guideStatus = static_cast<Ekos::GuideState>(status.toInt());
+                GuideState guideStatus = getGuidingStatus();
 
                 if (guideStatus == Ekos::GUIDE_IDLE || guideStatus == Ekos::GUIDE_CONNECTED || guideStatus == Ekos::GUIDE_DISCONNECTED)
                 {
@@ -3565,7 +3617,13 @@ void Scheduler::getNextAction()
                 else if (currentJob->getStepPipeline() & SchedulerJob::USE_ALIGN)
                     startAstrometry();
                 else if (currentJob->getStepPipeline() & SchedulerJob::USE_GUIDE)
-                    startGuiding();
+                    if (getGuidingStatus() == GUIDE_GUIDING)
+                    {
+                        appendLogText(i18n("Guiding already running, directly start capturing."));
+                        startCapture();
+                    }
+                    else
+                        startGuiding();
                 else
                     startCapture();
             }
@@ -3742,7 +3800,7 @@ void Scheduler::load()
     if (fileURL.isValid() == false)
     {
         QString message = i18n("Invalid URL: %1", fileURL.toLocalFile());
-        KMessageBox::sorry(nullptr, message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
         return;
     }
 
@@ -3764,7 +3822,7 @@ bool Scheduler::loadScheduler(const QString &fileURL)
     if (!sFile.open(QIODevice::ReadOnly))
     {
         QString message = i18n("Unable to open file %1", fileURL);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         state = old_state;
         return false;
     }
@@ -4051,7 +4109,7 @@ void Scheduler::save()
     {
         if ((saveScheduler(schedulerURL)) == false)
         {
-            KMessageBox::error(KStars::Instance(), i18n("Failed to save scheduler list"), i18n("Save"));
+            KSNotification::error(i18n("Failed to save scheduler list"), i18n("Save"));
             return;
         }
 
@@ -4060,7 +4118,7 @@ void Scheduler::save()
     else
     {
         QString message = i18n("Invalid URL: %1", schedulerURL.url());
-        KMessageBox::sorry(KStars::Instance(), message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
     }
 }
 
@@ -4072,7 +4130,7 @@ bool Scheduler::saveScheduler(const QUrl &fileURL)
     if (!file.open(QIODevice::WriteOnly))
     {
         QString message = i18n("Unable to write to file %1", fileURL.toLocalFile());
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return false;
     }
 
@@ -4308,6 +4366,13 @@ void Scheduler::startFocusing()
 
 void Scheduler::findNextJob()
 {
+    if (state == SCHEDULER_PAUSED)
+    {
+        // everything finished, we can pause
+        setPaused();
+        return;
+    }
+
     Q_ASSERT_X(currentJob->getState() == SchedulerJob::JOB_ERROR ||
                currentJob->getState() == SchedulerJob::JOB_ABORTED ||
                currentJob->getState() == SchedulerJob::JOB_COMPLETE,
@@ -4552,6 +4617,15 @@ void Scheduler::startAstrometry()
 
 void Scheduler::startGuiding(bool resetCalibration)
 {
+    // avoid starting the guider twice
+    if (resetCalibration == false && getGuidingStatus() == GUIDE_GUIDING)
+    {
+        appendLogText(i18n("Guiding already running for %1 ...", currentJob->getName()));
+        currentJob->setStage(SchedulerJob::STAGE_GUIDING);
+        currentOperationTime.restart();
+        return;
+    }
+
     // Connect Guider
     guideInterface->call(QDBus::AutoDetect, "connectGuider");
 
@@ -5896,8 +5970,8 @@ XMLEle *Scheduler::getSequenceJobRoot()
 
     if (!sFile.open(QIODevice::ReadOnly))
     {
-        KMessageBox::sorry(KStars::Instance(), i18n("Unable to open file %1", sFile.fileName()),
-                           i18n("Could Not Open File"));
+        KSNotification::sorry(i18n("Unable to open file %1", sFile.fileName()),
+                              i18n("Could Not Open File"));
         return nullptr;
     }
 
@@ -5926,8 +6000,8 @@ bool Scheduler::createJobSequence(XMLEle *root, const QString &prefix, const QSt
 
     if (!sFile.open(QIODevice::ReadOnly))
     {
-        KMessageBox::sorry(KStars::Instance(), i18n("Unable to open sequence file %1", sFile.fileName()),
-                           i18n("Could Not Open File"));
+        KSNotification::sorry(i18n("Unable to open sequence file %1", sFile.fileName()),
+                              i18n("Could Not Open File"));
         return false;
     }
 
@@ -5964,7 +6038,7 @@ bool Scheduler::createJobSequence(XMLEle *root, const QString &prefix, const QSt
     if (outputFile == nullptr)
     {
         QString message = i18n("Unable to write to file %1", filename);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return false;
     }
 
@@ -6198,7 +6272,7 @@ bool Scheduler::loadSequenceQueue(const QString &fileURL, SchedulerJob *schedJob
     if (!sFile.open(QIODevice::ReadOnly))
     {
         QString message = i18n("Unable to open sequence queue file '%1'", fileURL);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return false;
     }
 
@@ -6612,6 +6686,8 @@ void Scheduler::setGuideStatus(Ekos::GuideState status)
         {
             appendLogText(i18n("Job '%1' guiding is in progress.", currentJob->getName()));
             guideFailureCount = 0;
+            // if guiding recovered while we are waiting, abort the restart
+            restartGuidingTimer.stop();
 
             currentJob->setStage(SchedulerJob::STAGE_GUIDING_COMPLETE);
             getNextAction();
@@ -6623,6 +6699,13 @@ void Scheduler::setGuideStatus(Ekos::GuideState status)
                 appendLogText(i18n("Warning: job '%1' guiding failed.", currentJob->getName()));
             else
                 appendLogText(i18n("Warning: job '%1' calibration failed.", currentJob->getName()));
+
+            // if the timer for restarting the guiding is already running, we do nothing and
+            // wait for the action triggered by the timer. This way we avoid that a small guiding problem
+            // abort the scheduler job
+
+            if (restartGuidingTimer.isActive())
+                return;
 
             if (guideFailureCount++ < MAX_FAILURE_ATTEMPTS)
             {
@@ -6638,8 +6721,8 @@ void Scheduler::setGuideStatus(Ekos::GuideState status)
                 }
                 else
                 {
-                    appendLogText(i18n("Job '%1' is guiding, and is restarting its guiding procedure.", currentJob->getName()));
-                    startGuiding(true);
+                    appendLogText(i18n("Job '%1' is guiding, guiding procedure will be restarted in %2 seconds.", currentJob->getName(), (RESTART_GUIDING_DELAY_MS * guideFailureCount) / 1000));
+                    restartGuidingTimer.start(RESTART_GUIDING_DELAY_MS * guideFailureCount);
                 }
             }
             else
@@ -6653,9 +6736,17 @@ void Scheduler::setGuideStatus(Ekos::GuideState status)
     }
 }
 
+GuideState Scheduler::getGuidingStatus()
+{
+    QVariant guideStatus = guideInterface->property("status");
+    Ekos::GuideState gStatus = static_cast<Ekos::GuideState>(guideStatus.toInt());
+
+    return gStatus;
+}
+
 void Scheduler::setCaptureStatus(Ekos::CaptureState status)
 {
-    if (state == SCHEDULER_PAUSED || currentJob == nullptr)
+    if (currentJob == nullptr)
         return;
 
     qCDebug(KSTARS_EKOS_SCHEDULER) << "Capture State" << Ekos::getCaptureStatusString(status);
@@ -6680,8 +6771,7 @@ void Scheduler::setCaptureStatus(Ekos::CaptureState status)
                 if (currentJob->getStepPipeline() & SchedulerJob::USE_GUIDE)
                 {
                     // Check if it is guiding related.
-                    QVariant guideStatus = guideInterface->property("status");
-                    Ekos::GuideState gStatus = static_cast<Ekos::GuideState>(guideStatus.toInt());
+                    Ekos::GuideState gStatus = getGuidingStatus();
                     if (gStatus == Ekos::GUIDE_ABORTED ||
                             gStatus == Ekos::GUIDE_CALIBRATION_ERROR ||
                             gStatus == GUIDE_DITHERING_ERROR)
@@ -6912,7 +7002,8 @@ void Scheduler::setWeatherStatus(ISD::Weather::Status status)
         emit weatherChanged(weatherStatus);
     }
 
-    if (weatherStatus == ISD::Weather::WEATHER_ALERT)
+    // Shutdown scheduler if it was started and not already in shutdown
+    if (weatherStatus == ISD::Weather::WEATHER_ALERT && state != Ekos::SCHEDULER_IDLE && state != Ekos::SCHEDULER_SHUTDOWN)
     {
         appendLogText(i18n("Starting shutdown procedure due to severe weather."));
         if (currentJob)

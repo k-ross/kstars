@@ -26,18 +26,28 @@ class Dome : public DeviceDecorator
 {
         Q_OBJECT
 
-    public:
-        explicit Dome(GDInterface *iPtr);
-        typedef enum
-        {
-            DOME_IDLE,
-            DOME_MOVING,
-            DOME_TRACKING,
-            DOME_PARKING,
-            DOME_UNPARKING,
-            DOME_PARKED,
-            DOME_ERROR
-        } Status;
+public:
+    explicit Dome(GDInterface *iPtr);
+    typedef enum
+    {
+        DOME_IDLE,
+        DOME_MOVING,
+        DOME_TRACKING,
+        DOME_PARKING,
+        DOME_UNPARKING,
+        DOME_PARKED,
+        DOME_ERROR
+    } Status;
+
+    typedef enum
+    {
+        SHUTTER_UNKNOWN,
+        SHUTTER_OPEN,
+        SHUTTER_CLOSED,
+        SHUTTER_OPENING,
+        SHUTTER_CLOSING,
+        SHUTTER_ERROR
+    } ShutterStatus;
 
         void processSwitch(ISwitchVectorProperty *svp) override;
         void processText(ITextVectorProperty *tvp) override;
@@ -58,6 +68,10 @@ class Dome : public DeviceDecorator
         {
             return m_CanAbsMove;
         }
+        bool canRelMove() const
+        {
+            return m_CanRelMove;
+        }
         bool canAbort() const
         {
             return m_CanAbort;
@@ -70,6 +84,17 @@ class Dome : public DeviceDecorator
 
         double azimuthPosition() const;
         bool setAzimuthPosition(double position);
+        bool setRelativePosition(double position);
+
+
+        bool hasShutter() const
+        {
+            return m_HasShutter;
+        }
+
+        // slaving
+        bool isAutoSync();
+        bool setAutoSync(bool activate);
 
         Status status() const
         {
@@ -77,23 +102,32 @@ class Dome : public DeviceDecorator
         }
         static const QString getStatusString (Status status);
 
-    public slots:
+        ShutterStatus shutterStatus();
+        ShutterStatus shutterStatus(ISwitchVectorProperty *svp);
+
+public slots:
         bool Abort();
         bool Park();
         bool UnPark();
+        bool ControlShutter(bool open);
 
     signals:
         void newStatus(Status status);
         void newParkStatus(ParkStatus status);
+        void newShutterStatus(ShutterStatus status);
+        void newAutoSyncStatus(bool enabled);
         void azimuthPositionChanged(double Az);
         void ready();
 
     private:
         ParkStatus m_ParkStatus { PARK_UNKNOWN };
+        ShutterStatus m_ShutterStatus { SHUTTER_UNKNOWN };
         Status m_Status { DOME_IDLE };
         bool m_CanAbsMove { false };
+        bool m_CanRelMove { false };
         bool m_CanPark { false };
         bool m_CanAbort { false };
+        bool m_HasShutter { false };
         std::unique_ptr<QTimer> readyTimer;
 };
 }

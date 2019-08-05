@@ -14,6 +14,7 @@
 #include "kstarsdata.h"
 #include "Options.h"
 #include "auxiliary/kspaths.h"
+#include "auxiliary/ksmessagebox.h"
 #include "ekos/manager.h"
 #include "ekos/auxiliary/darklibrary.h"
 #include "fitsviewer/fitsdata.h"
@@ -519,6 +520,8 @@ void Focus::getAbsFocusPosition()
         maxTravelIN->setMaximum(absMove->np[0].max);
 
         absTicksLabel->setText(QString::number(static_cast<int>(currentPosition)));
+
+        stepIN->setMaximum(absMove->np[0].max / 2);
         //absTicksSpin->setValue(currentPosition);
     }
 }
@@ -942,7 +945,15 @@ void Focus::newFITS(IBLOB *bp)
         uint16_t offsetX     = settings["x"].toInt() / settings["binx"].toInt();
         uint16_t offsetY     = settings["y"].toInt() / settings["biny"].toInt();
 
-        connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, &Ekos::Focus::setCaptureComplete);
+        connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, [&](bool completed)
+        {
+            DarkLibrary::Instance()->disconnect(this);
+            darkFrameCheck->setChecked(completed);
+            if (completed)
+                setCaptureComplete();
+            else
+                abort();
+        });
         connect(DarkLibrary::Instance(), &DarkLibrary::newLog, this, &Ekos::Focus::appendLogText);
 
         targetChip->setCaptureFilter(defaultScale);
@@ -951,9 +962,7 @@ void Focus::newFITS(IBLOB *bp)
             DarkLibrary::Instance()->subtract(darkData, focusView, defaultScale, offsetX, offsetY);
         else
         {
-            bool rc = DarkLibrary::Instance()->captureAndSubtract(targetChip, focusView, exposureIN->value(), offsetX,
-                      offsetY);
-            darkFrameCheck->setChecked(rc);
+            DarkLibrary::Instance()->captureAndSubtract(targetChip, focusView, exposureIN->value(), offsetX, offsetY);
         }
 
         return;
@@ -1288,6 +1297,12 @@ void Focus::setCaptureComplete()
                 return;
             }
 
+            // set the tracking box on maxStar
+            starCenter.setX(maxStar->x);
+            starCenter.setY(maxStar->y);
+            starCenter.setZ(subBinX);
+            syncTrackingBoxPosition();
+
             // Do we need to subframe?
             if (subFramed == false && useSubFrame->isEnabled() && useSubFrame->isChecked())
             {
@@ -1350,7 +1365,6 @@ void Focus::setCaptureComplete()
                     capture();
             }
 
-            syncTrackingBoxPosition();
             defaultScale = static_cast<FITSScale>(filterCombo->currentIndex());
             return;
         }
@@ -2700,6 +2714,12 @@ void Focus::setMountStatus(ISD::Telescope::Status newState)
             captureB->setEnabled(false);
             startFocusB->setEnabled(false);
             startLoopB->setEnabled(false);
+
+            // If mount is moved while we have a star selected and subframed
+            // let us reset the frame.
+            if (subFramed)
+                resetFrame();
+
             break;
 
         default:
@@ -2774,7 +2794,7 @@ void Focus::removeDevice(ISD::GDInterface *deviceRemoved)
     {
         if (focuser == deviceRemoved)
         {
-            Focusers.removeOne(dynamic_cast<ISD::Focuser*>(focuser));
+            Focusers.removeAll(dynamic_cast<ISD::Focuser*>(focuser));
             focuserCombo->removeItem(focuserCombo->findText(focuser->getDeviceName()));
             checkFocuser();
             resetButtons();
@@ -2787,11 +2807,11 @@ void Focus::removeDevice(ISD::GDInterface *deviceRemoved)
     {
         if (ccd == deviceRemoved)
         {
-            CCDs.removeOne(dynamic_cast<ISD::CCD*>(ccd));
+            CCDs.removeAll(dynamic_cast<ISD::CCD*>(ccd));
             CCDCaptureCombo->removeItem(CCDCaptureCombo->findText(ccd->getDeviceName()));
+            CCDCaptureCombo->removeItem(CCDCaptureCombo->findText(ccd->getDeviceName() + QString(" Guider")));
             checkCCD();
             resetButtons();
-            return;
         }
     }
 
@@ -2800,11 +2820,12 @@ void Focus::removeDevice(ISD::GDInterface *deviceRemoved)
     {
         if (filter == deviceRemoved)
         {
-            Filters.removeOne(filter);
+            Filters.removeAll(filter);
             filterCombo->removeItem(filterCombo->findText(filter->getDeviceName()));
+            if (Filters.empty())
+                currentFilter = nullptr;
             checkFilter();
             resetButtons();
-            return;
         }
     }
 }
@@ -2890,14 +2911,21 @@ void Focus::toggleVideo(bool enabled)
     if (currentCCD->isBLOBEnabled() == false)
     {
 
-        if (Options::guiderType() != Ekos::Guide::GUIDE_INTERNAL || KMessageBox::questionYesNo(nullptr, i18n("Image transfer is disabled for this camera. Would you like to enable it?")) ==
-                KMessageBox::Yes)
+        if (Options::guiderType() != Ekos::Guide::GUIDE_INTERNAL)
             currentCCD->setBLOBEnabled(true);
         else
-            return;
+        {
+            connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this, enabled]()
+            {
+                //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+                KSMessageBox::Instance()->disconnect(this);
+                currentCCD->setVideoStreamEnabled(enabled);
+            });
+            KSMessageBox::Instance()->questionYesNo(i18n("Image transfer is disabled for this camera. Would you like to enable it?"));
+        }
     }
-
-    currentCCD->setVideoStreamEnabled(enabled);
+    else
+        currentCCD->setVideoStreamEnabled(enabled);
 }
 
 void Focus::setVideoStreamEnabled(bool enabled)

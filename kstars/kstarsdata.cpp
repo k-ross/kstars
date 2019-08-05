@@ -22,6 +22,7 @@
 #include "auxiliary/kspaths.h"
 #include "skycomponents/supernovaecomponent.h"
 #include "skycomponents/skymapcomposite.h"
+#include "ksnotification.h"
 #ifndef KSTARS_LITE
 #include "fov.h"
 #include "imageexporter.h"
@@ -48,17 +49,14 @@ namespace
 // Calls QApplication::exit
 void fatalErrorMessage(QString fname)
 {
-#ifndef KSTARS_LITE
+    KSNotification::sorry(i18n("The file  %1 could not be found. "
+                               "KStars cannot run properly without this file. "
+                               "KStars searches for this file in following locations:\n\n\t"
+                               "%2\n\n"
+                               "It appears that your setup is broken.",
+                               fname, QStandardPaths::standardLocations(QStandardPaths::DataLocation).join("\n\t")),
+                          i18n("Critical File Not Found: %1", fname)); // FIXME: Must list locations depending on file type
 
-    KMessageBox::sorry(nullptr,
-                       i18n("The file  %1 could not be found. "
-                            "KStars cannot run properly without this file. "
-                            "KStars searches for this file in following locations:\n\n\t"
-                            "%2\n\n"
-                            "It appears that your setup is broken.",
-                            fname, QStandardPaths::standardLocations(QStandardPaths::DataLocation).join("\n\t")),
-                       i18n("Critical File Not Found: %1", fname)); // FIXME: Must list locations depending on file type
-#endif
     qDebug() << i18n("Critical File Not Found: %1", fname);
     qApp->exit(1);
 }
@@ -66,13 +64,13 @@ void fatalErrorMessage(QString fname)
 // Report non-fatal error during data loading to user and ask
 // whether he wants to continue.
 // Calls QApplication::exit if he don't
-#if 1
 bool nonFatalErrorMessage(QString fname)
 {
 #ifdef KSTARS_LITE
-    Q_UNUSED(fname)
+    Q_UNUSED(fname);
+    return true;
 #else
-    int res = KMessageBox::warningContinueCancel(0,
+    int res = KMessageBox::warningContinueCancel(nullptr,
               i18n("The file %1 could not be found. "
                    "KStars can still run without this file. "
                    "KStars search for this file in following locations:\n\n\t"
@@ -84,9 +82,7 @@ bool nonFatalErrorMessage(QString fname)
         qApp->exit(1);
     return res == KMessageBox::Continue;
 #endif
-    return true;
 }
-#endif
 }
 
 KStarsData *KStarsData::pinstance = nullptr;
@@ -725,12 +721,12 @@ bool KStarsData::readURLData(const QString &urlfile, int type, bool deepOnly)
             QString title = sub.left(idx);
             QString url   = sub.mid(idx + 1);
             // Dirty hack to fix things up for planets
-            SkyObject *o;
-            if (name == "Mercury" || name == "Venus" || name == "Mars" || name == "Jupiter" || name == "Saturn" ||
-                    name == "Uranus" || name == "Neptune" /* || name == "Pluto" */)
-                o = skyComposite()->findByName(i18n(name.toLocal8Bit().data()));
-            else
-                o = skyComposite()->findByName(name);
+
+            //            if (name == "Mercury" || name == "Venus" || name == "Mars" || name == "Jupiter" || name == "Saturn" ||
+            //                    name == "Uranus" || name == "Neptune" /* || name == "Pluto" */)
+            //                o = skyComposite()->findByName(i18n(name.toLocal8Bit().data()));
+            //            else
+            SkyObject *o = skyComposite()->findByName(name);
 
             if (!o)
             {

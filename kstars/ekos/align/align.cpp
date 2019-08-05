@@ -28,6 +28,7 @@
 #include "skymapcomposite.h"
 #include "starobject.h"
 #include "auxiliary/QProgressIndicator.h"
+#include "auxiliary/ksmessagebox.h"
 #include "dialogs/finddialog.h"
 #include "ekos/manager.h"
 #include "ekos/auxiliary/darklibrary.h"
@@ -717,7 +718,7 @@ void Align::slotWizardAlignmentPoints()
         {
             if (decAngle < lat - 90 + minAlt) //Min altitude possible at minAlt deg above horizon
             {
-                KMessageBox::sorry(nullptr, i18n("DEC is below the altitude limit"));
+                KSNotification::sorry(i18n("DEC is below the altitude limit"));
                 return;
             }
         }
@@ -725,7 +726,7 @@ void Align::slotWizardAlignmentPoints()
         {
             if (decAngle > lat + 90 - minAlt) //Max altitude possible at minAlt deg above horizon
             {
-                KMessageBox::sorry(nullptr, i18n("DEC is below the altitude limit"));
+                KSNotification::sorry(i18n("DEC is below the altitude limit"));
                 return;
             }
         }
@@ -804,7 +805,7 @@ void Align::slotWizardAlignmentPoints()
 
         if (raIncrement == -1 || decIncrement == -1)
         {
-            KMessageBox::sorry(nullptr, i18n("Point calculation error."));
+            KSNotification::sorry(i18n("Point calculation error."));
             return;
         }
 
@@ -1151,7 +1152,7 @@ void Align::slotLoadAlignmentPoints()
     if (fileURL.isValid() == false)
     {
         QString message = i18n("Invalid URL: %1", fileURL.toLocalFile());
-        KMessageBox::sorry(nullptr, message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
         return;
     }
 
@@ -1170,7 +1171,7 @@ bool Align::loadAlignmentPoints(const QString &fileURL)
     if (!sFile.open(QIODevice::ReadOnly))
     {
         QString message = i18n("Unable to open file %1", fileURL);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return false;
     }
 
@@ -1290,14 +1291,14 @@ void Align::slotSaveAlignmentPoints()
     {
         if ((saveAlignmentPoints(alignURL.toLocalFile())) == false)
         {
-            KMessageBox::error(KStars::Instance(), i18n("Failed to save alignment list"), i18n("Save"));
+            KSNotification::error(i18n("Failed to save alignment list"), i18n("Save"));
             return;
         }
     }
     else
     {
         QString message = i18n("Invalid URL: %1", alignURL.url());
-        KMessageBox::sorry(KStars::Instance(), message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
     }
 }
 
@@ -1308,7 +1309,7 @@ bool Align::saveAlignmentPoints(const QString &path)
     if (!file.open(QIODevice::WriteOnly))
     {
         QString message = i18n("Unable to write to file %1", path);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return false;
     }
 
@@ -1455,7 +1456,7 @@ void Align::exportSolutionPoints()
     if (!exportFile.isValid())
     {
         QString message = i18n("Invalid URL: %1", exportFile.url());
-        KMessageBox::sorry(KStars::Instance(), message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
         return;
     }
 
@@ -1464,7 +1465,7 @@ void Align::exportSolutionPoints()
     if (!file.open(QIODevice::WriteOnly))
     {
         QString message = i18n("Unable to write to file %1", path);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return;
     }
 
@@ -1485,7 +1486,7 @@ void Align::exportSolutionPoints()
 
         if (!raCell || !deCell || !objNameCell || !raErrorCell || !deErrorCell)
         {
-            KMessageBox::sorry(nullptr, i18n("Error in table structure."));
+            KSNotification::sorry(i18n("Error in table structure."));
             return;
         }
         dms raDMS = dms::fromString(raCell->text(), false);
@@ -1503,17 +1504,34 @@ void Align::slotClearAllSolutionPoints()
     if (solutionTable->rowCount() == 0)
         return;
 
-    if (KMessageBox::questionYesNo(
-                KStars::Instance(), i18n("Are you sure you want to clear all of the solution points?"),
-                i18n("Clear Solution Points"), KStandardGuiItem::yes(), KStandardGuiItem::no()) == KMessageBox::Yes)
+    //    if (Options::autonomousMode() || KMessageBox::questionYesNo(
+    //                KStars::Instance(), i18n("Are you sure you want to clear all of the solution points?"),
+    //                i18n("Clear Solution Points"), KStandardGuiItem::yes(), KStandardGuiItem::no()) == KMessageBox::Yes)
+    //    {
+    //        solutionTable->setRowCount(0);
+    //        alignPlot->graph(0)->data()->clear();
+    //        alignPlot->clearItems();
+    //        buildTarget();
+
+    //        slotAutoScaleGraph();
+    //    }
+
+    connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this]()
     {
+        //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+        KSMessageBox::Instance()->disconnect(this);
+
         solutionTable->setRowCount(0);
         alignPlot->graph(0)->data()->clear();
         alignPlot->clearItems();
         buildTarget();
 
         slotAutoScaleGraph();
-    }
+
+    });
+
+    KSMessageBox::Instance()->questionYesNo(i18n("Are you sure you want to clear all of the solution points?"),
+                                            i18n("Clear Solution Points"), 60);
 }
 
 void Align::slotClearAllAlignPoints()
@@ -1704,7 +1722,7 @@ void Align::startStopAlignmentProcedure()
         {
             if (alignmentPointsAreBad())
             {
-                KMessageBox::error(nullptr, i18n("Please Check the Alignment Points."));
+                KSNotification::error(i18n("Please Check the Alignment Points."));
                 return;
             }
             if (currentGotoMode == GOTO_NOTHING)
@@ -2003,6 +2021,45 @@ void Align::setDome(ISD::GDInterface *newDome)
 {
     currentDome = static_cast<ISD::Dome *>(newDome);
     connect(currentDome, &ISD::GDInterface::switchUpdated, this, &Ekos::Align::processSwitch, Qt::UniqueConnection);
+}
+
+void Align::removeDevice(ISD::GDInterface *device)
+{
+    device->disconnect(this);
+    if (device == currentTelescope)
+    {
+        currentTelescope = nullptr;
+        m_isRateSynced = false;
+    }
+    else if (device == currentDome)
+    {
+        currentDome = nullptr;
+    }
+    else if (device == currentRotator)
+    {
+        currentRotator = nullptr;
+    }
+
+    if (CCDs.contains(static_cast<ISD::CCD *>(device)))
+    {
+        CCDs.removeAll(static_cast<ISD::CCD *>(device));
+        CCDCaptureCombo->removeItem(CCDCaptureCombo->findText(device->getDeviceName()));
+        CCDCaptureCombo->removeItem(CCDCaptureCombo->findText(device->getDeviceName() + QString(" Guider")));
+        if (CCDs.empty())
+            currentCCD = nullptr;
+        checkCCD();
+    }
+
+    if (Filters.contains(static_cast<ISD::Filter *>(device)))
+    {
+        Filters.removeAll(static_cast<ISD::Filter *>(device));
+        filterManager->removeDevice(device);
+        FilterDevicesCombo->removeItem(FilterDevicesCombo->findText(device->getDeviceName()));
+        if (Filters.empty())
+            currentFilter = nullptr;
+        checkFilter();
+    }
+
 }
 
 bool Align::syncTelescopeInfo()
@@ -2418,7 +2475,16 @@ void Align::generateArgs()
         optionsMap["nofits2fits"] = true;
 
     if (Options::astrometryUseDownsample())
-        optionsMap["downsample"] = Options::astrometryDownsample();
+    {
+        if (Options::astrometryAutoDownsample() && ccd_width && ccd_height)
+        {
+            uint8_t bin = qMax(Options::solverBinningIndex() + 1, 1u);
+            uint16_t w = ccd_width / bin;
+            optionsMap["downsample"] = getSolverDownsample(w);
+        }
+        else
+            optionsMap["downsample"] = Options::astrometryDownsample();
+    }
 
     if (Options::astrometryUseImageScale() && fov_x > 0 && fov_y > 0)
     {
@@ -2479,6 +2545,20 @@ bool Align::captureAndSolve()
     m_AlignTimer.stop();
     m_CaptureTimer.stop();
 
+#ifdef Q_OS_OSX
+    if(solverTypeGroup->checkedId() == SOLVER_OFFLINE)
+    {
+        if(Options::useDefaultPython())
+        {
+            if( !opsAlign->astropyInstalled() || !opsAlign->pythonInstalled() )
+            {
+                KSNotification::error(i18n("Astrometry.net uses python3 and the astropy package for plate solving images offline. These were not detected on your system.  Please go into the Align Options and either click the setup button to install them or uncheck the default button and enter the path to python3 on your system and manually install astropy."));
+                return false;
+            }
+        }
+    }
+#endif
+
     if (currentCCD == nullptr)
         return false;
 
@@ -2507,15 +2587,13 @@ bool Align::captureAndSolve()
 
     if (focal_length == -1 || aperture == -1)
     {
-        KMessageBox::error(
-            nullptr,
-            i18n("Telescope aperture and focal length are missing. Please check your driver settings and try again."));
+        KSNotification::error(i18n("Telescope aperture and focal length are missing. Please check your driver settings and try again."));
         return false;
     }
 
     if (ccd_hor_pixel == -1 || ccd_ver_pixel == -1)
     {
-        KMessageBox::error(nullptr, i18n("CCD pixel size is missing. Please check your driver settings and try again."));
+        KSNotification::error(i18n("CCD pixel size is missing. Please check your driver settings and try again."));
         return false;
     }
 
@@ -2765,16 +2843,22 @@ void Align::newFITS(IBLOB *bp)
                 uint16_t offsetY = y / biny;
                 FITSData *darkData = DarkLibrary::Instance()->getDarkFrame(targetChip, exposureIN->value());
 
-                connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, &Ekos::Align::setCaptureComplete);
+                connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, [&](bool completed)
+                {
+                    DarkLibrary::Instance()->disconnect(this);
+                    alignDarkFrameCheck->setChecked(completed);
+                    if (completed)
+                        setCaptureComplete();
+                    else
+                        abort();
+                });
                 connect(DarkLibrary::Instance(), &DarkLibrary::newLog, this, &Ekos::Align::appendLogText);
 
                 if (darkData)
                     DarkLibrary::Instance()->subtract(darkData, alignView, FITS_NONE, offsetX, offsetY);
                 else
                 {
-                    bool rc = DarkLibrary::Instance()->captureAndSubtract(targetChip, alignView, exposureIN->value(),
-                              offsetX, offsetY);
-                    alignDarkFrameCheck->setChecked(rc);
+                    DarkLibrary::Instance()->captureAndSubtract(targetChip, alignView, exposureIN->value(), offsetX, offsetY);
                 }
 
                 return;
@@ -2859,11 +2943,13 @@ void Align::startSolving(const QString &filename, bool isGenerated)
         KGuiItem existingItem(i18n("Use existing settings"), QString(),
                               i18n("Mount must be pointing close to the target location and current field of view must "
                                    "match the image's field of view."));
+
         int rc = KMessageBox::questionYesNoCancel(nullptr,
                  i18n("No metadata is available in this image. Do you want to use the "
                       "blind solver or the existing solver settings?"),
                  i18n("Astrometry solver"), blindItem, existingItem,
                  KStandardGuiItem::cancel(), "blind_solver_or_existing_solver_option");
+
         if (rc == KMessageBox::Yes)
         {
             QVariantMap optionsMap;
@@ -3464,10 +3550,17 @@ void Align::processNumber(INumberVectorProperty *nvp)
 
         switch (nvp->s)
         {
+            // Idle --> Mount not tracking or slewing
+            case IPS_IDLE:
+                m_wasSlewStarted = false;
+                break;
+
+            // Ok --> Mount Tracking. If m_wasSlewStarted is true
+            // then it just finished slewing
             case IPS_OK:
             {
                 // Update the boxes as the mount just finished slewing
-                if (isSlewDirty && Options::astrometryAutoUpdatePosition())
+                if (m_wasSlewStarted && Options::astrometryAutoUpdatePosition())
                 {
                     opsAstrometry->estRA->setText(ra_dms);
                     opsAstrometry->estDec->setText(dec_dms);
@@ -3485,9 +3578,10 @@ void Align::processNumber(INumberVectorProperty *nvp)
                     return;
                 }
 
-                if (isSlewDirty && pahStage == PAH_FIND_CP)
+                // If we are looking for celestial pole
+                if (m_wasSlewStarted && pahStage == PAH_FIND_CP)
                 {
-                    isSlewDirty = false;
+                    m_wasSlewStarted = false;
                     appendLogText(i18n("Mount completed slewing near celestial pole. Capture again to verify."));
                     setSolverAction(GOTO_NOTHING);
                     pahStage = PAH_FIRST_CAPTURE;
@@ -3495,9 +3589,9 @@ void Align::processNumber(INumberVectorProperty *nvp)
                     return;
                 }
 
-                //            if (isSlewDirty && pahStage == PAH_FIRST_ROTATE)
+                //            if (m_wasSlewStarted && pahStage == PAH_FIRST_ROTATE)
                 //            {
-                //                isSlewDirty = false;
+                //                m_wasSlewStarted = false;
 
                 //                appendLogText(i18n("Mount first rotation is complete."));
 
@@ -3513,9 +3607,9 @@ void Align::processNumber(INumberVectorProperty *nvp)
                 //                QTimer::singleShot(delaySpin->value(), this, &Ekos::Align::captureAndSolve);
                 //                return;
                 //            }
-                //            else if (isSlewDirty && pahStage == PAH_SECOND_ROTATE)
+                //            else if (m_wasSlewStarted && pahStage == PAH_SECOND_ROTATE)
                 //            {
-                //                isSlewDirty = false;
+                //                m_wasSlewStarted = false;
 
                 //                appendLogText(i18n("Mount second rotation is complete."));
 
@@ -3539,7 +3633,7 @@ void Align::processNumber(INumberVectorProperty *nvp)
 
                     case ALIGN_SYNCING:
                     {
-                        isSlewDirty = false;
+                        m_wasSlewStarted = false;
                         if (currentGotoMode == GOTO_SLEW)
                         {
                             Slew();
@@ -3561,10 +3655,11 @@ void Align::processNumber(INumberVectorProperty *nvp)
                     break;
 
                     case ALIGN_SLEWING:
-                        if (isSlewDirty == false)
+                        // If mount has not started slewing yet, then skip
+                        if (m_wasSlewStarted == false)
                             break;
 
-                        isSlewDirty = false;
+                        m_wasSlewStarted = false;
                         if (loadSlewState == IPS_BUSY)
                         {
                             loadSlewState = IPS_IDLE;
@@ -3611,21 +3706,25 @@ void Align::processNumber(INumberVectorProperty *nvp)
 
                     default:
                     {
-                        isSlewDirty = false;
+                        m_wasSlewStarted = false;
                     }
                     break;
                 }
             }
             break;
 
+            // Busy --> Mount Slewing or Moving (NSWE buttons)
             case IPS_BUSY:
             {
-                isSlewDirty = true;
+                m_wasSlewStarted = true;
             }
             break;
 
+            // Alert --> Mount has problem moving or communicating.
             case IPS_ALERT:
             {
+                m_wasSlewStarted = false;
+
                 if (state == ALIGN_SYNCING || state == ALIGN_SLEWING)
                 {
                     if (state == ALIGN_SYNCING)
@@ -3837,7 +3936,7 @@ void Align::Slew()
     state = ALIGN_SLEWING;
     emit newStatus(state);
 
-    isSlewDirty = currentTelescope->Slew(&targetCoord);
+    m_wasSlewStarted = currentTelescope->Slew(&targetCoord);
 
     appendLogText(i18n("Slewing to target coordinates: RA (%1) DEC (%2).", targetCoord.ra().toHMSString(),
                        targetCoord.dec().toDMSString()));
@@ -3928,6 +4027,7 @@ void Align::measureAzError()
 
             // Display message box confirming user point scope near meridian and south
 
+            // N.B. This action cannot be automated.
             if (KMessageBox::warningContinueCancel(
                         nullptr,
                         hemisphere == NORTH_HEMISPHERE ?
@@ -4013,10 +4113,9 @@ void Align::measureAltError()
 {
     static double initRA = 0, initDEC = 0, finalRA = 0, finalDEC = 0, initAz = 0;
 
-    if (pahStage != PAH_IDLE &&
-            (KMessageBox::warningContinueCancel(KStars::Instance(),
-                    i18n("Polar Alignment Helper is still active. Do you want to continue "
-                         "using legacy polar alignment tool?")) != KMessageBox::Continue))
+    if (pahStage != PAH_IDLE && (KMessageBox::warningContinueCancel(KStars::Instance(),
+                                 i18n("Polar Alignment Helper is still active. Do you want to continue "
+                                      "using legacy polar alignment tool?")) != KMessageBox::Continue))
         return;
 
     pahStage = PAH_IDLE;
@@ -4030,6 +4129,7 @@ void Align::measureAltError()
 
             // Display message box confirming user point scope near meridian and south
 
+            // N.B. This action cannot be automated.
             if (KMessageBox::warningContinueCancel(nullptr,
                                                    i18n("Point the telescope to the eastern or western horizon with a "
                                                            "minimum altitude of 20 degrees. Press continue when ready."),
@@ -4354,6 +4454,20 @@ bool Align::loadAndSlew(QString fileURL)
         return;
     }*/
 
+#ifdef Q_OS_OSX
+    if(solverTypeGroup->checkedId() == SOLVER_OFFLINE)
+    {
+        if(Options::useDefaultPython())
+        {
+            if( !opsAlign->astropyInstalled() || !opsAlign->pythonInstalled() )
+            {
+                KSNotification::error(i18n("Astrometry.net uses python3 and the astropy package for plate solving images offline. These were not detected on your system.  Please go into the Align Options and either click the setup button to install them or uncheck the default button and enter the path to python3 on your system and manually install astropy."));
+                return false;
+            }
+        }
+    }
+#endif
+
     if (fileURL.isEmpty())
         fileURL = QFileDialog::getOpenFileName(KStars::Instance(), i18n("Load Image"), dirPath,
                                                "Images (*.fits *.fit *.jpg *.jpeg)");
@@ -4433,7 +4547,7 @@ FOV *Align::getSolverFOV()
 
 void Align::addFilter(ISD::GDInterface *newFilter)
 {
-    foreach (ISD::GDInterface *filter, Filters)
+    for (auto filter : Filters)
     {
         if (!strcmp(filter->getDeviceName(), newFilter->getDeviceName()))
             return;
@@ -4675,6 +4789,13 @@ QStringList Align::getSolverOptionsFromFITS(const QString &filename)
         return solver_args;
     }
 
+    // If we need to auto downsample, let us figure out the scale and regenerate options
+    if (Options::astrometryAutoDownsample())
+    {
+        optionsMap["downsample"] = getSolverDownsample(fits_ccd_width);
+        solver_args = generateOptions(optionsMap);
+    }
+
     bool coord_ok = true;
 
     status = 0;
@@ -4802,6 +4923,24 @@ QStringList Align::getSolverOptionsFromFITS(const QString &filename)
     return solver_args;
 }
 
+uint8_t Align::getSolverDownsample(uint16_t binnedW)
+{
+    uint8_t downsample = Options::astrometryDownsample();
+
+    if (!Options::astrometryAutoDownsample())
+        return downsample;
+
+    while (downsample < 8)
+    {
+        if (binnedW / downsample <= 1024)
+            break;
+
+        downsample += 2;
+    }
+
+    return downsample;
+}
+
 void Align::saveSettleTime()
 {
     Options::setSettlingTime(delaySpin->value());
@@ -4927,11 +5066,10 @@ void Align::stopPAHProcess()
     qCInfo(KSTARS_EKOS_ALIGN) << "Stopping Polar Alignment Assistant process...";
 
     // Only display dialog if user explicitly restarts
-    if ((static_cast<QPushButton *>(sender()) == PAHStopB) &&
-            KMessageBox::questionYesNo(KStars::Instance(),
-                                       i18n("Are you sure you want to stop the polar alignment process?"),
-                                       i18n("Polar Alignment Assistant"), KStandardGuiItem::yes(), KStandardGuiItem::no(),
-                                       "restart_PAA_process_dialog") == KMessageBox::No)
+    if ((static_cast<QPushButton *>(sender()) == PAHStopB) && KMessageBox::questionYesNo(KStars::Instance(),
+            i18n("Are you sure you want to stop the polar alignment process?"),
+            i18n("Polar Alignment Assistant"), KStandardGuiItem::yes(), KStandardGuiItem::no(),
+            "restart_PAA_process_dialog") == KMessageBox::No)
         return;
 
     stopB->click();
@@ -4962,8 +5100,11 @@ void Align::stopPAHProcess()
     disconnect(alignView, &AlignView::trackingStarSelected, this, &Ekos::Align::setPAHCorrectionOffset);
     disconnect(alignView, &AlignView::newCorrectionVector, this, &Ekos::Align::newCorrectionVector);
 
-    currentTelescope->Park();
-    appendLogText(i18n("Parking the mount..."));
+    if (Options::pAHAutoPark())
+    {
+        currentTelescope->Park();
+        appendLogText(i18n("Parking the mount..."));
+    }
 
     state = ALIGN_IDLE;
     emit newStatus(state);
@@ -5941,7 +6082,7 @@ void Align::syncFOV()
     }
     else
     {
-        KMessageBox::error(nullptr, i18n("Invalid FOV."));
+        KSNotification::error(i18n("Invalid FOV."));
         FOVOut->setStyleSheet("background-color:red");
     }
 }

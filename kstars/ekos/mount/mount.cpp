@@ -18,6 +18,7 @@
 
 #include "Options.h"
 
+#include "ksmessagebox.h"
 #include "indi/driverinfo.h"
 #include "indi/indicommon.h"
 #include "indi/clientmanager.h"
@@ -81,11 +82,36 @@ Mount::Mount()
         resetModel();
     });
 
+    connect(clearParkingB, &QPushButton::clicked, this, [this]()
+    {
+        if (currentTelescope)
+            currentTelescope->clearParking();
+
+    });
+
+    connect(purgeConfigB, &QPushButton::clicked, this, [this]()
+    {
+        if (currentTelescope)
+        {
+            if (KMessageBox::questionYesNo(KStars::Instance(),
+                                           i18n("Are you sure you want to clear all mount configurations?"),
+                                           i18n("Mount Configuration"), KStandardGuiItem::yes(), KStandardGuiItem::no(),
+                                           "purge_mount_settings_dialog") == KMessageBox::Yes)
+            {
+                resetModel();
+                currentTelescope->clearParking();
+                currentTelescope->setConfig(PURGE_CONFIG);
+            }
+        }
+    });
+
     connect(enableLimitsCheck, SIGNAL(toggled(bool)), this, SLOT(enableAltitudeLimits(bool)));
     enableLimitsCheck->setChecked(Options::enableAltitudeLimits());
     altLimitEnabled = enableLimitsCheck->isChecked();
 
     // meridian flip
+    meridianFlipCheckBox->setChecked(Options::executeMeridianFlip());
+    meridianFlipTimeBox->setValue(Options::meridianFlipOffset());
     connect(meridianFlipCheckBox, &QCheckBox::toggled, this, &Ekos::Mount::meridianFlipSetupChanged);
     connect(meridianFlipTimeBox, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), this, &Ekos::Mount::meridianFlipSetupChanged);
 
@@ -231,6 +257,24 @@ void Mount::setTelescope(ISD::GDInterface *newTelescope)
     emit newParkStatus(m_ParkStatus);
 }
 
+void Mount::removeDevice(ISD::GDInterface *device)
+{
+    if (device == currentTelescope)
+    {
+        currentTelescope->disconnect(this);
+        updateTimer.stop();
+        m_BaseView->hide();
+
+        qCDebug(KSTARS_EKOS_MOUNT) << "Removing mount driver" << device->getDeviceName();
+
+        currentTelescope = nullptr;
+    }
+    else if (device == currentGPS)
+    {
+        currentGPS->disconnect(this);
+        currentGPS = nullptr;
+    }
+}
 void Mount::syncTelescopeInfo()
 {
     if (currentTelescope == nullptr || currentTelescope->isConnected() == false)
@@ -597,6 +641,8 @@ void Mount::setMeridianFlipValues(bool activate, double hours)
 {
     meridianFlipCheckBox->setChecked(activate);
     meridianFlipTimeBox->setValue(hours);
+    Options::setExecuteMeridianFlip(meridianFlipCheckBox->isChecked());
+    Options::setMeridianFlipOffset(meridianFlipTimeBox->value());
 }
 
 void Mount::meridianFlipSetupChanged()
@@ -605,7 +651,8 @@ void Mount::meridianFlipSetupChanged()
         // reset meridian flip
         setMeridianFlipStatus(FLIP_NONE);
 
-    emit newMeridianFlipSetup(meridianFlipCheckBox->isChecked(), meridianFlipTimeBox->value());
+    Options::setExecuteMeridianFlip(meridianFlipCheckBox->isChecked());
+    Options::setMeridianFlipOffset(meridianFlipTimeBox->value());
 }
 
 
@@ -892,8 +939,8 @@ bool Mount::slew(double RA, double DEC)
     currentTargetPosition = new SkyPoint(RA, DEC);
 
     qCDebug(KSTARS_EKOS_MOUNT) << "Slewing to RA=" <<
-                                  currentTargetPosition->ra().toHMSString() <<
-                                  "DEC=" << currentTargetPosition->dec().toDMSString();
+                               currentTargetPosition->ra().toHMSString() <<
+                               "DEC=" << currentTargetPosition->dec().toDMSString();
 
     return currentTelescope->Slew(currentTargetPosition);
 }
@@ -942,9 +989,9 @@ bool Mount::checkMeridianFlip(dms lst)
             else if (initialHA() < 0)
             {
                 qCDebug(KSTARS_EKOS_MOUNT) << "Meridian flip planned with LST=" <<
-                                             lst.toHMSString() <<
-                                             " scope RA=" << telescopeCoord.ra().toHMSString() <<
-                                             " and meridian diff=" << meridianFlipTimeBox->value();
+                                           lst.toHMSString() <<
+                                           " scope RA=" << telescopeCoord.ra().toHMSString() <<
+                                           " and meridian diff=" << meridianFlipTimeBox->value();
 
                 setMeridianFlipStatus(FLIP_PLANNED);
                 return false;
@@ -953,11 +1000,9 @@ bool Mount::checkMeridianFlip(dms lst)
 
         case FLIP_PLANNED:
             return false;
-            break;
 
         case FLIP_ACCEPTED:
             return true;
-            break;
 
         case FLIP_RUNNING:
             if (currentTelescope->isTracking())
@@ -998,8 +1043,8 @@ bool Mount::executeMeridianFlip()
 
     // execute meridian flip
     qCInfo(KSTARS_EKOS_MOUNT) << "Meridian flip: slewing to RA=" <<
-                                 currentTargetPosition->ra().toHMSString() <<
-                                 "DEC=" << currentTargetPosition->dec().toDMSString();
+                              currentTargetPosition->ra().toHMSString() <<
+                              "DEC=" << currentTargetPosition->dec().toDMSString();
     setMeridianFlipStatus(FLIP_RUNNING);
 
     bool result = slew(currentTargetPosition->ra().Hours(), currentTargetPosition->dec().Degrees());
@@ -1314,28 +1359,34 @@ void Mount::setGPS(ISD::GDInterface *newGPS)
     if (newGPS == currentGPS)
         return;
 
-    //Options::setUseComputerSource(false);
-    //Options::setUseDeviceSource(true);
-
-    if (Options::useGPSSource() == false && KMessageBox::questionYesNo(KStars::Instance(),
-            i18n("GPS is detected. Do you want to switch time and location source to GPS?"),
-            i18n("GPS Settings"), KStandardGuiItem::yes(), KStandardGuiItem::no(),
-            "use_gps_source_dialog") == KMessageBox::Yes)
+    auto executeSetGPS = [this, newGPS]()
     {
-        Options::setUseKStarsSource(false);
-        Options::setUseMountSource(false);
-        Options::setUseGPSSource(true);
-    }
+        currentGPS = newGPS;
+        connect(newGPS, SIGNAL(numberUpdated(INumberVectorProperty*)), this, SLOT(updateNumber(INumberVectorProperty*)), Qt::UniqueConnection);
+
+        appendLogText(i18n("GPS driver detected. KStars and mount time and location settings are now synced to the GPS driver."));
+
+        syncGPS();
+    };
 
     if (Options::useGPSSource() == false)
-        return;
+    {
+        connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this, executeSetGPS]()
+        {
+            //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+            KSMessageBox::Instance()->disconnect(this);
+            Options::setUseKStarsSource(false);
+            Options::setUseMountSource(false);
+            Options::setUseGPSSource(true);
+            executeSetGPS();
+        });
 
-    currentGPS = newGPS;
-    connect(newGPS, SIGNAL(numberUpdated(INumberVectorProperty*)), this, SLOT(updateNumber(INumberVectorProperty*)), Qt::UniqueConnection);
-
-    appendLogText(i18n("GPS driver detected. KStars and mount time and location settings are now synced to the GPS driver."));
-
-    syncGPS();
+        KSMessageBox::Instance()->questionYesNo(i18n("GPS is detected. Do you want to switch time and location source to GPS?"),
+                                                i18n("GPS Settings"),
+                                                10);
+    }
+    else
+        executeSetGPS();
 }
 
 void Mount::syncGPS()

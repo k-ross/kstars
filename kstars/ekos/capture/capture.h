@@ -112,6 +112,13 @@ class Capture : public QWidget, public Ui::Capture
             CAL_DUSTCAP_UNPARKING,
             CAL_DUSTCAP_UNPARKED
         } CalibrationStage;
+
+        typedef enum
+        {
+            CAL_CHECK_TASK,
+            CAL_CHECK_CONFIRMATION,
+        } CalibrationCheckType;
+
         typedef bool (Capture::*PauseFunctionPointer)();
 
         Capture();
@@ -174,14 +181,6 @@ class Capture : public QWidget, public Ui::Capture
              * @param HFR if enable is true, it sets HFR in pixels. After each exposure, the HFR is re-measured and if it exceeds the specified value, an autofocus operation will be commanded.
              */
         Q_SCRIPTABLE Q_NOREPLY void setInSequenceFocus(bool enable, double HFR);
-
-        /*
-         * @brief set meridian flip activation and hours
-         * @param activate true iff the meridian flip should be executed
-         * @param hours angle past the meridian when the flip should be delayed
-         */
-        Q_INVOKABLE Q_NOREPLY void setMeridianFlipValues(bool activate, double hours);
-
 
         /** DBUS interface function.
              * Does the CCD has a cooler control (On/Off) ?
@@ -292,16 +291,17 @@ class Capture : public QWidget, public Ui::Capture
         void addFilter(ISD::GDInterface *newFilter);
         void setDome(ISD::GDInterface *device)
         {
-            dome = dynamic_cast<ISD::Dome *>(device);
+            currentDome = dynamic_cast<ISD::Dome *>(device);
         }
         void setDustCap(ISD::GDInterface *device)
         {
-            dustCap = dynamic_cast<ISD::DustCap *>(device);
+            currentDustCap = dynamic_cast<ISD::DustCap *>(device);
         }
         void setLightBox(ISD::GDInterface *device)
         {
-            lightBox = dynamic_cast<ISD::LightBox *>(device);
+            currentLightBox = dynamic_cast<ISD::LightBox *>(device);
         }
+        void removeDevice(ISD::GDInterface *device);
         void addGuideHead(ISD::GDInterface *newCCD);
         void syncFrameType(ISD::GDInterface *ccd);
         void setTelescope(ISD::GDInterface *newTelescope);
@@ -333,6 +333,12 @@ class Capture : public QWidget, public Ui::Capture
          * @param settings list of settings
          */
         void setSettings(const QJsonObject &settings);
+
+        /**
+         * @brief getSettings get current capture settings as a JSON Object
+         * @return settings as JSON object
+         */
+        QJsonObject getSettings();
 
         /**
          * @brief addDSLRInfo Save DSLR Info the in the database. If the interactive dialog was open, close it.
@@ -547,6 +553,11 @@ class Capture : public QWidget, public Ui::Capture
         }
 
         /**
+         * @brief prepareActiveJob Reset calibration state machine and prepare capture job actions.
+         */
+        void prepareActiveJob();
+
+        /**
              * @brief preparePreCaptureActions Check if we need to update filter position or CCD temperature before starting capture process
              */
         void preparePreCaptureActions();
@@ -638,6 +649,13 @@ class Capture : public QWidget, public Ui::Capture
         bool processPostCaptureCalibrationStage();
         void updatePreCaptureCalibrationStatus();
 
+        // Frame Type calibration checks
+        IPState checkLightFramePendingTasks();
+        IPState checkLightFrameAuxiliaryTasks();
+
+        IPState checkFlatFramePendingTasks();
+        IPState checkDarkFramePendingTasks();
+
         // Send image info
         void sendNewImage(const QString &filename, ISD::CCDChip *myChip);
 
@@ -668,7 +686,6 @@ class Capture : public QWidget, public Ui::Capture
          */
         void registerNewModule(const QString &name);
 
-        void meridianFlipSetupChanged();
     signals:
         Q_SCRIPTABLE void newLog(const QString &text);
         Q_SCRIPTABLE void meridianFlipStarted();
@@ -782,9 +799,9 @@ class Capture : public QWidget, public Ui::Capture
         ISD::CCD *currentCCD { nullptr };
         ISD::GDInterface *currentFilter { nullptr };
         ISD::GDInterface *currentRotator { nullptr };
-        ISD::DustCap *dustCap { nullptr };
-        ISD::LightBox *lightBox { nullptr };
-        ISD::Dome *dome { nullptr };
+        ISD::DustCap *currentDustCap { nullptr };
+        ISD::LightBox *currentLightBox { nullptr };
+        ISD::Dome *currentDome { nullptr };
 
         QPointer<QDBusInterface> mountInterface { nullptr };
 
@@ -834,6 +851,7 @@ class Capture : public QWidget, public Ui::Capture
         FlatFieldDuration flatFieldDuration { DURATION_MANUAL };
         FlatFieldSource flatFieldSource { SOURCE_MANUAL };
         CalibrationStage calibrationStage { CAL_NONE };
+        CalibrationCheckType calibrationCheckType { CAL_CHECK_TASK };
         bool dustCapLightEnabled { false };
         bool lightBoxLightEnabled { false };
         bool m_TelescopeCoveredDarkExposure { false };

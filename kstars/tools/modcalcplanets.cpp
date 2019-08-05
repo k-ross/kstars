@@ -19,6 +19,7 @@
 
 #include "geolocation.h"
 #include "kstarsdata.h"
+#include "ksnotification.h"
 #include "dialogs/locationdialog.h"
 #include "skyobjects/ksmoon.h"
 #include "skyobjects/kssun.h"
@@ -74,7 +75,7 @@ void modCalcPlanets::slotComputePosition()
     CachingDms LST(geoPlace->GSTtoLST(dt.gst()));
 
     // Earth
-    KSPlanet Earth(I18N_NOOP("Earth"));
+    KSPlanet Earth(i18n("Earth"));
     Earth.findPosition(&num);
 
     // Earth is special case!
@@ -202,7 +203,7 @@ void modCalcPlanets::slotRunBatch()
         if (!f.open(QIODevice::ReadOnly))
         {
             QString message = i18n("Could not open file %1.", f.fileName());
-            KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+            KSNotification::sorry(message, i18n("Could Not Open File"));
             return;
         }
 
@@ -213,7 +214,7 @@ void modCalcPlanets::slotRunBatch()
     else
     {
         QString message = i18n("Invalid file: %1", inputFileName);
-        KMessageBox::sorry(nullptr, message, i18n("Invalid file"));
+        KSNotification::sorry(message, i18n("Invalid file"));
         InputFileBoxBatch->setUrl(QUrl());
     }
 }
@@ -395,11 +396,11 @@ void modCalcPlanets::processLines(QTextStream &istream)
         /*if ( pn == "Pluto" ) {
             kspb = new KSPluto();
         } else*/
-        if (pn == "Sun")
+        if (pn == i18n("Sun"))
         {
             kspb = new KSSun();
         }
-        else if (pn == "Moon")
+        else if (pn == i18n("Moon"))
         {
             kspb = new KSMoon();
         }
@@ -446,7 +447,7 @@ void modCalcPlanets::processLines(QTextStream &istream)
     if (!lineIsValid)
     {
         QString message = i18n("Errors found while parsing some lines in the input file");
-        KMessageBox::sorry(nullptr, message, i18n("Errors in lines"));
+        KSNotification::sorry(message, i18n("Errors in lines"));
     }
 
     fOut.close();

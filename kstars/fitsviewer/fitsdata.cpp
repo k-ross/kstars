@@ -1349,35 +1349,27 @@ int FITSData::findOneStar(const QRect &boundary)
     {
         case TBYTE:
             return findOneStar<uint8_t>(boundary);
-            break;
 
         case TSHORT:
             return findOneStar<int16_t>(boundary);
-            break;
 
         case TUSHORT:
             return findOneStar<uint16_t>(boundary);
-            break;
 
         case TLONG:
             return findOneStar<int32_t>(boundary);
-            break;
 
         case TULONG:
             return findOneStar<uint32_t>(boundary);
-            break;
 
         case TFLOAT:
             return findOneStar<float>(boundary);
-            break;
 
         case TLONGLONG:
             return findOneStar<int64_t>(boundary);
-            break;
 
         case TDOUBLE:
             return findOneStar<double>(boundary);
-            break;
 
         default:
             break;
@@ -1581,7 +1573,11 @@ int FITSData::findCentroid(const QRect &boundary, int initStdDev, int minEdgeWid
     double JMIndex = 100;
 #ifndef KSTARS_LITE
     if (histogram)
+    {
+        if (!histogram->isConstructed())
+            histogram->constructHistogram();
         JMIndex = histogram->getJMIndex();
+    }
 #endif
 
     float dispersion_ratio = 1.5;
@@ -2288,6 +2284,9 @@ void FITSData::applyFilter(FITSScale type, uint8_t * targetImage, QVector<double
 #ifndef KSTARS_LITE
             if (histogram == nullptr)
                 return;
+
+            if (!histogram->isConstructed())
+                histogram->constructHistogram();
 
             T bufferVal                    = 0;
             QVector<double> cumulativeFreq = histogram->getCumulativeFrequency();
@@ -3722,8 +3721,6 @@ bool FITSData::debayer()
         default:
             return false;
     }
-
-    return false;
 }
 
 bool FITSData::debayer_8bit()

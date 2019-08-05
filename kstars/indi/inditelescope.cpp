@@ -36,7 +36,10 @@ Telescope::Telescope(GDInterface *iPtr) : DeviceDecorator(iPtr)
     // Set it for 5 seconds for now as not to spam the display update
     centerLockTimer.setInterval(5000);
     centerLockTimer.setSingleShot(true);
-    connect(&centerLockTimer, &QTimer::timeout, this, [this]() { runCommand(INDI_CENTER_LOCK); });
+    connect(&centerLockTimer, &QTimer::timeout, this, [this]()
+    {
+        runCommand(INDI_CENTER_LOCK);
+    });
 
     // If after 250ms no new properties are registered then emit ready
     readyTimer.setInterval(250);
@@ -155,7 +158,7 @@ void Telescope::registerProperty(INDI::Property *prop)
     {
         m_hasTrackModes = true;
         ISwitchVectorProperty *svp = prop->getSwitch();
-        for (int i=0; i < svp->nsp; i++)
+        for (int i = 0; i < svp->nsp; i++)
         {
             if (!strcmp(svp->sp[i].name, "TRACK_SIDEREAL"))
                 TrackMap[TRACK_SIDEREAL] = i;
@@ -178,7 +181,7 @@ void Telescope::registerProperty(INDI::Property *prop)
         if (svp)
         {
             m_slewRates.clear();
-            for (int i=0; i < svp->nsp; i++)
+            for (int i = 0; i < svp->nsp; i++)
                 m_slewRates << svp->sp[i].label;
         }
     }
@@ -391,7 +394,7 @@ void Telescope::processSwitch(ISwitchVectorProperty *svp)
         inCustomParking = false;
 
         if (NSCurrentMotion == IPS_BUSY || WECurrentMotion == IPS_BUSY || NSPreviousState == IPS_BUSY ||
-            WEPreviousState == IPS_BUSY)
+                WEPreviousState == IPS_BUSY)
         {
             if (inManualMotion == false && ((NSCurrentMotion == IPS_BUSY && NSPreviousState != IPS_BUSY) ||
                                             (WECurrentMotion == IPS_BUSY && WEPreviousState != IPS_BUSY)))
@@ -474,9 +477,8 @@ bool Telescope::doPulse(GuideDirection ra_dir, int ra_msecs, GuideDirection dec_
     if (canGuide() == false)
         return false;
 
-    bool raOK = false, decOK = false;
-    raOK  = doPulse(ra_dir, ra_msecs);
-    decOK = doPulse(dec_dir, dec_msecs);
+    bool raOK  = doPulse(ra_dir, ra_msecs);
+    bool decOK = doPulse(dec_dir, dec_msecs);
 
     if (raOK && decOK)
         return true;
@@ -583,7 +585,7 @@ bool Telescope::runCommand(int command, void *ptr)
         {
             //if (currentObject == nullptr || KStars::Instance()->map()->focusObject() != currentObject)
             if (Options::isTracking() == false ||
-                currentCoord.angularDistanceTo(KStars::Instance()->map()->focus()).Degrees() > 0.5)
+                    currentCoord.angularDistanceTo(KStars::Instance()->map()->focus()).Degrees() > 0.5)
             {
                 SkyPoint J2000Coord(currentCoord.ra(), currentCoord.dec());
                 J2000Coord.apparentCoord(KStars::Instance()->data()->ut().djd(), static_cast<long double>(J2000));
@@ -653,7 +655,7 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
             return false;
 
         //if (useJ2000)
-            //ScopeTarget->apparentCoord( KStars::Instance()->data()->ut().djd(), static_cast<long double>(J2000));
+        //ScopeTarget->apparentCoord( KStars::Instance()->data()->ut().djd(), static_cast<long double>(J2000));
 
         currentRA  = RAEle->value;
         currentDEC = DecEle->value;
@@ -685,11 +687,9 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
     {
         if (targetAlt < minAlt || targetAlt > maxAlt)
         {
-            KMessageBox::error(nullptr,
-                               i18n("Requested altitude %1 is outside the specified altitude limit boundary (%2,%3).",
-                                    QString::number(targetAlt, 'g', 3), QString::number(minAlt, 'g', 3),
-                                    QString::number(maxAlt, 'g', 3)),
-                               i18n("Telescope Motion"));
+            KSNotification::error(i18n("Requested altitude %1 is outside the specified altitude limit boundary (%2,%3).",
+                                       QString::number(targetAlt, 'g', 3), QString::number(minAlt, 'g', 3),
+                                       QString::number(maxAlt, 'g', 3)), i18n("Telescope Motion"));
             return false;
         }
     }
@@ -697,9 +697,9 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
     if (targetAlt < 0)
     {
         if (KMessageBox::warningContinueCancel(
-                nullptr, i18n("Requested altitude is below the horizon. Are you sure you want to proceed?"),
-                i18n("Telescope Motion"), KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
-                QString("telescope_coordintes_below_horizon_warning")) == KMessageBox::Cancel)
+                    nullptr, i18n("Requested altitude is below the horizon. Are you sure you want to proceed?"),
+                    i18n("Telescope Motion"), KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                    QString("telescope_coordintes_below_horizon_warning")) == KMessageBox::Cancel)
         {
             if (EqProp)
             {
@@ -724,10 +724,10 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
         if (currentObject->name() == i18n("Sun"))
         {
             if (KMessageBox::warningContinueCancel(
-                    nullptr, i18n("Warning! Looking at the Sun without proper protection can lead to irreversible eye damage!"),
-                    i18n("Sun Warning"), KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
-                    QString("telescope_ignore_sun_warning")) == KMessageBox::Cancel)
-                        return false;
+                        nullptr, i18n("Warning! Looking at the Sun without proper protection can lead to irreversible eye damage!"),
+                        i18n("Sun Warning"), KStandardGuiItem::cont(), KStandardGuiItem::cancel(),
+                        QString("telescope_ignore_sun_warning")) == KMessageBox::Cancel)
+                return false;
         }
 
         if (m_hasTrackModes)
@@ -736,7 +736,7 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
             if (currentObject->type() == SkyObject::MOON)
             {
                 if (currentTrackMode != TRACK_LUNAR && TrackMap.contains(TRACK_LUNAR))
-                setTrackMode(TrackMap.value(TRACK_LUNAR));
+                    setTrackMode(TrackMap.value(TRACK_LUNAR));
             }
             // Tracking Sun
             else if (currentObject->name() == i18n("Sun"))
@@ -764,11 +764,11 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
             // If we have invalid DEC, then convert coords to J2000
             if (ScopeTarget->dec0().Degrees() == 180.0)
             {
-               ScopeTarget->setRA0(ScopeTarget->ra());
-               ScopeTarget->setDec0(ScopeTarget->dec());
-               ScopeTarget->apparentCoord( KStars::Instance()->data()->ut().djd(), static_cast<long double>(J2000));
-               ra = ScopeTarget->ra();
-               de = ScopeTarget->dec();
+                ScopeTarget->setRA0(ScopeTarget->ra());
+                ScopeTarget->setDec0(ScopeTarget->dec());
+                ScopeTarget->apparentCoord( KStars::Instance()->data()->ut().djd(), static_cast<long double>(J2000));
+                ra = ScopeTarget->ra();
+                de = ScopeTarget->dec();
             }
             else
             {
@@ -787,8 +787,8 @@ bool Telescope::sendCoords(SkyPoint *ScopeTarget)
         clientManager->sendNewNumber(EqProp);
 
         qCDebug(KSTARS_INDI) << "ISD:Telescope sending coords RA:" << ra.toHMSString() <<
-                                "(" << RAEle->value << ") DE:" << de.toDMSString() <<
-                                "(" << DecEle->value << ")";
+                             "(" << RAEle->value << ") DE:" << de.toDMSString() <<
+                             "(" << DecEle->value << ")";
 
         RAEle->value  = currentRA;
         DecEle->value = currentDEC;
@@ -1146,6 +1146,23 @@ bool Telescope::setAlignmentModelEnabled(bool enable)
     return wasExecuted;
 }
 
+bool Telescope::clearParking()
+{
+    ISwitchVectorProperty *parkSwitch  = baseDevice->getSwitch("TELESCOPE_PARK_OPTION");
+    if (!parkSwitch)
+        return false;
+
+    ISwitch *clearParkSW = IUFindSwitch(parkSwitch, "PARK_PURGE_DATA");
+    if (!clearParkSW)
+        return false;
+
+    IUResetSwitch(parkSwitch);
+    clearParkSW->s = ISS_ON;
+
+    clientManager->sendNewSwitch(parkSwitch);
+    return true;
+}
+
 bool Telescope::clearAlignmentModel()
 {
     bool wasExecuted = false;
@@ -1301,7 +1318,7 @@ bool Telescope::setTrackEnabled(bool enable)
         return false;
 
     trackON->s = enable ? ISS_ON : ISS_OFF;
-    trackOFF->s= enable ? ISS_OFF : ISS_ON;
+    trackOFF->s = enable ? ISS_OFF : ISS_ON;
 
     clientManager->sendNewSwitch(trackSP);
 
@@ -1394,7 +1411,7 @@ bool Telescope::sendParkingOptionCommand(ParkOptionCommand command)
 
 }
 
-QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::Status& source)
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::Status &source)
 {
     argument.beginStructure();
     argument << static_cast<int>(source);
@@ -1412,7 +1429,7 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, ISD::Telescope::S
     return argument;
 }
 
-QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::PierSide& source)
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Telescope::PierSide &source)
 {
     argument.beginStructure();
     argument << static_cast<int>(source);

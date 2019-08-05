@@ -16,17 +16,18 @@
  ***************************************************************************/
 
 #include "imageviewer.h"
+#include "Options.h"
 
 #ifndef KSTARS_LITE
 #include "kstars.h"
-#endif
-
-#ifndef KSTARS_LITE
 #include <KMessageBox>
+#include <KFormat>
 #endif
 
+#include "ksnotification.h"
 #include <QDesktopWidget>
 #include <QFileDialog>
+#include <QJsonObject>
 #include <QPainter>
 #include <QResizeEvent>
 #include <QStatusBar>
@@ -231,7 +232,7 @@ void ImageViewer::downloadReady()
         close();
     }
     else
-        KMessageBox::error(nullptr, file.errorString(), i18n("Image Viewer"));
+        KSNotification::error(file.errorString(), i18n("Image Viewer"));
 #endif
 }
 
@@ -239,7 +240,7 @@ void ImageViewer::downloadError(const QString &errorString)
 {
 #ifndef KSTARS_LITE
     QApplication::restoreOverrideCursor();
-    KMessageBox::error(this, errorString);
+    KSNotification::error(errorString);
 #endif
 }
 
@@ -264,8 +265,7 @@ bool ImageViewer::showImage()
 
     if (!image.load(file.fileName()))
     {
-        QString text = i18n("Loading of the image %1 failed.", m_ImageUrl.url());
-        KMessageBox::error(this, text);
+        KSNotification::error(i18n("Loading of the image %1 failed.", m_ImageUrl.url()));
         close();
         return false;
     }
@@ -327,12 +327,11 @@ void ImageViewer::saveFileToDisc()
         QFile f(newURL.toLocalFile());
         if (f.exists())
         {
-            int r = KMessageBox::warningContinueCancel(static_cast<QWidget *>(parent()),
-                    i18n("A file named \"%1\" already exists. "
-                         "Overwrite it?",
-                         newURL.fileName()),
-                    i18n("Overwrite File?"), KStandardGuiItem::overwrite());
-            if (r == KMessageBox::Cancel)
+            if ((KMessageBox::warningContinueCancel(static_cast<QWidget *>(parent()),
+                                                    i18n("A file named \"%1\" already exists. "
+                                                            "Overwrite it?",
+                                                            newURL.fileName()),
+                                                    i18n("Overwrite File?"), KStandardGuiItem::overwrite()) == KMessageBox::Cancel))
                 return;
 
             f.remove();
@@ -358,7 +357,7 @@ void ImageViewer::saveFile(QUrl &url)
     {
         QString text = i18n("Saving of the image %1 failed.", url.toString());
 #ifndef KSTARS_LITE
-        KMessageBox::error(this, text);
+        KSNotification::error(text);
 #else
         qDebug() << text;
 #endif
@@ -375,5 +374,21 @@ void ImageViewer::invertColors()
     // Invert colors
     m_View->invertPixels();
     m_View->update();
+#endif
+}
+
+QJsonObject ImageViewer::metadata()
+{
+#ifndef KSTARS_LITE
+    QJsonObject md;
+    if (m_View && !m_View->m_Image.isNull())
+    {
+        md.insert("resolution", QString("%1x%2").arg(m_View->m_Image.width()).arg(m_View->m_Image.height()));
+        // sizeInBytes is only available in 5.10+
+        md.insert("size", KFormat().formatByteSize(m_View->m_Image.bytesPerLine() * m_View->m_Image.height()));
+        md.insert("bin", "1x1");
+        md.insert("bpp", QString::number(m_View->m_Image.bytesPerLine() / m_View->m_Image.width() * 8));
+    }
+    return md;
 #endif
 }

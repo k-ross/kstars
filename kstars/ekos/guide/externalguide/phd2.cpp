@@ -366,11 +366,16 @@ void PHD2::processPHD2Event(const QJsonObject &jsonEvent, const QByteArray &line
             }
             else
             {
-                // settle completed after "guide" command
-
-                if (!error)
+                if (error)
                 {
+                    emit newLog(i18n("PHD2: Settling failed, aborted."));
+                    emit newStatus(GUIDE_ABORTED);
+                }
+                else
+                {
+                    // settle completed after "guide" command
                     emit newLog(i18n("PHD2: Settling complete, Guiding Started."));
+                    emit newStatus(GUIDE_GUIDING);
                 }
             }
         }
@@ -386,6 +391,7 @@ void PHD2::processPHD2Event(const QJsonObject &jsonEvent, const QByteArray &line
             {
                 state = LOSTLOCK;
                 abortTimer->start(Options::guideLostStarTimeout() * 1000);
+                qCDebug(KSTARS_EKOS_GUIDE) << "PHD2: Lost star timeout started (" << Options::guideLostStarTimeout() << " sec)";
             }
             break;
 
@@ -655,6 +661,7 @@ void PHD2::processPHD2Result(const QJsonObject &jsonObj, const QByteArray &line)
         //shutdown
 
         case STOP_CAPTURE_COMMAND_RECEIVED:         //stop_capture
+        emit newStatus(GUIDE_ABORTED);
             break;
     }
 
@@ -1105,6 +1112,13 @@ bool PHD2::suspend()
 
     sendPHD2Request("set_paused", args);
 
+    if (abortTimer->isActive())
+    {
+        // Avoid that the a preceding lost star event leads to an abort while guiding is suspended.
+        qCDebug(KSTARS_EKOS_GUIDE) << "PHD2: Lost star timeout cancelled.";
+        abortTimer->stop();
+    }
+
     return true;
 }
 
@@ -1123,6 +1137,12 @@ bool PHD2::resume()
     args << false;
 
     sendPHD2Request("set_paused", args);
+
+    if (state == LOSTLOCK)
+    {
+        qCDebug(KSTARS_EKOS_GUIDE) << "PHD2: Lost star timeout restarted.";
+        abortTimer->start(Options::guideLostStarTimeout() * 1000);
+    }
 
     return true;
 }

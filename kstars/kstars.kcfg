@@ -1484,6 +1484,9 @@
        <label>Whether EkosLive connection mode is online.</label>
        <default>true</default>
     </entry>
+    <entry name="EkosLiveUsername" type="String">
+       <label>EkosLive username</label>
+    </entry>
       <entry name="independentWindowEkos" type="Bool">
          <label>Make Ekos window independent of KStars main window</label>
          <default>false</default>
@@ -1536,6 +1539,14 @@
          <label>Enable mount altitude limits.</label>
          <default>false</default>
       </entry>
+      <entry name="MeridianFlipOffset" type="Double">
+         <label>Default hour angle to perform meridian flip</label>
+         <whatsthis>If the target hour angle exceeds this value, Ekos will command a meridian flip and if successful it will resume guiding and capture operations.</whatsthis>
+      </entry>
+      <entry name="ExecuteMeridianFlip" type="Bool">
+         <label>Flips the mount when reaching the meridian, if supported.</label>
+         <default>false</default>
+      </entry>
    </group>
    <group name="Capture">
       <entry name="DefaultCaptureCCD" type="String">
@@ -1582,14 +1593,6 @@
          <label>Number of minute between forced refocus attempts</label>
          <whatsthis>Sets the time interval before forced autofocus attempts during a capture sequence.</whatsthis>
          <default>60</default>
-      </entry>
-      <entry name="AutoMeridianHours" type="Double">
-         <label>Default hour angle to perform meridian flip</label>
-         <whatsthis>If the target hour angle exceeds this value, Ekos will command a meridian flip and if successful it will resume guiding and capture operations.</whatsthis>
-      </entry>
-      <entry name="AutoMeridianFlip" type="Bool">
-         <label>Flips the mount when reaching the meridian, if supported.</label>
-         <default>false</default>
       </entry>
       <entry name="ResetMountModelAfterMeridian" type="Bool">
          <label>Reset mount model after meridian flip.</label>
@@ -1679,6 +1682,10 @@
       </entry>
       <entry name="RemoteCaptureDirectory" type="String">
          <label>Path to remote capture directory to save images.</label>
+      </entry>
+      <entry name="ManualCoverTimeout" type="UInt">
+         <label>Cover or uncover telescope dialog timeout in seconds.</label>
+         <default>60</default>
       </entry>
    </group>
    <group name="Focus">
@@ -1852,7 +1859,7 @@
       </entry>
       <entry name="AstrometryUseNoFITS2FITS" type="Bool">
          <label>Do not sanitize FITS. This option should only be checked if astrometry.net version is 0.67 or earlier. Uncheck for any versions greater than 0.67.</label>
-         <default>true</default>
+         <default>false</default>
       </entry>
       <entry name="AstrometryUseResort" type="Bool">
          <label>Check this option if your image does not have much nebulosity. If it does have strong nebulosity, uncheck it.</label>
@@ -1887,6 +1894,10 @@
       <entry name="AstrometryDownsample" type="UInt">
          <label>Downsample factor</label>
          <default>2</default>
+      </entry>
+      <entry name="AstrometryAutoDownsample" type="Bool">
+         <label>Automatically downsample based on image size.</label>
+         <default>true</default>
       </entry>
       <entry name="AstrometryUsePosition" type="Bool">
          <label>Set estimated position to speed up astrometry solver as it does not have to search in other areas of the sky.</label>
@@ -1945,6 +1956,16 @@
          <label>Internal or External Astrometry.net Conf File?</label>
          <default>false</default>
       </entry>
+      <entry name="UseDefaultPython" type="Bool">
+         <label>Use the Default System Python Path</label>
+         <default>true</default>
+      </entry>
+      <entry name="PythonExecPath" type="String">
+         <label></label>
+         <whatsthis>Folder in which the desired python executable or link to be used for astrometry.net resides.</whatsthis>
+         <default>/usr/local/opt/python/libexec/bin</default>
+      </entry>
+
       <entry name="AstrometryAPIKey" type="String">
          <label>astrometry.net API Key</label>
          <whatsthis>Key to access astrometry.net online web services. You must register with astrometry.net to obtain a key.</whatsthis>
@@ -1965,6 +1986,10 @@
       <entry name="PAHMountSpeedIndex" type="Int">
          <label>Speed index to set mount in Polar Alignment Assistant Tool.</label>
          <default>-1</default>
+      </entry>
+      <entry name="PAHAutoPark" type="Bool">
+         <label>Automatically park the mount after Polar Alignment Assistant Tool is complete.</label>
+         <default>true</default>
       </entry>
    </group>
    <group name="Guide">
@@ -2305,5 +2330,59 @@
        <whatsthis>Toggle whether the HIPS sources are drawn in the sky map.</whatsthis>
        <default>false</default>
     </entry>
+   </group>
+   <group name="Observatory">
+   <entry name="warningActionsActive" type="Bool">
+      <label>Will be reacted upon warnings?</label>
+      <default>true</default>
+   </entry>
+   <entry name="alertActionsActive" type="Bool">
+      <label>Will be reacted upon alerts?</label>
+      <default>true</default>
+   </entry>
+   <entry name="weatherWarningCloseDome" type="Bool">
+      <label>Shall the dome being closed when a weather warning occurs?</label>
+      <default>false</default>
+   </entry>
+   <entry name="weatherWarningCloseShutter" type="Bool">
+      <label>Shall the shutter being closed when a weather warning occurs?</label>
+      <default>false</default>
+   </entry>
+   <entry name="weatherWarningStopScheduler" type="Bool">
+      <label>Shall the shutter being closed when a weather alert occurs?</label>
+      <default>true</default>
+   </entry>
+   <entry name="weatherWarningDelay" type="UInt">
+      <label>Delay for reacting upon a weather warning.</label>
+      <default>600</default>
+   </entry>
+   <entry name="weatherAlertCloseDome" type="Bool">
+      <label>Shall the dome being closed when a weather alert occurs?</label>
+      <default>true</default>
+   </entry>
+   <entry name="weatherAlertCloseShutter" type="Bool">
+      <label>Shall the shutter being closed when a weather alert occurs?</label>
+      <default>true</default>
+   </entry>
+   <entry name="weatherAlertStopScheduler" type="Bool">
+      <label>Shall the shutter being closed when a weather alert occurs?</label>
+      <default>true</default>
+   </entry>
+   <entry name="weatherAlertDelay" type="UInt">
+      <label>Delay for reacting upon a weather alert.</label>
+      <default>30</default>
+   </entry>
+   <entry name="observatoryStatusUseDome" type="Bool">
+      <label>Dome status relevant for the Observatory status.</label>
+      <default>true</default>
+   </entry>
+   <entry name="observatoryStatusUseShutter" type="Bool">
+      <label>Shutter status relevant for the Observatory status.</label>
+      <default>true</default>
+   </entry>
+   <entry name="observatoryStatusUseWeather" type="Bool">
+      <label>Weather status relevant for the Observatory status.</label>
+      <default>true</default>
+   </entry>
    </group>
 </kcfg>

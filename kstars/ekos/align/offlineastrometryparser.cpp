@@ -14,8 +14,7 @@
 #include "ksutils.h"
 #include "Options.h"
 #include "kspaths.h"
-
-#include <KMessageBox>
+#include "ksnotification.h"
 
 namespace Ekos
 {
@@ -173,6 +172,8 @@ void OfflineAstrometryParser::verifyIndexFiles(double fov_x, double fov_y)
 #ifdef Q_OS_OSX
     if (KSUtils::getAstrometryDataDir(astrometryDataDir) == false)
         return;
+#else
+    getAstrometryDataDir(astrometryDataDir);
 #endif
 
     QStringList nameFilter("*.fits");
@@ -237,9 +238,9 @@ bool OfflineAstrometryParser::getAstrometryDataDir(QString &dataDir)
 
     if (confFile.open(QIODevice::ReadOnly) == false)
     {
-        KMessageBox::error(nullptr, i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
-                                         "configuration file full path in INDI options.",
-                                         Options::astrometryConfFile()));
+        KSNotification::error(i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
+                                   "configuration file full path in INDI options.",
+                                   Options::astrometryConfFile()));
         return false;
     }
 
@@ -259,7 +260,7 @@ bool OfflineAstrometryParser::getAstrometryDataDir(QString &dataDir)
         }
     }
 
-    KMessageBox::error(nullptr, i18n("Unable to find data dir in astrometry configuration file."));
+    KSNotification::error(i18n("Unable to find data dir in astrometry configuration file."));
     return false;
 }
 
@@ -299,26 +300,28 @@ bool OfflineAstrometryParser::startSovler(const QString &filename, const QString
 #ifdef Q_OS_OSX
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString path            = env.value("PATH", "");
+    QString pythonExecPath = "/usr/local/opt/python/libexec/bin";
+    if(!Options::useDefaultPython())
+        pythonExecPath = Options::pythonExecPath();
     if (Options::astrometrySolverIsInternal())
     {
-        env.insert("PATH", QCoreApplication::applicationDirPath() + "/netpbm/bin:" + QCoreApplication::applicationDirPath() + "/python/bin:/usr/local/bin:" + path);
-        env.insert("PYTHONPATH", QCoreApplication::applicationDirPath() + "/python/bin/site-packages");
+        env.insert("PATH", QCoreApplication::applicationDirPath() + "/netpbm/bin:" + pythonExecPath + ":/usr/local/bin:" + path);
     }
     else
     {
-        env.insert("PATH", "/usr/local/bin:" + path);
+        env.insert("PATH", pythonExecPath + ":/usr/local/bin:" + path);
     }
     solver->setProcessEnvironment(env);
 
     if (Options::alignmentLogging())
     {
         align->appendLogText("export PATH=" + env.value("PATH", ""));
-        align->appendLogText("export PYTHONPATH=" + env.value("PYTHONPATH", ""));
     }
 
 #endif
 
     connect(solver, SIGNAL(finished(int)), this, SLOT(solverComplete(int)));
+    solver->setProcessChannelMode(QProcess::MergedChannels);
     connect(solver, SIGNAL(readyReadStandardOutput()), this, SLOT(logSolver()));
 
 #if QT_VERSION > QT_VERSION_CHECK(5, 6, 0)

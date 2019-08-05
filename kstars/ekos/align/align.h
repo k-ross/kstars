@@ -74,7 +74,7 @@ class Align : public QWidget, public Ui::Align
 
     public:
         explicit Align(ProfileInfo *activeProfile);
-        virtual ~Align();
+        virtual ~Align() override;
 
         typedef enum
         {
@@ -251,6 +251,8 @@ class Align : public QWidget, public Ui::Align
         void setDome(ISD::GDInterface *newDome);
 
         void setRotator(ISD::GDInterface *newRotator);
+
+        void removeDevice(ISD::GDInterface *device);
 
         /* @brief Set telescope and guide scope info. All measurements is in millimeters.
         * @param primaryFocalLength Primary Telescope Focal Length. Set to 0 to skip setting this value.
@@ -637,6 +639,8 @@ class Align : public QWidget, public Ui::Align
              */
         QStringList getSolverOptionsFromFITS(const QString &filename);
 
+        uint8_t getSolverDownsample(uint16_t binnedW);
+
         /**
              * @brief setWCSEnabled enables/disables World Coordinate System settings in the CCD driver.
              * @param enable true to enable WCS, false to disable.
@@ -747,7 +751,7 @@ class Align : public QWidget, public Ui::Align
         static const double SIDRATE;
 
         /// Have we slewed?
-        bool isSlewDirty { false };
+        bool m_wasSlewStarted { false };
 
         // Online and Offline parsers
         AstrometryParser* parser { nullptr };

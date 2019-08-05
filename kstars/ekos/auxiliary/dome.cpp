@@ -38,27 +38,37 @@ void Dome::setDome(ISD::GDInterface *newDome)
 
     connect(currentDome, &ISD::Dome::newStatus, this, &Dome::newStatus);
     connect(currentDome, &ISD::Dome::newParkStatus, this, &Dome::newParkStatus);
-    connect(currentDome, &ISD::Dome::newParkStatus, [&](ISD::ParkStatus status) {m_ParkStatus = status;});
+    connect(currentDome, &ISD::Dome::newParkStatus, [&](ISD::ParkStatus status)
+    {
+        m_ParkStatus = status;
+    });
+    connect(currentDome, &ISD::Dome::newShutterStatus, this, &Dome::newShutterStatus);
+    connect(currentDome, &ISD::Dome::newShutterStatus, [&](ISD::Dome::ShutterStatus status)
+    {
+        m_ShutterStatus = status;
+    });
+    connect(currentDome, &ISD::Dome::newAutoSyncStatus, this, &Dome::newAutoSyncStatus);
     connect(currentDome, &ISD::Dome::azimuthPositionChanged, this, &Dome::azimuthPositionChanged);
     connect(currentDome, &ISD::Dome::ready, this, &Dome::ready);
+    connect(currentDome, &ISD::Dome::Disconnected, this, &Dome::disconnected);
 }
 
-void Dome::setTelescope(ISD::GDInterface *newTelescope)
-{
-    if (currentDome == nullptr)
-        return;
+//void Dome::setTelescope(ISD::GDInterface *newTelescope)
+//{
+//    if (currentDome == nullptr)
+//        return;
 
-    ITextVectorProperty *activeDevices = currentDome->getBaseDevice()->getText("ACTIVE_DEVICES");
-    if (activeDevices)
-    {
-        IText *activeTelescope = IUFindText(activeDevices, "ACTIVE_TELESCOPE");
-        if (activeTelescope)
-        {
-            IUSaveText(activeTelescope, newTelescope->getDeviceName());
-            currentDome->getDriverInfo()->getClientManager()->sendNewText(activeDevices);
-        }
-    }
-}
+//    ITextVectorProperty *activeDevices = currentDome->getBaseDevice()->getText("ACTIVE_DEVICES");
+//    if (activeDevices)
+//    {
+//        IText *activeTelescope = IUFindText(activeDevices, "ACTIVE_TELESCOPE");
+//        if (activeTelescope)
+//        {
+//            IUSaveText(activeTelescope, newTelescope->getDeviceName());
+//            currentDome->getDriverInfo()->getClientManager()->sendNewText(activeDevices);
+//        }
+//    }
+//}
 
 bool Dome::canPark()
 {
@@ -108,6 +118,14 @@ bool Dome::canAbsoluteMove()
     return false;
 }
 
+bool Dome::canRelativeMove()
+{
+    if (currentDome)
+        return currentDome->canRelMove();
+
+    return false;
+}
+
 double Dome::azimuthPosition()
 {
     if (currentDome)
@@ -119,6 +137,45 @@ void Dome::setAzimuthPosition(double position)
 {
     if (currentDome)
         currentDome->setAzimuthPosition(position);
+}
+
+void Dome::setRelativePosition(double position)
+{
+    if (currentDome)
+        currentDome->setRelativePosition(position);
+}
+
+bool Dome::isAutoSync()
+{
+    if (currentDome)
+        return currentDome->isAutoSync();
+    // value could not be determined
+    return false;
+}
+
+bool Dome::setAutoSync(bool activate)
+{
+    if (currentDome)
+        return currentDome->setAutoSync(activate);
+    // not succeeded
+    return false;
+}
+
+bool Dome::hasShutter()
+{
+    if (currentDome)
+        return currentDome->hasShutter();
+    // no dome, no shutter
+    return false;
+}
+
+bool Dome::controlShutter(bool open)
+{
+
+    if (currentDome)
+        return currentDome->ControlShutter(open);
+    // no dome, no shutter control
+    return false;
 }
 
 #if 0
@@ -156,4 +213,14 @@ Dome::ParkingStatus Dome::getParkingStatus()
     return PARKING_ERROR;
 }
 #endif
+
+void Dome::removeDevice(ISD::GDInterface *device)
+{
+    device->disconnect(this);
+    if (device == currentDome)
+    {
+        currentDome = nullptr;
+    }
+}
+
 }

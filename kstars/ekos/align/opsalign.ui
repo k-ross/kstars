@@ -7,20 +7,30 @@
     <x>0</x>
     <y>0</y>
     <width>422</width>
-    <height>150</height>
+    <height>202</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="0">
-      <widget class="QCheckBox" name="kcfg_AstrometrySolverIsInternal">
+     <item row="0" column="2">
+      <widget class="QLineEdit" name="kcfg_AstrometrySolverBinary">
+       <property name="toolTip">
+        <string>Astrometry.net solve-field binary</string>
+       </property>
        <property name="text">
         <string/>
        </property>
       </widget>
      </item>
-     <item row="2" column="5">
+     <item row="1" column="4">
+      <widget class="QLabel" name="pythonLabel">
+       <property name="text">
+        <string>python:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="5">
       <widget class="QSpinBox" name="kcfg_AstrometryTimeout">
        <property name="toolTip">
         <string>Timeout in seconds to wait for astrometry solver to complete</string>
@@ -33,44 +43,17 @@
        </property>
       </widget>
      </item>
-     <item row="1" column="1">
-      <widget class="QLabel" name="label_14">
-       <property name="text">
-        <string>config:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QLabel" name="label_15">
-       <property name="text">
-        <string>solver:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="5">
-      <widget class="QLineEdit" name="kcfg_AstrometryWCSInfo">
-       <property name="toolTip">
-        <string>Astrometry.net wcsinfo binary</string>
-       </property>
+     <item row="1" column="0">
+      <widget class="QCheckBox" name="kcfg_AstrometryConfFileIsInternal">
        <property name="text">
         <string/>
        </property>
       </widget>
      </item>
-     <item row="0" column="3">
-      <widget class="QCheckBox" name="kcfg_AstrometryWCSIsInternal">
+     <item row="3" column="4">
+      <widget class="QLabel" name="label">
        <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QLineEdit" name="kcfg_AstrometrySolverBinary">
-       <property name="toolTip">
-        <string>Astrometry.net solve-field binary</string>
-       </property>
-       <property name="text">
-        <string/>
+        <string>Time out:</string>
        </property>
       </widget>
      </item>
@@ -84,17 +67,7 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="2">
-      <widget class="QLineEdit" name="kcfg_AstrometryAPIURL">
-       <property name="toolTip">
-        <string>Astrometry.net configuration file</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="5">
+     <item row="2" column="5">
       <widget class="QLineEdit" name="kcfg_AstrometryAPIKey">
        <property name="toolTip">
         <string>Astrometry.net configuration file</string>
@@ -104,24 +77,34 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="4">
-      <widget class="QLabel" name="label">
+     <item row="0" column="1">
+      <widget class="QLabel" name="label_15">
        <property name="text">
-        <string>Time out:</string>
+        <string>solver:</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="4">
+     <item row="2" column="4">
       <widget class="QLabel" name="label_17">
        <property name="text">
         <string>API Key:</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QCheckBox" name="kcfg_AstrometryConfFileIsInternal">
+     <item row="0" column="5">
+      <widget class="QLineEdit" name="kcfg_AstrometryWCSInfo">
+       <property name="toolTip">
+        <string>Astrometry.net wcsinfo binary</string>
+       </property>
        <property name="text">
         <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="2">
+      <widget class="QDoubleSpinBox" name="kcfg_AstrometryRotatorThreshold">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rotator threshold in arc-minutes when using Load &amp;amp; Slew. If the difference between measured position angle and FITS position angle is below this value, the Load &amp;amp; Slew operation is considered successful.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
       </widget>
      </item>
@@ -132,10 +115,24 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="4">
-      <widget class="QLabel" name="label_16">
+     <item row="1" column="1">
+      <widget class="QLabel" name="label_14">
        <property name="text">
-        <string>wcsinfo:</string>
+        <string>config:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QCheckBox" name="kcfg_AstrometrySolverIsInternal">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="3">
+      <widget class="QCheckBox" name="kcfg_UseDefaultPython">
+       <property name="text">
+        <string/>
        </property>
       </widget>
      </item>
@@ -149,6 +146,30 @@
        </property>
       </widget>
      </item>
+     <item row="0" column="4">
+      <widget class="QLabel" name="label_16">
+       <property name="text">
+        <string>wcsinfo:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QLineEdit" name="kcfg_AstrometryAPIURL">
+       <property name="toolTip">
+        <string>Astrometry.net configuration file</string>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QCheckBox" name="kcfg_AstrometryWCSIsInternal">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
      <item row="3" column="1">
       <widget class="QLabel" name="label_2">
        <property name="text">
@@ -156,12 +177,25 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="2">
-      <widget class="QDoubleSpinBox" name="kcfg_AstrometryRotatorThreshold">
-       <property name="toolTip">
-        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rotator threshold in arc-minutes when using Load &amp;amp; Slew. If the difference between measured position angle and FITS position angle is below this value, the Load &amp;amp; Slew operation is considered successful.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     <item row="1" column="5">
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <property name="spacing">
+        <number>0</number>
        </property>
-      </widget>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QPushButton" name="SetupPython">
+         <property name="text">
+          <string>Setup</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="kcfg_PythonExecPath"/>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
@@ -197,6 +231,16 @@
        </property>
        <property name="checked">
         <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="kcfg_PAHAutoPark">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Automatically park mount after completing Polar Alignment Assistant Tools. Beware that turning this option off might lead to inaccurate results.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Auto Park</string>
        </property>
       </widget>
      </item>

@@ -19,6 +19,7 @@
 
 #include "kstars.h"
 #include "kstarsdata.h"
+#include "ksnotification.h"
 #include "Options.h"
 #include "detaildialog.h"
 #include "skymap.h"
@@ -113,7 +114,8 @@ FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_tar
     ui->SearchList->setModel(sortModel);
 
     // Connect signals to slots
-    connect(ui->clearHistoryB, &QPushButton::clicked, [&](){
+    connect(ui->clearHistoryB, &QPushButton::clicked, [&]()
+    {
         ui->clearHistoryB->setEnabled(false);
         m_HistoryCombo->clear();
         m_HistoryList.clear();
@@ -121,11 +123,12 @@ FindDialog::FindDialog(QWidget *parent) : QDialog(parent), timer(nullptr), m_tar
 
     m_HistoryCombo = new QComboBox(ui->showHistoryB);
     m_HistoryCombo->move(0, ui->showHistoryB->height());
-    connect(ui->showHistoryB, &QPushButton::clicked, [&]() {
-       if (m_HistoryList.empty() == false)
-       {
-           m_HistoryCombo->showPopup();
-       }
+    connect(ui->showHistoryB, &QPushButton::clicked, [&]()
+    {
+        if (m_HistoryList.empty() == false)
+        {
+            m_HistoryCombo->showPopup();
+        }
     });
 
     connect(m_HistoryCombo, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
@@ -175,8 +178,8 @@ void FindDialog::initSelection()
         return;
     }
 
-//    ui->SearchBox->setModel(sortModel);
-//    ui->SearchBox->setModelColumn(0);
+    //    ui->SearchBox->setModel(sortModel);
+    //    ui->SearchBox->setModelColumn(0);
 
     if (ui->SearchBox->text().isEmpty())
     {
@@ -321,7 +324,7 @@ void FindDialog::filterList()
             }
         }
         ui->InternetSearchButton->setEnabled(!mItems.contains(
-            SearchText)); // Disable searching the internet when an exact match for SearchText exists in KStars
+                SearchText)); // Disable searching the internet when an exact match for SearchText exists in KStars
     }
     else
         ui->InternetSearchButton->setEnabled(false);
@@ -416,7 +419,7 @@ void FindDialog::finishProcessing(SkyObject *selObj, bool resolve)
     if (selObj == nullptr)
     {
         QString message = i18n("No object named %1 found.", ui->SearchBox->text());
-        KMessageBox::sorry(nullptr, message, i18n("Bad object name"));
+        KSNotification::sorry(message, i18n("Bad object name"));
     }
     else
     {
@@ -498,7 +501,7 @@ void FindDialog::slotDetails()
     if (selectedObject())
     {
         QPointer<DetailDialog> dd = new DetailDialog(selectedObject(), KStarsData::Instance()->ut(),
-                                                     KStarsData::Instance()->geo(), KStars::Instance());
+                KStarsData::Instance()->geo(), KStars::Instance());
         dd->exec();
         delete dd;
     }

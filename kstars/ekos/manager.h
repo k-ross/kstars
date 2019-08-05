@@ -28,6 +28,7 @@
 #include "indi/indistd.h"
 #include "mount/mount.h"
 #include "scheduler/scheduler.h"
+#include "observatory/observatory.h"
 #include "auxiliary/filtermanager.h"
 #include "auxiliary/serialportassistant.h"
 #include "ksnotification.h"
@@ -395,6 +396,7 @@ class Manager : public QDialog, public Ui::Manager
         void initMount();
         void initDome();
         void initWeather();
+        void initObservatory(Weather *weather, Dome *dome);
         void initDustCap();
 
         void loadDrivers();
@@ -414,6 +416,8 @@ class Manager : public QDialog, public Ui::Manager
 
         // Find List of devices of specific family type
         QList<ISD::GDInterface *> findDevices(DeviceFamily type);
+        // Get all detected devices
+        QList<ISD::GDInterface *> getAllDevices();
 
         ProfileInfo *getCurrentProfile();
         void getCurrentProfileTelescopeInfo(double &primaryFocalLength, double &primaryAperture, double &guideFocalLength, double &guideAperture);
@@ -443,6 +447,7 @@ class Manager : public QDialog, public Ui::Manager
         std::unique_ptr<Align> alignProcess;
         std::unique_ptr<Mount> mountProcess;
         std::unique_ptr<Scheduler> schedulerProcess;
+        std::unique_ptr<Observatory> observatoryProcess;
         std::unique_ptr<Dome> domeProcess;
         std::unique_ptr<Weather> weatherProcess;
         std::unique_ptr<DustCap> dustCapProcess;

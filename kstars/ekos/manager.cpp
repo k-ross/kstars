@@ -19,6 +19,7 @@
 #include "skymap.h"
 #include "auxiliary/darklibrary.h"
 #include "auxiliary/QProgressIndicator.h"
+#include "auxiliary/ksmessagebox.h"
 #include "capture/sequencejob.h"
 #include "fitsviewer/fitstab.h"
 #include "fitsviewer/fitsview.h"
@@ -141,6 +142,8 @@ Manager::Manager(QWidget * parent) : QDialog(parent)
     });
     connect(ekosLiveClient.get()->media(), &EkosLive::Media::newBoundingRect, ekosLiveClient.get()->message(), &EkosLive::Message::setBoundingRect);
     connect(ekosLiveClient.get()->message(), &EkosLive::Message::resetPolarView, ekosLiveClient.get()->media(), &EkosLive::Media::resetPolarView);
+    connect(ekosLiveClient.get()->message(), &EkosLive::Message::previewJPEGGenerated, ekosLiveClient.get()->media(), &EkosLive::Media::sendPreviewJPEG);
+    connect(KSMessageBox::Instance(), &KSMessageBox::newMessage, ekosLiveClient.get()->message(), &EkosLive::Message::sendDialog);
 
     // Serial Port Assistat
     connect(serialPortAssistantB, &QPushButton::clicked, [&]()
@@ -431,6 +434,7 @@ void Manager::reset()
     alignProcess.reset();
     mountProcess.reset();
     weatherProcess.reset();
+    observatoryProcess.reset();
     dustCapProcess.reset();
 
     Ekos::CommunicationStatus previousStatus = m_ekosStatus;
@@ -522,6 +526,14 @@ bool Manager::start()
     }
 
     reset();
+
+    //    connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this]()
+    //    {
+    //        QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+    //        qDebug() << "Dialog was accepted!";
+    //    });
+    //    KSMessageBox::Instance()->questionYesNo("Do you want to proceed?", "Confirm", 21);
+
 
     currentProfile = getCurrentProfile();
     m_LocalMode      = currentProfile->isLocal();
@@ -653,7 +665,7 @@ bool Manager::start()
 
         if (haveCCD == false && haveGuider == false)
         {
-            KMessageBox::error(this, i18n("Ekos requires at least one CCD or Guider to operate."));
+            KSNotification::error(i18n("Ekos requires at least one CCD or Guider to operate."));
             managedDrivers.clear();
             return false;
         }
@@ -677,7 +689,7 @@ bool Manager::start()
 
         if (haveCCD == false && haveGuider == false)
         {
-            KMessageBox::error(this, i18n("Ekos requires at least one CCD or Guider to operate."));
+            KSNotification::error(i18n("Ekos requires at least one CCD or Guider to operate."));
             delete (remote_indi);
             nDevices = 0;
             return false;
@@ -704,7 +716,7 @@ bool Manager::start()
         if (isRunning("PTPCamera"))
         {
             if (KMessageBox::Yes ==
-                    (KMessageBox::questionYesNo(0,
+                    (KMessageBox::questionYesNo(nullptr,
                                                 i18n("Ekos detected that PTP Camera is running and may prevent a Canon or Nikon camera from connecting to Ekos. Do you want to quit PTP Camera now?"),
                                                 i18n("PTP Camera"), KStandardGuiItem::yes(), KStandardGuiItem::no(),
                                                 "ekos_shutdown_PTPCamera")))
@@ -1093,7 +1105,10 @@ void Manager::deviceConnected()
     if (Options::verboseLogging())
     {
         ISD::GDInterface * device = qobject_cast<ISD::GDInterface *>(sender());
-        qCInfo(KSTARS_EKOS) << device->getDeviceName() << "is connected.";
+        qCInfo(KSTARS_EKOS) << device->getDeviceName()
+                            << "Version:" << device->getDriverVersion()
+                            << "Interface:" << device->getDriverInterface()
+                            << "is connected.";
     }
 
     int nConnectedDevices = 0;
@@ -1258,8 +1273,8 @@ void Manager::setTelescope(ISD::GDInterface * scopeDevice)
         alignProcess->setTelescopeInfo(primaryScopeFL, primaryScopeAperture, guideScopeFL, guideScopeAperture);
     }
 
-    if (domeProcess.get() != nullptr)
-        domeProcess->setTelescope(scopeDevice);
+    //    if (domeProcess.get() != nullptr)
+    //        domeProcess->setTelescope(scopeDevice);
 
     ekosLiveClient->message()->sendMounts();
     ekosLiveClient->message()->sendScopes();
@@ -1404,8 +1419,8 @@ void Manager::setDome(ISD::GDInterface * domeDevice)
     if (alignProcess.get() != nullptr)
         alignProcess->setDome(domeDevice);
 
-    if (managedDevices.contains(KSTARS_TELESCOPE))
-        domeProcess->setTelescope(managedDevices[KSTARS_TELESCOPE]);
+    //    if (managedDevices.contains(KSTARS_TELESCOPE))
+    //        domeProcess->setTelescope(managedDevices[KSTARS_TELESCOPE]);
 
     appendLogText(i18n("%1 is online.", domeDevice->getDeviceName()));
 }
@@ -1435,6 +1450,9 @@ void Manager::setDustCap(ISD::GDInterface * dustCapDevice)
 
     if (captureProcess.get() != nullptr)
         captureProcess->setDustCap(dustCapDevice);
+
+    DarkLibrary::Instance()->setRemoteCap(dustCapDevice);
+
 }
 
 void Manager::setLightBox(ISD::GDInterface * lightBoxDevice)
@@ -1450,29 +1468,34 @@ void Manager::setLightBox(ISD::GDInterface * lightBoxDevice)
 
 void Manager::removeDevice(ISD::GDInterface * devInterface)
 {
-    switch (devInterface->getType())
+    //    switch (devInterface->getType())
+    //    {
+    //        case KSTARS_CCD:
+    //            removeTabs();
+    //            break;
+    //        default:
+    //            break;
+    //    }
+
+    if (alignProcess)
+        alignProcess->removeDevice(devInterface);
+    if (captureProcess)
+        captureProcess->removeDevice(devInterface);
+    if (focusProcess)
+        focusProcess->removeDevice(devInterface);
+    if (mountProcess)
+        mountProcess->removeDevice(devInterface);
+    if (guideProcess)
+        guideProcess->removeDevice(devInterface);
+    if (domeProcess)
+        domeProcess->removeDevice(devInterface);
+    if (weatherProcess)
+        weatherProcess->removeDevice(devInterface);
+    if (dustCapProcess)
     {
-        case KSTARS_CCD:
-            removeTabs();
-            break;
-
-        case KSTARS_TELESCOPE:
-            if (mountProcess.get() != nullptr)
-            {
-                mountProcess.reset();
-            }
-            break;
-
-        case KSTARS_FOCUSER:
-            // TODO this should be done for all modules
-            if (focusProcess.get() != nullptr)
-                focusProcess.get()->removeDevice(devInterface);
-            break;
-
-        default:
-            break;
+        dustCapProcess->removeDevice(devInterface);
+        DarkLibrary::Instance()->removeDevice(devInterface);
     }
-
 
     appendLogText(i18n("%1 is offline.", devInterface->getDeviceName()));
 
@@ -1480,27 +1503,31 @@ void Manager::removeDevice(ISD::GDInterface * devInterface)
     // Generic devices are ALL the devices we receive from INDI server
     // Whether Ekos cares about them (i.e. selected equipment) or extra devices we
     // do not care about
-    foreach (ISD::GDInterface * genericDevice, genericDevices)
-        if (!strcmp(genericDevice->getDeviceName(), devInterface->getDeviceName()))
+    for (auto &device : genericDevices)
+    {
+        if (!strcmp(device->getDeviceName(), devInterface->getDeviceName()))
         {
-            genericDevices.removeOne(genericDevice);
-            break;
+            genericDevices.removeOne(device);
         }
+    }
 
     // #2 Remove from Ekos Managed Device
     // Managed devices are devices selected by the user in the device profile
-    foreach (ISD::GDInterface * device, managedDevices.values())
+    for (auto &device : managedDevices.values())
     {
-        if (device == devInterface)
+        if (!strcmp(device->getDeviceName(), devInterface->getDeviceName()))
         {
             managedDevices.remove(managedDevices.key(device));
 
             if (managedDevices.count() == 0)
                 cleanDevices();
 
-            break;
+            //break;
         }
     }
+
+    if (managedDevices.isEmpty())
+        removeTabs();
 }
 
 void Manager::processNewText(ITextVectorProperty * tvp)
@@ -1719,6 +1746,14 @@ void Manager::processNewProperty(INDI::Property * prop)
         return;
     }
 
+    if (!strcmp(prop->getName(), "CCD_ISO"))
+    {
+        if (captureProcess.get() != nullptr)
+            captureProcess->checkCCD();
+
+        return;
+    }
+
     if (!strcmp(prop->getName(), "TELESCOPE_PARK") && managedDevices.contains(KSTARS_TELESCOPE))
     {
         if (captureProcess.get() != nullptr)
@@ -1780,6 +1815,20 @@ void Manager::processNewProperty(INDI::Property * prop)
     {
         focusProcess->checkFocuser();
     }
+}
+
+QList<ISD::GDInterface *> Manager::getAllDevices()
+{
+    QList<ISD::GDInterface *> deviceList;
+
+    QMapIterator<DeviceFamily, ISD::GDInterface *> i(managedDevices);
+    while (i.hasNext())
+    {
+        i.next();
+        deviceList.append(i.value());
+    }
+
+    return deviceList;
 }
 
 QList<ISD::GDInterface *> Manager::findDevices(DeviceFamily type)
@@ -1870,8 +1919,10 @@ void Manager::updateLog()
         ekosLogOut->setPlainText(guideProcess->getLogText());
     else if (currentWidget == mountProcess.get())
         ekosLogOut->setPlainText(mountProcess->getLogText());
-    if (currentWidget == schedulerProcess.get())
+    else if (currentWidget == schedulerProcess.get())
         ekosLogOut->setPlainText(schedulerProcess->getLogText());
+    else if (currentWidget == observatoryProcess.get())
+        ekosLogOut->setPlainText(observatoryProcess->getLogText());
 
 #ifdef Q_OS_OSX
     repaint(); //This is a band-aid for a bug in QT 5.10.0
@@ -1912,6 +1963,8 @@ void Manager::clearLog()
         mountProcess->clearLog();
     else if (currentWidget == schedulerProcess.get())
         schedulerProcess->clearLog();
+    else if (currentWidget == observatoryProcess.get())
+        observatoryProcess->clearLog();
 }
 
 void Manager::initCapture()
@@ -1949,8 +2002,6 @@ void Manager::initCapture()
         }
     });
     connect(captureProcess.get(), &Ekos::Capture::newExposureProgress, this, &Ekos::Manager::updateExposureProgress);
-    connect(captureProcess.get(), &Ekos::Capture::sequenceChanged, ekosLiveClient.get()->message(), &EkosLive::Message::sendCaptureSequence);
-    connect(captureProcess.get(), &Ekos::Capture::settingsUpdated, ekosLiveClient.get()->message(), &EkosLive::Message::sendCaptureSettings);
     captureGroup->setEnabled(true);
     sequenceProgress->setEnabled(true);
     captureProgress->setEnabled(true);
@@ -2222,6 +2273,7 @@ void Manager::initDome()
         ekosLiveClient.get()->message()->updateDomeStatus(status);
     });
 
+    initObservatory(nullptr, domeProcess.get());
     emit newModule("Dome");
 
     ekosLiveClient->message()->sendDomes();
@@ -2233,8 +2285,30 @@ void Manager::initWeather()
         return;
 
     weatherProcess.reset(new Ekos::Weather());
+    initObservatory(weatherProcess.get(), nullptr);
 
     emit newModule("Weather");
+}
+
+void Manager::initObservatory(Weather *weather, Dome *dome)
+{
+    if (observatoryProcess.get() == nullptr)
+    {
+        // Initialize the Observatory Module
+        observatoryProcess.reset(new Ekos::Observatory());
+        int index = toolsWidget->addTab(observatoryProcess.get(), QIcon(":/icons/ekos_observatory.png"), "");
+        toolsWidget->tabBar()->setTabToolTip(index, i18n("Observatory"));
+        connect(observatoryProcess.get(), &Ekos::Observatory::newLog, this, &Ekos::Manager::updateLog);
+    }
+
+    Observatory *obs = observatoryProcess.get();
+    if (weather != nullptr)
+        obs->getWeatherModel()->initModel(weather);
+    if (dome != nullptr)
+        obs->getDomeModel()->initModel(dome);
+
+    emit newModule("Observatory");
+
 }
 
 void Manager::initDustCap()
@@ -2293,6 +2367,7 @@ void Manager::removeTabs()
     mountProcess.reset();
     domeProcess.reset();
     weatherProcess.reset();
+    observatoryProcess.reset();
     dustCapProcess.reset();
 
     managedDevices.clear();
@@ -2449,15 +2524,24 @@ void Manager::deleteProfile()
     if (currentProfile->name == "Simulators")
         return;
 
-    if (KMessageBox::questionYesNo(this, i18n("Are you sure you want to delete the profile?"),
-                                   i18n("Confirm Delete")) == KMessageBox::No)
-        return;
+    auto executeDeleteProfile = [&]()
+    {
+        KStarsData::Instance()->userdb()->DeleteProfile(currentProfile);
+        profiles.clear();
+        loadProfiles();
+        currentProfile = getCurrentProfile();
+    };
 
-    KStarsData::Instance()->userdb()->DeleteProfile(currentProfile);
+    connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this, executeDeleteProfile]()
+    {
+        //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+        KSMessageBox::Instance()->disconnect(this);
+        executeDeleteProfile();
+    });
 
-    profiles.clear();
-    loadProfiles();
-    currentProfile = getCurrentProfile();
+    KSMessageBox::Instance()->questionYesNo(i18n("Are you sure you want to delete the profile?"),
+                                            i18n("Confirm Delete"));
+
 }
 
 void Manager::wizardProfile()
@@ -3061,10 +3145,6 @@ void Manager::connectModules()
     // Capture <---> Mount connections
     if (captureProcess.get() && mountProcess.get())
     {
-        // Meridian Flip Setup Values
-        connect(captureProcess.get(), &Ekos::Capture::newMeridianFlipSetup, mountProcess.get(), &Ekos::Mount::setMeridianFlipValues, Qt::UniqueConnection);
-        connect(mountProcess.get(), &Ekos::Mount::newMeridianFlipSetup, captureProcess.get(), &Ekos::Capture::setMeridianFlipValues, Qt::UniqueConnection);
-
         // Meridian Flip states
         connect(captureProcess.get(), &Ekos::Capture::meridianFlipStarted, mountProcess.get(), &Ekos::Mount::disableAltLimits, Qt::UniqueConnection);
         connect(captureProcess.get(), &Ekos::Capture::meridianFlipCompleted, mountProcess.get(), &Ekos::Mount::enableAltLimits, Qt::UniqueConnection);
@@ -3081,6 +3161,8 @@ void Manager::connectModules()
         captureProcess.get()->disconnect(ekosLiveClient.get()->message());
 
         connect(captureProcess.get(), &Ekos::Capture::dslrInfoRequested, ekosLiveClient.get()->message(), &EkosLive::Message::requestDSLRInfo);
+        connect(captureProcess.get(), &Ekos::Capture::sequenceChanged, ekosLiveClient.get()->message(), &EkosLive::Message::sendCaptureSequence);
+        connect(captureProcess.get(), &Ekos::Capture::settingsUpdated, ekosLiveClient.get()->message(), &EkosLive::Message::sendCaptureSettings);
     }
 
     // Focus <---> Align connections
@@ -3163,7 +3245,10 @@ void Manager::syncActiveDevices()
     for (auto oneDevice : genericDevices)
     {
         uint32_t devInterface = oneDevice->getDriverInterface();
-        if (devInterface & (INDI::BaseDevice::TELESCOPE_INTERFACE | INDI::BaseDevice::DOME_INTERFACE))
+        if (devInterface & (INDI::BaseDevice::TELESCOPE_INTERFACE |
+                            INDI::BaseDevice::DOME_INTERFACE |
+                            INDI::BaseDevice::GPS_INTERFACE |
+                            INDI::BaseDevice::FILTER_INTERFACE))
         {
             for (auto otherDevice : genericDevices)
             {
@@ -3176,8 +3261,12 @@ void Manager::syncActiveDevices()
                     IText *snoopProperty = nullptr;
                     if (devInterface & INDI::BaseDevice::TELESCOPE_INTERFACE)
                         snoopProperty = IUFindText(tvp, "ACTIVE_TELESCOPE");
-                    else
+                    else if (devInterface & INDI::BaseDevice::DOME_INTERFACE)
                         snoopProperty = IUFindText(tvp, "ACTIVE_DOME");
+                    else if (devInterface & INDI::BaseDevice::GPS_INTERFACE)
+                        snoopProperty = IUFindText(tvp, "ACTIVE_GPS");
+                    else if (devInterface & INDI::BaseDevice::FILTER_INTERFACE)
+                        snoopProperty = IUFindText(tvp, "ACTIVE_FILTER");
 
                     if (snoopProperty && strcmp(snoopProperty->text, oneDevice->getDeviceName()))
                     {

@@ -11,6 +11,8 @@
 
 #include "guideadaptor.h"
 #include "kstars.h"
+#include "ksmessagebox.h"
+#include "ksnotification.h"
 #include "kstarsdata.h"
 #include "opscalibration.h"
 #include "opsguide.h"
@@ -423,7 +425,7 @@ void Guide::exportGuideData()
     if (!exportFile.isValid())
     {
         QString message = i18n("Invalid URL: %1", exportFile.url());
-        KMessageBox::sorry(KStars::Instance(), message, i18n("Invalid URL"));
+        KSNotification::sorry(message, i18n("Invalid URL"));
         return;
     }
 
@@ -432,7 +434,7 @@ void Guide::exportGuideData()
     if (!file.open(QIODevice::WriteOnly))
     {
         QString message = i18n("Unable to write to file %1", path);
-        KMessageBox::sorry(nullptr, message, i18n("Could Not Open File"));
+        KSNotification::sorry(message, i18n("Could Not Open File"));
         return;
     }
 
@@ -718,6 +720,9 @@ void Guide::updateGuideParams()
         appendLogText(i18n("Connection to the guide CCD is lost."));
         return;
     }
+
+    if (targetChip->getFrameType() != FRAME_LIGHT)
+        return;
 
     binningCombo->setEnabled(targetChip->canBin());
     int subBinX = 1, subBinY = 1;
@@ -1109,13 +1114,13 @@ void Guide::newFITS(IBLOB *bp)
 
 void Guide::setCaptureComplete()
 {
+    DarkLibrary::Instance()->disconnect(this);
+
     if (operationStack.isEmpty() == false)
     {
         executeOperationStack();
         return;
     }
-
-    DarkLibrary::Instance()->disconnect(this);
 
     switch (state)
     {
@@ -1239,7 +1244,7 @@ void Guide::processRapidStarData(ISD::CCDChip * targetChip, double dx, double dy
     // Check if guide star is lost
     if (dx == -1 && dy == -1 && fit == -1)
     {
-        KMessageBox::error(nullptr, i18n("Lost track of the guide star. Rapid guide aborted."));
+        KSNotification::error(i18n("Lost track of the guide star. Rapid guide aborted."));
         guider->abort();
         return;
     }
@@ -1357,24 +1362,37 @@ bool Guide::calibrate()
 
 bool Guide::guide()
 {
+    auto executeGuide = [this]()
+    {
+        if(guiderType != GUIDE_PHD2)
+        {
+            if (calibrationComplete == false)
+            {
+                calibrate();
+                return;
+            }
+        }
+
+        saveSettings();
+        guider->guide();
+    };
+
     if (Options::defaultCaptureCCD() == guiderCombo->currentText())
     {
-        if (KMessageBox::questionYesNo(nullptr, i18n("The guide camera is identical to the capture camera. Are you sure you want to continue?")) ==
-                KMessageBox::No)
-            return false;
+        connect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, [this, executeGuide]()
+        {
+            //QObject::disconnect(KSMessageBox::Instance(), &KSMessageBox::accepted, this, nullptr);
+            KSMessageBox::Instance()->disconnect(this);
+            executeGuide();
+        });
+
+        KSMessageBox::Instance()->questionYesNo(i18n("The guide camera is identical to the primary imaging camera. Are you sure you want to continue?"));
+
+        return false;
     }
 
-    if(guiderType != GUIDE_PHD2)
-    {
-        if (calibrationComplete == false)
-            return calibrate();
-    }
-
-    saveSettings();
-
-    bool rc = guider->guide();
-
-    return rc;
+    executeGuide();
+    return true;
 }
 
 bool Guide::dither()
@@ -1604,7 +1622,12 @@ void Guide::clearCalibration()
 void Guide::setStatus(Ekos::GuideState newState)
 {
     if (newState == state)
+    {
+        // pass through the aborted state
+        if (newState == GUIDE_ABORTED)
+            emit newStatus(state);
         return;
+    }
 
     GuideState previousState = state;
 
@@ -2777,14 +2800,22 @@ bool Guide::executeOneOperation(GuideState operation)
             // Do we need to take a dark frame?
             if (Options::guideDarkFrameEnabled())
             {
-                FITSData *darkData   = nullptr;
                 QVariantMap settings = frameSettings[targetChip];
                 uint16_t offsetX     = settings["x"].toInt() / settings["binx"].toInt();
                 uint16_t offsetY     = settings["y"].toInt() / settings["biny"].toInt();
 
-                darkData = DarkLibrary::Instance()->getDarkFrame(targetChip, exposureIN->value());
+                FITSData *darkData = DarkLibrary::Instance()->getDarkFrame(targetChip, exposureIN->value());
 
-                connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, &Ekos::Guide::setCaptureComplete);
+                connect(DarkLibrary::Instance(), &DarkLibrary::darkFrameCompleted, this, [&](bool completed)
+                {
+                    DarkLibrary::Instance()->disconnect(this);
+                    if (completed != darkFrameCheck->isChecked())
+                        setDarkFrameEnabled(completed);
+                    if (completed)
+                        setCaptureComplete();
+                    else
+                        abort();
+                });
                 connect(DarkLibrary::Instance(), &DarkLibrary::newLog, this, &Ekos::Guide::appendLogText);
 
                 actionRequired = true;
@@ -2796,9 +2827,7 @@ bool Guide::executeOneOperation(GuideState operation)
                                                       offsetY);
                 else
                 {
-                    bool rc = DarkLibrary::Instance()->captureAndSubtract(targetChip, guideView, exposureIN->value(),
-                              offsetX, offsetY);
-                    setDarkFrameEnabled(rc);
+                    DarkLibrary::Instance()->captureAndSubtract(targetChip, guideView, exposureIN->value(), offsetX, offsetY);
                 }
             }
         }
@@ -3378,5 +3407,48 @@ void Guide::initConnections()
     // Guiding Rate - Advisory only
     connect(spinBox_GuideRate, static_cast<void(QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), this, &Ekos::Guide::onInfoRateChanged);
 }
+
+void Guide::removeDevice(ISD::GDInterface *device)
+{
+    device->disconnect(this);
+    if (device == currentTelescope)
+    {
+        currentTelescope = nullptr;
+    }
+    else if (CCDs.contains(static_cast<ISD::CCD *>(device)))
+    {
+        CCDs.removeAll(static_cast<ISD::CCD *>(device));
+        guiderCombo->removeItem(guiderCombo->findText(device->getDeviceName()));
+        guiderCombo->removeItem(guiderCombo->findText(device->getDeviceName() + QString(" Guider")));
+        if (CCDs.empty())
+            currentCCD = nullptr;
+        checkCCD();
+    }
+
+    auto st4 = std::find_if(ST4List.begin(), ST4List.end(), [device](ISD::ST4 * st)
+    {
+        return !strcmp(st->getDeviceName(), device->getDeviceName());
+    });
+
+    if (st4 != ST4List.end())
+    {
+        ST4List.removeOne(*st4);
+
+        if (AODriver && !strcmp(device->getDeviceName(), AODriver->getDeviceName()))
+            AODriver = nullptr;
+
+        ST4Combo->removeItem(ST4Combo->findText(device->getDeviceName()));
+        if (ST4List.empty())
+        {
+            ST4Driver = GuideDriver = nullptr;
+        }
+        else
+        {
+            setST4(ST4Combo->currentText());
+        }
+    }
+
+}
+
 
 }

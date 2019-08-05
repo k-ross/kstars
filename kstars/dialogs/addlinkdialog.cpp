@@ -16,6 +16,7 @@
  ***************************************************************************/
 
 #include "addlinkdialog.h"
+#include "Options.h"
 
 #include <QPushButton>
 #include <QUrl>

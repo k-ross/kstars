@@ -14,6 +14,7 @@
 #include "commands.h"
 #include "profileinfo.h"
 #include "indi/drivermanager.h"
+#include "auxiliary/ksmessagebox.h"
 #include "kstars.h"
 #include "kstarsdata.h"
 #include "ekos_debug.h"
@@ -192,6 +193,10 @@ void Message::onTextReceived(const QString &message)
         sendDomes();
     else if (command == commands[GET_CAPS])
         sendCaps();
+    else if (command == commands[GET_DEVICES])
+        sendDevices();
+    else if (command == commands[DIALOG_GET_RESPONSE])
+        processDialogResponse(payload);
     else if (command.startsWith("capture_"))
         processCaptureCommands(command, payload);
     else if (command.startsWith("mount_"))
@@ -212,6 +217,8 @@ void Message::onTextReceived(const QString &message)
         processOptionsCommands(command, payload);
     else if (command.startsWith("dslr_"))
         processDSLRCommands(command, payload);
+    else if (command.startsWith("device_"))
+        processDeviceCommands(command, payload);
 }
 
 void Message::sendCameras()
@@ -225,6 +232,7 @@ void Message::sendCameras()
     {
         ISD::CCD *oneCCD = dynamic_cast<ISD::CCD*>(gd);
         connect(oneCCD, &ISD::CCD::newTemperatureValue, this, &Message::sendTemperature, Qt::UniqueConnection);
+        connect(oneCCD, &ISD::CCD::previewJPEGGenerated, this, &Message::previewJPEGGenerated, Qt::UniqueConnection);
         ISD::CCDChip *primaryChip = oneCCD->getChip(ISD::CCDChip::PRIMARY_CCD);
 
         double temperature = Ekos::INVALID_VALUE, gain = Ekos::INVALID_VALUE;
@@ -358,6 +366,29 @@ void Message::sendDrivers()
         return;
 
     sendResponse(commands[GET_DRIVERS], DriverManager::Instance()->getDriverList());
+}
+
+void Message::sendDevices()
+{
+    if (m_isConnected == false || m_Manager->getEkosStartingStatus() != Ekos::Success)
+        return;
+
+    QJsonArray deviceList;
+
+    for(ISD::GDInterface *gd : m_Manager->getAllDevices())
+    {
+        QJsonObject oneDevice =
+        {
+            {"name", gd->getDeviceName()},
+            {"connected", gd->isConnected()},
+            {"version", gd->getDriverVersion()},
+            {"interface", static_cast<int>(gd->getDriverInterface())},
+        };
+
+        deviceList.append(oneDevice);
+    }
+
+    sendResponse(commands[GET_DEVICES], deviceList);
 }
 
 void Message::sendScopes()
@@ -786,6 +817,9 @@ void Message::processProfileCommands(const QString &command, const QJsonObject &
     else if (command == commands[STOP_PROFILE])
     {
         m_Manager->stop();
+
+        // Close all FITS Viewers
+        KStars::Instance()->clearAllViewers();
     }
     else if (command == commands[ADD_PROFILE])
     {
@@ -880,14 +914,57 @@ void Message::processDSLRCommands(const QString &command, const QJsonObject &pay
                 payload["width"].toInt(),
                 payload["height"].toInt(),
                 payload["pixelw"].toDouble(),
-                payload["pixelw"].toDouble());
+                payload["pixelh"].toDouble());
 
+    }
+}
+
+void Message::processDeviceCommands(const QString &command, const QJsonObject &payload)
+{
+    if (command == commands[DEVICE_GET_PROPERTY])
+    {
+        QList<ISD::GDInterface *> devices = m_Manager->getAllDevices();
+        QString device = payload["device"].toString();
+        auto pos = std::find_if(devices.begin(), devices.end(), [device](ISD::GDInterface * oneDevice)
+        {
+            return (QString(oneDevice->getDeviceName()) == device);
+        });
+
+        if (pos == devices.end())
+            return;
+
+        auto oneDevice = *pos;
+
+        auto oneProperty = oneDevice->getJSONProperty(payload["property"].toString(), payload["compact"].toBool(true));
+
+        m_WebSocket.sendTextMessage(QJsonDocument({{"type", commands[DEVICE_GET_PROPERTY]}, {"payload", oneProperty}}).toJson(QJsonDocument::Compact));
+    }
+    else if (command == commands[DEVICE_SET_PROPERTY])
+    {
+        QList<ISD::GDInterface *> devices = m_Manager->getAllDevices();
+        QString device = payload["device"].toString();
+        auto pos = std::find_if(devices.begin(), devices.end(), [device](ISD::GDInterface * oneDevice)
+        {
+            return (QString(oneDevice->getDeviceName()) == device);
+        });
+
+        if (pos == devices.end())
+            return;
+
+        auto oneDevice = *pos;
+
+        oneDevice->setJSONProperty(payload["property"].toString(), payload["value"].toArray());
     }
 }
 
 void Message::requestDSLRInfo(const QString &cameraName)
 {
     m_WebSocket.sendTextMessage(QJsonDocument({{"type", commands[DSLR_GET_INFO]}, {"payload", cameraName}}).toJson(QJsonDocument::Compact));
+}
+
+void Message::sendDialog(const QJsonObject &message)
+{
+    m_WebSocket.sendTextMessage(QJsonDocument({{"type", commands[DIALOG_GET_INFO]}, {"payload", message}}).toJson(QJsonDocument::Compact));
 }
 
 void Message::sendResponse(const QString &command, const QJsonObject &payload)
@@ -1033,5 +1110,10 @@ void Message::setBoundingRect(QRect rect, QSize view)
 {
     boundingRect = rect;
     viewSize = view;
+}
+
+void Message::processDialogResponse(const QJsonObject &payload)
+{
+    KSMessageBox::Instance()->selectResponse(payload["button"].toString());
 }
 }

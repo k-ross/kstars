@@ -10,6 +10,7 @@
 #pragma once
 
 #include "indi/indiccd.h"
+#include "indi/indicap.h"
 
 #include <QObject>
 
@@ -25,54 +26,62 @@ namespace Ekos
  */
 class DarkLibrary : public QObject
 {
-    Q_OBJECT
+        Q_OBJECT
 
-  public:
-    static DarkLibrary *Instance();
+    public:
+        static DarkLibrary *Instance();
 
-    FITSData *getDarkFrame(ISD::CCDChip *targetChip, double duration);
-    bool subtract(FITSData *darkData, FITSView *lightImage, FITSScale filter, uint16_t offsetX, uint16_t offsetY);
-    // Return false if canceled. True if dark capture proceeds
-    bool captureAndSubtract(ISD::CCDChip *targetChip, FITSView *targetImage, double duration, uint16_t offsetX,
-                            uint16_t offsetY);
-    void refreshFromDB();
+        FITSData *getDarkFrame(ISD::CCDChip *targetChip, double duration);
+        void subtract(FITSData *darkData, FITSView *lightImage, FITSScale filter, uint16_t offsetX, uint16_t offsetY);
+        // Return false if canceled. True if dark capture proceeds
+        void captureAndSubtract(ISD::CCDChip *targetChip, FITSView *targetImage, double duration, uint16_t offsetX,
+                                uint16_t offsetY);
+        void refreshFromDB();
 
-  signals:
-    void darkFrameCompleted(bool);
-    void newLog(const QString &message);
+        void setRemoteCap(ISD::GDInterface *remoteCap);
+        void removeDevice(ISD::GDInterface *device);
 
-  public slots:
-    /**
-     * @brief newFITS A new FITS blob is received by the CCD driver.
-     * @param bp pointer to blob data
-     */
-    void newFITS(IBLOB *bp);
+    signals:
+        void darkFrameCompleted(bool);
+        void newLog(const QString &message);
 
-  private:
-    explicit DarkLibrary(QObject *parent);
-    ~DarkLibrary();
+    public slots:
+        /**
+         * @brief newFITS A new FITS blob is received by the CCD driver.
+         * @param bp pointer to blob data
+         */
+        void newFITS(IBLOB *bp);
 
-    static DarkLibrary *_DarkLibrary;
+    private:
+        explicit DarkLibrary(QObject *parent);
+        ~DarkLibrary();
 
-    bool loadDarkFile(const QString &filename);
-    bool saveDarkFile(FITSData *darkData);
+        static DarkLibrary *_DarkLibrary;
 
-    template <typename T>
-    bool subtract(FITSData *darkData, FITSView *lightImage, FITSScale filter, uint16_t offsetX, uint16_t offsetY);
+        bool loadDarkFile(const QString &filename);
+        bool saveDarkFile(FITSData *darkData);
 
-    QList<QVariantMap> darkFrames;
-    QHash<QString, FITSData *> darkFiles;
+        template <typename T>
+        void subtract(FITSData *darkData, FITSView *lightImage, FITSScale filter, uint16_t offsetX, uint16_t offsetY);
 
-    struct
-    {
-        ISD::CCDChip *targetChip { nullptr };
-        double duration { 0 };
-        uint16_t offsetX { 0 };
-        uint16_t offsetY { 0 };
-        FITSView *targetImage { nullptr };
-        FITSScale filter;
-    } subtractParams;
+        QList<QVariantMap> darkFrames;
+        QHash<QString, FITSData *> darkFiles;
 
-    bool m_TelescopeCovered { false };
+        struct
+        {
+            ISD::CCDChip *targetChip { nullptr };
+            double duration { 0 };
+            uint16_t offsetX { 0 };
+            uint16_t offsetY { 0 };
+            FITSView *targetImage { nullptr };
+            FITSScale filter;
+        } subtractParams;
+
+        bool m_TelescopeCovered { false };
+        bool m_ConfirmationPending { false };
+
+
+        QTimer captureSubtractTimer;
+        ISD::DustCap *m_RemoteCap {nullptr};
 };
 }

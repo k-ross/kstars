@@ -25,7 +25,7 @@
 #include "kstarsdata.h"
 #include "kstarsdatetime.h"
 
-KSSun::KSSun() : KSPlanet(I18N_NOOP("Sun"), "sun", Qt::yellow, 1392000. /*diameter in km*/)
+KSSun::KSSun() : KSPlanet(i18n("Sun"), "sun", Qt::yellow, 1392000. /*diameter in km*/)
 {
     setMag(-26.73);
 }
@@ -145,6 +145,8 @@ bool KSSun::findGeocentricPosition(const KSNumbers *num, const KSPlanetBase *Ear
     // Store in RA0 and Dec0, the unaberrated coordinates
     setRA0(ra());
     setDec0(dec());
+
+    precess(num);
 
     aberrate(num);
 

@@ -57,12 +57,15 @@ class Message : public QObject
         void sendDomes();
         void sendCaps();
         void sendDrivers();
+        void sendDevices();
 
     signals:
         void connected();
         void disconnected();
         void expired();
         void optionsChanged(QMap<int, bool> options);
+        // This is forward signal from INDI::CCD
+        void previewJPEGGenerated(const QString &previewJPEG, QJsonObject metadata);
 
         void resetPolarView();
 
@@ -94,6 +97,10 @@ class Message : public QObject
 
         // DSLR
         void requestDSLRInfo(const QString &cameraName);
+
+        // Dialogs
+        void sendDialog(const QJsonObject &message);
+        void processDialogResponse(const QJsonObject &payload);
 
     private slots:
 
@@ -147,6 +154,9 @@ class Message : public QObject
 
         // DSLRs
         void processDSLRCommands(const QString &command, const QJsonObject &payload);
+
+        // Low-level Device commands
+        void processDeviceCommands(const QString &command, const QJsonObject &payload);
 
         QWebSocket m_WebSocket;
         QJsonObject m_AuthResponse;
