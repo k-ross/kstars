@@ -30,6 +30,7 @@ class QProgressIndicator;
 class GeoLocation;
 class SchedulerJob;
 class SkyObject;
+class KConfigDialog;
 
 namespace Ekos
 {
@@ -90,6 +91,14 @@ class Scheduler : public QWidget, public Ui::Scheduler
             PARKWAIT_ERROR
         } ParkWaitStatus;
 
+        /** @brief options what should happen if an error or abort occurs */
+        typedef enum
+        {
+            ERROR_DONT_RESTART,
+            ERROR_RESTART_AFTER_TERMINATION,
+            ERROR_RESTART_IMMEDIATELY
+        } ErrorHandlingStrategy;
+
         /** @brief Columns, in the same order as UI. */
         typedef enum
         {
@@ -119,6 +128,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
             return m_LogText.join("\n");
         }
         void clearLog();
+        void applyConfig();
 
         void addObject(SkyObject *object);
 
@@ -223,6 +233,16 @@ class Scheduler : public QWidget, public Ui::Scheduler
         {
             return schedulerProfileCombo->currentText();
         }
+
+        /**
+         * @brief retrieve the error handling strategy from the UI
+         */
+        ErrorHandlingStrategy getErrorHandlingStrategy();
+
+        /**
+         * @brief select the error handling strategy (no restart, restart after all terminated, restart immediately)
+         */
+        void setErrorHandlingStrategy (ErrorHandlingStrategy strategy);
 
         /** @}*/
 
@@ -456,6 +476,8 @@ class Scheduler : public QWidget, public Ui::Scheduler
         void setINDICommunicationStatus(Ekos::CommunicationStatus status);
         void setEkosCommunicationStatus(Ekos::CommunicationStatus status);
 
+        void simClockScaleChanged(float);
+
     signals:
         void newLog(const QString &text);
         void newStatus(Ekos::SchedulerState state);
@@ -635,6 +657,12 @@ class Scheduler : public QWidget, public Ui::Scheduler
          */
         void setCurrentJob(SchedulerJob *job);
 
+        /**
+         * @brief processFITSSelection When a FITS file is selected, open it and try to guess
+         * the object name, and its J2000 RA/DE to fill the UI with such info automatically.
+         */
+        void processFITSSelection();
+
         void loadProfiles();
 
         XMLEle *getSequenceJobRoot();
@@ -696,7 +724,7 @@ class Scheduler : public QWidget, public Ui::Scheduler
         QProgressIndicator *pi { nullptr };
         /// Are we editing a job right now? Job row index
         int jobUnderEdit { -1 };
-        /// Pointer to Geograpic locatoin
+        /// Pointer to Geographic location
         GeoLocation *geo { nullptr };
         /// How many repeated job batches did we complete thus far?
         uint16_t captureBatch { 0 };

@@ -98,7 +98,7 @@ void FITSTab::clearRecentFITS()
     connect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
 }
 
-void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bool silent)
+bool FITSTab::setupView(FITSMode mode, FITSScale filter)
 {
     if (view.get() == nullptr)
     {
@@ -110,6 +110,20 @@ void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bo
         fitsTools = new QToolBox();
 
         stat.setupUi(statWidget);
+
+        for (int i = 0; i <= STAT_STDDEV; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                stat.statsTable->setItem(i, j, new QTableWidgetItem());
+                stat.statsTable->item(i, j)->setTextAlignment(Qt::AlignHCenter);
+            }
+
+            // Set col span for items up to HFR
+            if (i <= STAT_HFR)
+                stat.statsTable->setSpan(i, 0, 1, 3);
+        }
+
         fitsTools->addItem(statWidget, i18n("Statistics"));
 
         fitsTools->addItem(histogram, i18n("Histogram"));
@@ -151,60 +165,21 @@ void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bo
         // On Failure to load
         connect(view.get(), &FITSView::failed, this, &FITSTab::failed);
 
+        return true;
+    }
+
+    // returns false if no setup needed.
+    return false;
+}
+
+void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bool silent)
+{
+  if (setupView(mode, filter)) {
+
         // On Success loading image
         connect(view.get(), &FITSView::loaded, [&]()
         {
-            // If it was already running make sure it's done
-            //histogramFuture.waitForFinished();
-            FITSData *image_data = view->getImageData();
-            histogram->reset();
-            image_data->setHistogram(histogram);
-
-            // Only construct histogram if it is actually visible
-            // Otherwise wait until histogram is needed before creating it.
-            if (fitsSplitter->sizes().at(0) != 0)
-            {
-                histogram->constructHistogram();
-            }
-
-            evaluateStats();
-
-            //            if (histogram == nullptr)
-            //            {
-            //                histogram = new FITSHistogram(this);
-            //                image_data->setHistogram(histogram);
-            //            }
-
-            //histogramFuture = QtConcurrent::run([&]() {histogram->constructHistogram(); evaluateStats();});
-
-            //if(histogram->isVisible())
-            //    histogramFuture.waitForFinished();
-
-            //            if (filter != FITS_NONE)
-            //            {
-            //                image_data->applyFilter(filter);
-            //                view->rescale(ZOOM_KEEP_LEVEL);
-            //            }
-
-            if (viewer->isStarsMarked())
-                view->toggleStars(true);
-
-
-            loadFITSHeader();
-
-            if(recentImages->findItems(currentURL.toLocalFile(), Qt::MatchExactly).count() == 0) //Don't add it to the list if it is already there
-            {
-                if(!image_data->isTempFile()) //Don't add it to the list if it is a preview
-                {
-                    disconnect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
-                    recentImages->addItem(currentURL.toLocalFile());
-                    recentImages->setCurrentRow(recentImages->count() - 1);
-                    connect(recentImages, &QListWidget::currentRowChanged, this, &FITSTab::selectRecentFITS);
-                }
-            }
-
-            view->updateFrame();
-
+            processData();
             emit loaded();
         });
     }
@@ -214,6 +189,63 @@ void FITSTab::loadFITS(const QUrl &imageURL, FITSMode mode, FITSScale filter, bo
     view->setFilter(filter);
 
     view->loadFITS(imageURL.toLocalFile(), silent);
+}
+
+void FITSTab::processData()
+{
+    FITSData *image_data = view->getImageData();
+    histogram->reset();
+    image_data->setHistogram(histogram);
+
+    // Only construct histogram if it is actually visible
+    // Otherwise wait until histogram is needed before creating it.
+    if (fitsSplitter->sizes().at(0) != 0)
+    {
+      histogram->constructHistogram();
+    }
+
+    evaluateStats();
+
+    if (viewer->isStarsMarked())
+      view->toggleStars(true);
+
+    loadFITSHeader();
+
+    // Don't add it to the list if it is already there
+    if (recentImages->findItems(currentURL.toLocalFile(), Qt::MatchExactly).count() == 0)
+    {
+      if(!image_data->isTempFile()) //Don't add it to the list if it is a preview
+      {
+        disconnect(recentImages, &QListWidget::currentRowChanged, this,
+                   &FITSTab::selectRecentFITS);
+        recentImages->addItem(currentURL.toLocalFile());
+        recentImages->setCurrentRow(recentImages->count() - 1);
+        connect(recentImages, &QListWidget::currentRowChanged,  this,
+                &FITSTab::selectRecentFITS);
+      }
+    }
+        
+    view->updateFrame();
+}
+
+bool FITSTab::loadFITSFromData(FITSData* data, const QUrl &imageURL,
+                               FITSMode mode, FITSScale filter)
+{
+    setupView(mode, filter);
+
+    currentURL = imageURL;
+
+    view->setFilter(filter);
+
+    if (!view->loadFITSFromData(data, imageURL.toLocalFile()))
+    {
+      // On Failure to load
+      // connect(view.get(), &FITSView::failed, this, &FITSTab::failed);
+      return false;
+    }
+
+    processData();
+    return true;
 }
 
 void FITSTab::modifyFITSState(bool clean)
@@ -260,16 +292,47 @@ void FITSTab::evaluateStats()
 {
     FITSData *image_data = view->getImageData();
 
-    stat.widthOUT->setText(QString::number(image_data->width()));
-    stat.heightOUT->setText(QString::number(image_data->height()));
-    stat.bitpixOUT->setText(QString::number(image_data->bpp()));
-    stat.maxOUT->setText(QString::number(image_data->getMax(), 'f', 3));
-    stat.minOUT->setText(QString::number(image_data->getMin(), 'f', 3));
-    stat.meanOUT->setText(QString::number(image_data->getMean(), 'f', 3));
-    stat.stddevOUT->setText(QString::number(image_data->getStdDev(), 'f', 3));
-    stat.HFROUT->setText(QString::number(image_data->getHFR(), 'f', 3));
-    stat.medianOUT->setText(QString::number(image_data->getMedian(), 'f', 3));
-    stat.SNROUT->setText(QString::number(image_data->getSNR(), 'f', 3));
+    stat.statsTable->item(STAT_WIDTH, 0)->setText(QString::number(image_data->width()));
+    stat.statsTable->item(STAT_HEIGHT, 0)->setText(QString::number(image_data->height()));
+    stat.statsTable->item(STAT_BITPIX, 0)->setText(QString::number(image_data->bpp()));
+    stat.statsTable->item(STAT_HFR, 0)->setText(QString::number(image_data->getHFR(), 'f', 3));
+
+    if (image_data->channels() == 1)
+    {
+        for (int i = STAT_MIN; i <= STAT_STDDEV; i++)
+        {
+            if (stat.statsTable->columnSpan(i, 0) != 3)
+                stat.statsTable->setSpan(i, 0, 1, 3);
+        }
+
+        stat.statsTable->horizontalHeaderItem(0)->setText(i18n("Value"));
+        stat.statsTable->hideColumn(1);
+        stat.statsTable->hideColumn(2);
+    }
+    else
+    {
+        for (int i = STAT_MIN; i <= STAT_STDDEV; i++)
+        {
+            if (stat.statsTable->columnSpan(i, 0) != 1)
+                stat.statsTable->setSpan(i, 0, 1, 1);
+        }
+
+        stat.statsTable->horizontalHeaderItem(0)->setText(i18nc("Red", "R"));
+        stat.statsTable->showColumn(1);
+        stat.statsTable->showColumn(2);
+    }
+
+    if (image_data->getMedian() == 0.0 && !histogram->isConstructed())
+        histogram->constructHistogram();
+
+    for (int i = 0; i < image_data->channels(); i++)
+    {
+        stat.statsTable->item(STAT_MIN, i)->setText(QString::number(image_data->getMin(i), 'f', 3));
+        stat.statsTable->item(STAT_MAX, i)->setText(QString::number(image_data->getMax(i), 'f', 3));
+        stat.statsTable->item(STAT_MEAN, i)->setText(QString::number(image_data->getMean(i), 'f', 3));
+        stat.statsTable->item(STAT_MEDIAN, i)->setText(QString::number(image_data->getMedian(i), 'f', 3));
+        stat.statsTable->item(STAT_STDDEV, i)->setText(QString::number(image_data->getStdDev(i), 'f', 3));
+    }
 }
 
 void FITSTab::statFITS()

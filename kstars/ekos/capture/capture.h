@@ -43,7 +43,7 @@ class RotatorSettings;
  * - Control your telescope, CCD (& DSLRs), filter wheel, focuser, guider, adaptive optics unit, and any INDI-compatible auxiliary device from Ekos.
  * - Extremely accurate GOTOs using astrometry.net solver (both Online and Offline solvers supported).
  * - Load & Slew: Load a FITS image, slew to solved coordinates, and center the mount on the exact image coordinates in order to get the same desired frame.
- * - Measure & Correct Polar Alignment errors using astromety.net solver.
+ * - Measure & Correct Polar Alignment errors using astrometry.net solver.
  * - Auto and manual focus modes using Half-Flux-Radius (HFR) method.
  * - Automated unattended meridian flip. Ekos performs post meridian flip alignment, calibration, and guiding to resume the capture session.
  * - Automatic focus between exposures when a user-configurable HFR limit is exceeded.
@@ -62,7 +62,7 @@ class RotatorSettings;
  * interface to enable unattended scripting.
  *
  * @author Jasem Mutlaq
- * @version 1.7
+ * @version 1.8
  */
 namespace Ekos
 {
@@ -118,6 +118,12 @@ class Capture : public QWidget, public Ui::Capture
             CAL_CHECK_TASK,
             CAL_CHECK_CONFIRMATION,
         } CalibrationCheckType;
+
+        typedef enum
+        {
+            ADU_LEAST_SQUARES,
+            ADU_POLYNOMIAL
+        } ADUAlgorithm;
 
         typedef bool (Capture::*PauseFunctionPointer)();
 
@@ -349,6 +355,8 @@ class Capture : public QWidget, public Ui::Capture
          * @param pixelH Pizel vertical size in microns
          */
         void addDSLRInfo(const QString &model, uint32_t maxW, uint32_t maxH, double pixelW, double pixelH);
+
+        double getEstimatedDownloadTime();
 
     public slots:
 
@@ -584,6 +592,15 @@ class Capture : public QWidget, public Ui::Capture
 
         // Guide
         void setGuideStatus(Ekos::GuideState state);
+        // short cut for all guiding states that indicate guiding is active
+        bool isGuidingActive() {return (guideState == GUIDE_GUIDING ||
+                                        guideState == GUIDE_CALIBRATING ||
+                                        guideState == GUIDE_CALIBRATION_SUCESS ||
+                                        guideState == GUIDE_REACQUIRE ||
+                                        guideState == GUIDE_DITHERING ||
+                                        guideState == GUIDE_DITHERING_SUCCESS ||
+                                        guideState == GUIDE_DITHERING_ERROR ||
+                                        guideState == GUIDE_DITHERING_SETTLE);};
         // Align
         void setAlignStatus(Ekos::AlignState state);
         void setAlignResults(double orientation, double ra, double de, double pixscale);
@@ -663,7 +680,7 @@ class Capture : public QWidget, public Ui::Capture
         bool setCaptureComplete();
 
         // post capture script
-        void postScriptFinished(int exitCode);
+        void postScriptFinished(int exitCode, QProcess::ExitStatus status);
 
         void setVideoStreamEnabled(bool enabled);
 
@@ -686,6 +703,8 @@ class Capture : public QWidget, public Ui::Capture
          */
         void registerNewModule(const QString &name);
 
+        void setDownloadProgress();
+
     signals:
         Q_SCRIPTABLE void newLog(const QString &text);
         Q_SCRIPTABLE void meridianFlipStarted();
@@ -701,6 +720,7 @@ class Capture : public QWidget, public Ui::Capture
         void resumeGuiding();
         void newImage(Ekos::SequenceJob *job);
         void newExposureProgress(Ekos::SequenceJob *job);
+        void newDownloadProgress(double);
         void sequenceChanged(const QJsonArray &sequence);
         void settingsUpdated(const QJsonObject &settings);
         void newMeridianFlipStatus(Mount::MeridianFlipStatus status);
@@ -724,6 +744,12 @@ class Capture : public QWidget, public Ui::Capture
         double setCurrentADU(double value);
         void llsq(QVector<double> x, QVector<double> y, double &a, double &b);
 
+        // Gain
+        // This sets and gets the custom properties target gain
+        // it does not access the ccd gain property
+        void setGain(double value);
+        double getGain();
+
         // DSLR Info
         void cullToDSLRLimits();
         //void syncDriverToDSLRLimits();
@@ -732,6 +758,9 @@ class Capture : public QWidget, public Ui::Capture
         /* Meridian Flip */
         bool checkMeridianFlip();
         void checkGuidingAfterFlip();
+
+        // check if a pause has been planned
+        bool checkPausing();
 
         // Remaining Time in seconds
         int getJobRemainingTime(SequenceJob *job);
@@ -835,7 +864,7 @@ class Capture : public QWidget, public Ui::Capture
         int refocusEveryNMinutesValue { 0 };  // number of minutes between forced refocus
         QElapsedTimer refocusEveryNTimer; // used to determine when next force refocus should occur
 
-        // Meridan flip
+        // Meridian flip
         SkyPoint initialMountCoords;
         bool resumeAlignmentAfterFlip { false };
         bool resumeGuidingAfterFlip { false };
@@ -845,6 +874,7 @@ class Capture : public QWidget, public Ui::Capture
         QVector<double> ExpRaw, ADURaw;
         double targetADU { 0 };
         double targetADUTolerance { 1000 };
+        ADUAlgorithm targetADUAlgorithm { ADU_LEAST_SQUARES};
         SkyPoint wallCoord;
         bool preMountPark { false };
         bool preDomePark { false };
@@ -870,6 +900,7 @@ class Capture : public QWidget, public Ui::Capture
         FocusState focusState { FOCUS_IDLE };
         GuideState guideState { GUIDE_IDLE };
         AlignState alignState { ALIGN_IDLE };
+        FilterState filterManagerState { FILTER_IDLE };
 
         PauseFunctionPointer pauseFunction;
 
@@ -903,5 +934,14 @@ class Capture : public QWidget, public Ui::Capture
         // Execute the meridian flip
         void setMeridianFlipStage(MFStage status);
         void processFlipCompleted();
+
+        // Controls
+        QPointer<QComboBox> ISOCombo;
+        QPointer<QDoubleSpinBox> GainSpin;
+        double GainSpinSpecialValue;
+
+        QList<double> downloadTimes;
+        QTime downloadTimer;
+        QTimer downloadProgressTimer;
 };
 }

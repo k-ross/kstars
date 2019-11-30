@@ -292,11 +292,34 @@ void AsteroidsComponent::downloadReady()
     file.write(data);
     file.close();
 
+    QString focusedAstroid;
+
+#ifdef KSTARS_LITE
+    SkyObject *foc = KStarsLite::Instance()->map()->focusObject();
+    if (foc && foc->type() == SkyObject::ASTEROID)
+    {
+        focusedAstroid = foc->name();
+        KStarsLite::Instance()->map()->setFocusObject(nullptr);
+    }
+#else
+    SkyObject *foc = KStars::Instance()->map()->focusObject();
+    if (foc && foc->type() == SkyObject::ASTEROID)
+    {
+        focusedAstroid = foc->name();
+        KStars::Instance()->map()->setFocusObject(nullptr);
+    }
+
+#endif
     // Reload asteroids
     loadData(true);
+
 #ifdef KSTARS_LITE
     KStarsLite::Instance()->data()->setFullTimeUpdate();
+    if (!focusedAstroid.isEmpty())
+        KStarsLite::Instance()->map()->setFocusObject(KStarsLite::Instance()->data()->objectNamed(focusedAstroid));
 #else
+    if (!focusedAstroid.isEmpty())
+        KStars::Instance()->map()->setFocusObject(KStars::Instance()->data()->objectNamed(focusedAstroid));
     KStars::Instance()->data()->setFullTimeUpdate();
 #endif
     downloadJob->deleteLater();

@@ -37,6 +37,7 @@ class QActionGroup;
 class QDockWidget;
 class QPalette;
 class KActionMenu;
+class KConfigDialog;
 
 class KStarsData;
 class SkyPoint;
@@ -369,6 +370,19 @@ class KStars : public KXmlGuiWindow
              * @return True if geographic location is found and set, false otherwise.
              */
         Q_SCRIPTABLE bool setGeoLocation(const QString &city, const QString &province, const QString &country);
+
+        /**
+         * @brief location Returns a JSON Object (as string) that contains the following information:
+         * name: String
+         * province: String
+         * country: String
+         * longitude: Double (-180 to +180)
+         * latitude: Double (-90 to +90)
+         * tz0 (Time zone without DST): Double
+         * tz (Time zone with DST): Double
+         * @return Stringified JSON object as described above.
+         */
+        Q_SCRIPTABLE QString location();
 
         /** DBUS interface function.  Set the GPS geographic location.
              * @param longitude longitude in degrees (-180 West to +180 East)
@@ -768,6 +782,9 @@ class KStars : public KXmlGuiWindow
 
         /** Initialize Menu bar, toolbars and all Actions. */
         void initActions();
+
+        /** Prepare options dialog. */
+        KConfigDialog* prepareOps();
 
         /** Initialize Status bar. */
         void initStatusBar();

@@ -52,7 +52,6 @@
 
 #include <KLocalizedString>
 
-#include <QSignalMapper>
 #include <QWidgetAction>
 
 namespace
@@ -97,7 +96,7 @@ QString riseSetTimeLabel(SkyObject *o, bool isRaise)
         //We can round to the nearest minute by simply adding 30 seconds to the time.
         QString time = QLocale().toString(t.addSecs(30), QLocale::ShortFormat);
         return isRaise ? i18n("Rise time: %1", time) :
-                         i18nc("the time at which an object falls below the horizon", "Set time: %1", time);
+               i18nc("the time at which an object falls below the horizon", "Set time: %1", time);
     }
     if (o->alt().Degrees() > 0)
         return isRaise ? i18n("No rise time: Circumpolar") : i18n("No set time: Circumpolar");
@@ -241,7 +240,6 @@ void KSPopupMenu::createPlanetMenu(SkyObject *p)
 {
     QString info = magToStr(p->mag());
     QString type = i18n("Solar system object");
-    ;
     initPopupMenu(p, p->translatedName(), type, info);
     addLinksToMenu(p, false); //don't offer DSS images for planets
 }
@@ -277,17 +275,17 @@ void KSPopupMenu::createSatelliteMenu(Satellite *satellite)
     addSeparator();
 
     //Insert item for centering on object
-    addAction(i18n("Center && Track"), ks->map(), SLOT(slotCenter()));
+    addAction(QIcon::fromTheme("snap-nodes-center"), i18n("Center && Track"), ks->map(), SLOT(slotCenter()));
     //Insert item for measuring distances
     //FIXME: add key shortcut to menu items properly!
-    addAction(i18n("Angular Distance To...            ["), ks->map(), SLOT(slotBeginAngularDistance()));
-    addAction(i18n("Starhop from here to...            "), ks->map(), SLOT(slotBeginStarHop()));
+    addAction(QIcon::fromTheme("kruler-east"), i18n("Angular Distance To...            ["), ks->map(), SLOT(slotBeginAngularDistance()));
+    addAction(QIcon::fromTheme("show-path-outline"), i18n("Starhop from here to...            "), ks->map(), SLOT(slotBeginStarHop()));
 
     //Insert "Add/Remove Label" item
     if (ks->map()->isObjectLabeled(satellite))
-        addAction(i18n("Remove Label"), ks->map(), SLOT(slotRemoveObjectLabel()));
+        addAction(QIcon::fromTheme("list-remove"), i18n("Remove Label"), ks->map(), SLOT(slotRemoveObjectLabel()));
     else
-        addAction(i18n("Attach Label"), ks->map(), SLOT(slotAddObjectLabel()));
+        addAction(QIcon::fromTheme("label"), i18n("Attach Label"), ks->map(), SLOT(slotAddObjectLabel()));
 }
 
 void KSPopupMenu::createSupernovaMenu(Supernova *supernova)
@@ -342,7 +340,7 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
     }
 
     //Insert item for centering on object
-    addAction(i18n("Center && Track"), map, SLOT(slotCenter()));
+    addAction(QIcon::fromTheme("snap-nodes-center"), i18n("Center && Track"), map, SLOT(slotCenter()));
 
     if (showFlags)
     {
@@ -352,34 +350,34 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
 
     //Insert item for measuring distances
     //FIXME: add key shortcut to menu items properly!
-    addAction(i18n("Angular Distance To...            ["), map, SLOT(slotBeginAngularDistance()));
-    addAction(i18n("Starhop from here to...            "), map, SLOT(slotBeginStarHop()));
+    addAction(QIcon::fromTheme("kruler-east"), i18n("Angular Distance To...            ["), map, SLOT(slotBeginAngularDistance()));
+    addAction(QIcon::fromTheme("show-path-outline"), i18n("Starhop from here to...            "), map, SLOT(slotBeginStarHop()));
 
     //Insert item for Showing details dialog
     if (showDetails)
-        addAction(i18nc("Show Detailed Information Dialog", "Details"), map, SLOT(slotDetail()));
+        addAction(QIcon::fromTheme("view-list-details"), i18nc("Show Detailed Information Dialog", "Details"), map, SLOT(slotDetail()));
 
-    addAction(i18n("Copy Coordinates"), map, SLOT(slotCopyCoordinates()));
+    addAction(QIcon::fromTheme("edit-copy"), i18n("Copy Coordinates"), map, SLOT(slotCopyCoordinates()));
 
     //Insert "Add/Remove Label" item
     if (showLabel)
     {
         if (map->isObjectLabeled(obj))
         {
-            addAction(i18n("Remove Label"), map, SLOT(slotRemoveObjectLabel()));
+            addAction(QIcon::fromTheme("list-remove"), i18n("Remove Label"), map, SLOT(slotRemoveObjectLabel()));
         }
         else
         {
-            addAction(i18n("Attach Label"), map, SLOT(slotAddObjectLabel()));
+            addAction(QIcon::fromTheme("label"), i18n("Attach Label"), map, SLOT(slotAddObjectLabel()));
         }
     }
     // Should show observing list
     if (showObsList)
     {
         if (data->observingList()->contains(obj))
-            addAction(i18n("Remove From Observing WishList"), data->observingList(), SLOT(slotRemoveObject()));
+            addAction(QIcon::fromTheme("list-remove"), i18n("Remove From Observing WishList"), data->observingList(), SLOT(slotRemoveObject()));
         else
-            addAction(i18n("Add to Observing WishList"), data->observingList(), SLOT(slotAddObject()));
+            addAction(QIcon::fromTheme("bookmarks"), i18n("Add to Observing WishList"), data->observingList(), SLOT(slotAddObject()));
     }
     // Should we show trail actions
     TrailObject *t = dynamic_cast<TrailObject *>(obj);
@@ -391,11 +389,11 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
             addAction(i18n("Add Trail"), map, SLOT(slotAddPlanetTrail()));
     }
 
-    addAction(i18n("Simulate eyepiece view"), map, SLOT(slotEyepieceView()));
+    addAction(QIcon::fromTheme("redeyes"), i18n("Simulate eyepiece view"), map, SLOT(slotEyepieceView()));
 
     addSeparator();
     if (obj->isSolarSystem() &&
-        obj->type() !=
+            obj->type() !=
             SkyObject::COMET) // FIXME: We now have asteroids -- so should this not be isMajorPlanet() || Pluto?
     {
         addAction(i18n("View in XPlanet"), map, SLOT(slotStartXplanetViewer()));
@@ -403,7 +401,7 @@ void KSPopupMenu::initPopupMenu(SkyObject *obj, const QString &name, const QStri
     addSeparator();
     addINDI();
 
-    addAction(i18n("View in What's Interesting"), this, SLOT(slotViewInWI()));
+    addAction(QIcon::fromTheme("view-list-details"), i18n("View in What's Interesting"), this, SLOT(slotViewInWI()));
 
 
 }
@@ -417,14 +415,14 @@ void KSPopupMenu::initFlagActions(SkyObject *obj)
     if (flags.isEmpty())
     {
         // There is no flag around clicked SkyObject
-        addAction(i18n("Add flag..."), ks->map(), SLOT(slotAddFlag()));
+        addAction(QIcon::fromTheme("flag"), i18n("Add flag..."), ks->map(), SLOT(slotAddFlag()));
     }
 
     else if (flags.size() == 1)
     {
         // There is only one flag around clicked SkyObject
-        addAction(i18n("Edit flag"), this, SLOT(slotEditFlag()));
-        addAction(i18n("Delete flag"), this, SLOT(slotDeleteFlag()));
+        addAction(QIcon::fromTheme("document-edit"), i18n("Edit flag"), this, SLOT(slotEditFlag()));
+        addAction(QIcon::fromTheme("delete"), i18n("Delete flag"), this, SLOT(slotDeleteFlag()));
 
         m_CurrentFlagIdx = flags.first();
     }
@@ -433,7 +431,9 @@ void KSPopupMenu::initFlagActions(SkyObject *obj)
     {
         // There are more than one flags around clicked SkyObject - we need to create submenus
         QMenu *editMenu   = new QMenu(i18n("Edit flag..."), KStars::Instance());
+        editMenu->setIcon(QIcon::fromTheme("document-edit"));
         QMenu *deleteMenu = new QMenu(i18n("Delete flag..."), KStars::Instance());
+        deleteMenu->setIcon(QIcon::fromTheme("delete"));
 
         connect(editMenu, SIGNAL(triggered(QAction*)), this, SLOT(slotEditFlag(QAction*)));
         connect(deleteMenu, SIGNAL(triggered(QAction*)), this, SLOT(slotDeleteFlag(QAction*)));
@@ -537,6 +537,7 @@ void KSPopupMenu::addLinksToMenu(SkyObject *obj, bool showDSS)
     }
 }
 
+#if 0
 void KSPopupMenu::addINDI()
 {
 #ifdef HAVE_INDI
@@ -560,10 +561,8 @@ void KSPopupMenu::addINDI()
         foreach (INDI::Property *pp, gd->getProperties())
         {
             if (pp->getType() != INDI_SWITCH || INDIListener::Instance()->isStandardProperty(pp->getName()) == false
-                                             || QString(pp->getName()).startsWith("TELESCOPE_MOTION"))
+                    || QString(pp->getName()).startsWith("TELESCOPE_MOTION"))
                 continue;
-
-            QSignalMapper *sMapper = new QSignalMapper(this);
 
             ISwitchVectorProperty *svp = pp->getSwitch();
 
@@ -580,28 +579,19 @@ void KSPopupMenu::addINDI()
                 ISD::GDSetCommand *cmd =
                     new ISD::GDSetCommand(INDI_SWITCH, pp->getName(), svp->sp[i].name, ISS_ON, this);
 
-                sMapper->setMapping(a, cmd);
-
-                connect(a, SIGNAL(triggered()), sMapper, SLOT(map()));
+                connect(a, &QAction::triggered, gd, [gd, cmd] { gd->setProperty(cmd); });
 
                 if (!strcmp(svp->sp[i].name, "SLEW") || !strcmp(svp->sp[i].name, "SYNC") ||
-                    !strcmp(svp->sp[i].name, "TRACK"))
+                        !strcmp(svp->sp[i].name, "TRACK"))
                 {
                     telescope = INDIListener::Instance()->getDevice(gd->getDeviceName());
 
                     if (telescope)
                     {
-                        QSignalMapper *scopeMapper = new QSignalMapper(this);
-                        scopeMapper->setMapping(a, INDI_SEND_COORDS);
-
-                        connect(a, SIGNAL(triggered()), scopeMapper, SLOT(map()));
-
-                        connect(scopeMapper, SIGNAL(mapped(int)), telescope, SLOT(runCommand(int)));
+                        connect(a, &QAction::triggered, this, [this, telescope] { telescope->runCommand(INDI_SEND_COORDS); });;
                     }
                 }
             }
-
-            connect(sMapper, SIGNAL(mapped(QObject*)), gd, SLOT(setProperty(QObject*)));
 
             if (menuDevice != nullptr)
                 menuDevice->addSeparator();
@@ -625,12 +615,86 @@ void KSPopupMenu::addINDI()
             QAction *a = menuDevice->addAction(i18n("Center Crosshair"));
 
             QSignalMapper *scopeMapper = new QSignalMapper(this);
-            scopeMapper->setMapping(a, INDI_ENGAGE_TRACKING);
+            scopeMapper->setMapping(a, INDI_FIND_TELESCOPE);
             connect(a, SIGNAL(triggered()), scopeMapper, SLOT(map()));
             connect(scopeMapper, SIGNAL(mapped(int)), telescope, SLOT(runCommand(int)));
         }
     }
 
+#endif
+}
+#endif
+
+void KSPopupMenu::addINDI()
+{
+#ifdef HAVE_INDI
+    if (INDIListener::Instance()->size() == 0)
+        return;
+
+    for (auto device : INDIListener::Instance()->getDevices())
+    {
+        ISD::Telescope *mount = dynamic_cast<ISD::Telescope*>(device);
+        if (!mount)
+            continue;
+
+        QMenu *mountMenu = new QMenu(device->getDeviceName());
+        mountMenu->setIcon(QIcon::fromTheme("kstars"));
+        addMenu(mountMenu);
+
+        if (mount->canGoto() || mount->canSync())
+        {
+            if (mount->canGoto())
+            {
+                QAction *a = mountMenu->addAction(QIcon::fromTheme("object-rotate-right"),
+                                                  i18nc("Move mount to target", "Goto"));
+                a->setEnabled(!mount->isParked());
+                connect(a, &QAction::triggered, [mount] {mount->Slew(SkyMap::Instance()->clickedPoint());});
+            }
+            if (mount->canSync())
+            {
+                QAction *a = mountMenu->addAction(QIcon::fromTheme("media-record"),
+                                                  i18nc("Synchronize mount to target", "Sync"));
+                a->setEnabled(!mount->isParked());
+                connect(a, &QAction::triggered, [mount] {mount->Sync(SkyMap::Instance()->clickedPoint());});
+            }
+
+            mountMenu->addSeparator();
+        }
+
+        if (mount->canAbort())
+        {
+            QAction *a = mountMenu->addAction(QIcon::fromTheme("process-stop"),
+                                              i18n("Abort"));
+            a->setEnabled(!mount->isParked());
+            connect(a, &QAction::triggered, [mount] {mount->Abort();});
+            mountMenu->addSeparator();
+        }
+
+        if (mount->canPark())
+        {
+            QAction *park = mountMenu->addAction(QIcon::fromTheme("flag-red"), i18n("Park"));
+            park->setEnabled(!mount->isParked());
+            connect(park, &QAction::triggered, [mount] {mount->Park();});
+
+            QAction *unpark = mountMenu->addAction(QIcon::fromTheme("flag-green"), i18n("UnPark"));
+            unpark->setEnabled(mount->isParked());
+            connect(unpark, &QAction::triggered, [mount] {mount->UnPark();});
+
+            mountMenu->addSeparator();
+        }
+
+        if (mount->canCustomPark())
+        {
+            QAction *a = mountMenu->addAction(QIcon::fromTheme("go-jump-declaration"),
+                                              i18n("Goto && Set As Parking Position"));
+            a->setEnabled(!mount->isParked());
+            connect(a, &QAction::triggered, [mount] {mount->runCommand(INDI_CUSTOM_PARKING);});
+        }
+
+        QAction *a = mountMenu->addAction(QIcon::fromTheme("edit-find"),
+                                          i18n("Find Telescope"));
+        connect(a, &QAction::triggered, [mount] {mount->runCommand(INDI_FIND_TELESCOPE);});
+    }
 #endif
 }
 

@@ -149,6 +149,17 @@ class FITSData : public QObject
          * @return A QFuture that can be watched until the async operation is complete.
          */
         QFuture<bool> loadFITS(const QString &inFilename, bool silent = true);
+
+        /**
+         * @brief loadFITSFromMemory Loading FITS from memory buffer.
+         * @param inFilename Potential future path to FITS file (or compressed fits.gz), stored in a fitsdata class variable
+         * @param fits_buffer The memory buffer containing the fits data.
+         * @param fits_buffer_size The size in bytes of the buffer.
+         * @param silent If set, error messages are ignored. If set to false, the error message will get displayed in a popup.
+         * @return bool indicating success or failure.
+         */
+        bool loadFITSFromMemory(const QString &inFilename, void *fits_buffer,
+                                size_t fits_buffer_size, bool silent);
         /* Save FITS */
         int saveFITS(const QString &newFilename);
         /* Rescale image lineary from image_buffer, fit to window if desired */
@@ -339,16 +350,14 @@ class FITSData : public QObject
         bool pixelToWCS(const QPointF &wcsPixelPoint, SkyPoint &wcsCoord);
 
         /**
-             * @brief createWCSFile Create a new FITS file given the WCS information supplied. Construct the necessary WCS keywords and save the
-             * new file as the current active file
-             * @param newWCSFile New file name
+             * @brief injectWCS Add WCS keywords to file
              * @param orientation Solver orientation, degrees E of N.
              * @param ra J2000 Right Ascension
              * @param dec J2000 Declination
              * @param pixscale Pixel scale in arcsecs per pixel
-             * @return  True if file is successfully created and saved, false otherwise.
+             * @return  True if file is successfully updated with WCS info.
              */
-        bool createWCSFile(const QString &newWCSFile, double orientation, double ra, double dec, double pixscale);
+        bool injectWCS(double orientation, double ra, double dec, double pixscale);
 
         // Debayer
         bool hasDebayer()
@@ -431,7 +440,8 @@ class FITSData : public QObject
         void converted(QImage);
 
     private:
-        bool privateLoad(bool silent);
+        void loadCommon(const QString &inFilename);
+        bool privateLoad(void *fits_buffer, size_t fits_buffer_size, bool silent);
         void rotWCSFITS(int angle, int mirror);
         bool checkCollision(Edge *s1, Edge *s2);
         int calculateMinMax(bool refresh = false);
@@ -483,12 +493,6 @@ class FITSData : public QObject
         // Give unique IDs to each contiguous region
         int partition(int width, int height, QVector<float> &gradient, QVector<int> &ids);
         void trace(int width, int height, int id, QVector<float> &image, QVector<int> &ids, int x, int y);
-
-#if 0
-        QVector<int> thinning(int width, int height, const QVector<int> &gradient, const QVector<int> &direction);
-        QVector<float> threshold(int thLow, int thHi, const QVector<float> &image);
-        QVector<int> hysteresis(int width, int height, const QVector<int> &image);
-#endif
 
 #ifndef KSTARS_LITE
         FITSHistogram *histogram { nullptr }; // Pointer to the FITS data histogram

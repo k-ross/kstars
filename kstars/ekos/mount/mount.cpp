@@ -11,6 +11,7 @@
 
 #include <QQuickView>
 #include <QQuickItem>
+#include <indicom.h>
 
 #include <KNotifications/KNotification>
 #include <KLocalizedContext>
@@ -111,24 +112,52 @@ Mount::Mount()
 
     // meridian flip
     meridianFlipCheckBox->setChecked(Options::executeMeridianFlip());
-    meridianFlipTimeBox->setValue(Options::meridianFlipOffset());
+
+    // Meridian Flip Unit
+    meridianFlipDegreesR->setChecked(Options::meridianFlipUnitDegrees());
+
+    // This is always in hours
+    double offset = Options::meridianFlipOffset();
+    // Hours --> Degrees
+    if (meridianFlipDegreesR->isChecked())
+        offset *= 15.0;
+    meridianFlipTimeBox->setValue(offset);
     connect(meridianFlipCheckBox, &QCheckBox::toggled, this, &Ekos::Mount::meridianFlipSetupChanged);
     connect(meridianFlipTimeBox, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), this, &Ekos::Mount::meridianFlipSetupChanged);
-
+    connect(meridianFlipDegreesR, &QRadioButton::toggled, this, [this]()
+    {
+        Options::setMeridianFlipUnitDegrees(meridianFlipDegreesR->isChecked());
+        // Hours ---> Degrees
+        if (meridianFlipDegreesR->isChecked())
+            meridianFlipTimeBox->setValue(meridianFlipTimeBox->value() * 15.0);
+        // Degrees --> Hours
+        else
+            meridianFlipTimeBox->setValue(rangeHA(meridianFlipTimeBox->value() / 15.0));
+    });
 
     updateTimer.setInterval(UPDATE_DELAY);
     connect(&updateTimer, SIGNAL(timeout()), this, SLOT(updateTelescopeCoords()));
 
-    QDateTime now = KStarsData::Instance()->lt();
-    // Set seconds to zero
-    now = now.addSecs(now.time().second() * -1);
-    startupTimeEdit->setDateTime(now);
+    everyDayCheck->setChecked(Options::parkEveryDay());
+    connect(everyDayCheck, &QCheckBox::toggled, this, [](bool toggled)
+    {
+        Options::setParkEveryDay(toggled);
+    });
+
+    startupTimeEdit->setTime(QTime::fromString(Options::parkTime()));
+    connect(startupTimeEdit, &QTimeEdit::editingFinished, this, [this]()
+    {
+        Options::setParkTime(startupTimeEdit->time().toString());
+    });
 
     connect(&autoParkTimer, &QTimer::timeout, this, &Mount::startAutoPark);
     connect(startTimerB, &QPushButton::clicked, this, &Mount::startParkTimer);
     connect(stopTimerB, &QPushButton::clicked, this, &Mount::stopParkTimer);
 
     stopTimerB->setEnabled(false);
+
+    if (everyDayCheck->isChecked())
+        startTimerB->animateClick();
 
     // QML Stuff
     m_BaseView = new QQuickView();
@@ -187,8 +216,13 @@ Mount::Mount()
     m_Park         = m_BaseObj->findChild<QQuickItem *>("parkButtonObject");
     m_Unpark       = m_BaseObj->findChild<QQuickItem *>("unparkButtonObject");
     m_statusText   = m_BaseObj->findChild<QQuickItem *>("statusTextObject");
-    m_equatorialCheck   = m_BaseObj->findChild<QQuickItem *>("equatorialCheckObject");
-    m_horizontalCheck    = m_BaseObj->findChild<QQuickItem *>("horizontalCheckObject");
+    m_equatorialCheck = m_BaseObj->findChild<QQuickItem *>("equatorialCheckObject");
+    m_horizontalCheck = m_BaseObj->findChild<QQuickItem *>("horizontalCheckObject");
+    m_leftRightCheck = m_BaseObj->findChild<QQuickItem *>("leftRightCheckObject");
+    m_upDownCheck = m_BaseObj->findChild<QQuickItem *>("upDownCheckObject");
+
+    m_leftRightCheck->setProperty("checked", Options::leftRightReversed());
+    m_upDownCheck->setProperty("checked", Options::upDownReversed());
 
     //Note:  This is to prevent a button from being called the default button
     //and then executing when the user hits the enter key such as when on a Text Box
@@ -236,6 +270,11 @@ void Mount::setTelescope(ISD::GDInterface *newTelescope)
     {
         m_ParkStatus = status;
         emit newParkStatus(status);
+
+        // If mount is unparked AND every day auto-paro check is ON
+        // AND auto park timer is not yet started, we try to initiate it.
+        if (status == ISD::PARK_UNPARKED && everyDayCheck->isChecked() && autoParkTimer.isActive() == false)
+            startTimerB->animateClick();
     });
     connect(currentTelescope, &ISD::Telescope::ready, this, &Mount::ready);
 
@@ -259,7 +298,7 @@ void Mount::setTelescope(ISD::GDInterface *newTelescope)
 
 void Mount::removeDevice(ISD::GDInterface *device)
 {
-    if (device == currentTelescope)
+    if (currentTelescope && !strcmp(currentTelescope->getDeviceName(), device->getDeviceName()))
     {
         currentTelescope->disconnect(this);
         updateTimer.stop();
@@ -269,7 +308,7 @@ void Mount::removeDevice(ISD::GDInterface *device)
 
         currentTelescope = nullptr;
     }
-    else if (device == currentGPS)
+    else if (currentGPS && !strcmp(currentGPS->getDeviceName(), device->getDeviceName()))
     {
         currentGPS->disconnect(this);
         currentGPS = nullptr;
@@ -513,6 +552,7 @@ void Mount::updateTelescopeCoords()
                     appendLogText(i18n("Telescope altitude is below minimum altitude limit of %1. Aborting motion...",
                                        QString::number(minAltLimit->value(), 'g', 3)));
                     currentTelescope->Abort();
+                    currentTelescope->setTrackEnabled(false);
                     //KNotification::event( QLatin1String( "OperationFailed" ));
                     KNotification::beep();
                     abortDispatch++;
@@ -528,6 +568,7 @@ void Mount::updateTelescopeCoords()
                     appendLogText(i18n("Telescope altitude is above maximum altitude limit of %1. Aborting motion...",
                                        QString::number(maxAltLimit->value(), 'g', 3)));
                     currentTelescope->Abort();
+                    currentTelescope->setTrackEnabled(false);
                     //KNotification::event( QLatin1String( "OperationFailed" ));
                     KNotification::beep();
                     abortDispatch++;
@@ -545,7 +586,8 @@ void Mount::updateTelescopeCoords()
         bool isTracking = (currentStatus == ISD::Telescope::MOUNT_TRACKING);
         if (m_Status != currentStatus)
         {
-            qCDebug(KSTARS_EKOS_MOUNT) << "Mount status changed from " << m_Status << " to " << currentStatus;
+            qCDebug(KSTARS_EKOS_MOUNT) << "Mount status changed from " << currentTelescope->getStatusString(m_Status)
+                                       << " to " << currentTelescope->getStatusString(currentStatus);
             // If we just finished a slew, let's update initialHA and the current target's position
             if (currentStatus == ISD::Telescope::MOUNT_TRACKING && m_Status == ISD::Telescope::MOUNT_SLEWING)
             {
@@ -637,12 +679,29 @@ bool Mount::setSlewRate(int index)
     return false;
 }
 
+void Mount::setUpDownReversed(bool enabled)
+{
+    Options::setUpDownReversed(enabled);
+}
+
+void Mount::setLeftRightReversed(bool enabled)
+{
+    Options::setLeftRightReversed(enabled);
+}
+
 void Mount::setMeridianFlipValues(bool activate, double hours)
 {
     meridianFlipCheckBox->setChecked(activate);
-    meridianFlipTimeBox->setValue(hours);
+    // Hours --> Degrees
+    if (meridianFlipDegreesR->isChecked())
+        meridianFlipTimeBox->setValue(hours * 15.0);
+    else
+        meridianFlipTimeBox->setValue(hours);
+
     Options::setExecuteMeridianFlip(meridianFlipCheckBox->isChecked());
-    Options::setMeridianFlipOffset(meridianFlipTimeBox->value());
+
+    // It is always saved in hours
+    Options::setMeridianFlipOffset(hours);
 }
 
 void Mount::meridianFlipSetupChanged()
@@ -652,7 +711,13 @@ void Mount::meridianFlipSetupChanged()
         setMeridianFlipStatus(FLIP_NONE);
 
     Options::setExecuteMeridianFlip(meridianFlipCheckBox->isChecked());
-    Options::setMeridianFlipOffset(meridianFlipTimeBox->value());
+
+    double offset = meridianFlipTimeBox->value();
+    // Degrees --> Hours
+    if (meridianFlipDegreesR->isChecked())
+        offset /= 15.0;
+    // It is always saved in hours
+    Options::setMeridianFlipOffset(offset);
 }
 
 
@@ -691,7 +756,7 @@ void Mount::updateSwitch(ISwitchVectorProperty *svp)
 void Mount::appendLogText(const QString &text)
 {
     m_LogText.insert(0, i18nc("log entry; %1 is the date, %2 is the text", "%1 %2",
-                              QDateTime::currentDateTime().toString("yyyy-MM-ddThh:mm:ss"), text));
+                              KStarsData::Instance()->lt().toString("yyyy-MM-ddThh:mm:ss"), text));
 
     qCInfo(KSTARS_EKOS_MOUNT) << text;
 
@@ -719,12 +784,16 @@ void Mount::motionCommand(int command, int NS, int WE)
 {
     if (NS != -1)
     {
+        if (Options::upDownReversed())
+            NS = !NS;
         currentTelescope->MoveNS(static_cast<ISD::Telescope::TelescopeMotionNS>(NS),
                                  static_cast<ISD::Telescope::TelescopeMotionCommand>(command));
     }
 
     if (WE != -1)
     {
+        if (Options::leftRightReversed())
+            WE = !WE;
         currentTelescope->MoveWE(static_cast<ISD::Telescope::TelescopeMotionWE>(WE),
                                  static_cast<ISD::Telescope::TelescopeMotionCommand>(command));
     }
@@ -928,8 +997,9 @@ bool Mount::slew(double RA, double DEC)
 
     dms lst = KStarsData::Instance()->geo()->GSTtoLST(KStarsData::Instance()->clock()->utc().gst());
     double HA = lst.Hours() - RA;
-    if (HA > 12.0)
-        HA -= 24.0;
+    HA = rangeHA(HA);
+    //    if (HA > 12.0)
+    //        HA -= 24.0;
     setInitialHA(HA);
     // reset the meridian flip status if the slew is not the meridian flip itself
     if (m_MFStatus != FLIP_RUNNING)
@@ -961,8 +1031,13 @@ bool Mount::checkMeridianFlip(dms lst)
         return false;
     }
 
+    double offset = meridianFlipTimeBox->value();
+    // Degrees --> Hours
+    if (meridianFlipDegreesR->isChecked())
+        offset = rangeHA(offset / 15.0);
 
-    double deltaHA = meridianFlipTimeBox->value() - lst.Hours() + telescopeCoord.ra().Hours();
+    double deltaHA =  offset - lst.Hours() + telescopeCoord.ra().Hours();
+    deltaHA = rangeHA(deltaHA);
     int hh = static_cast<int> (deltaHA);
     int mm = static_cast<int> ((deltaHA - hh) * 60);
     int ss = static_cast<int> ((deltaHA - hh - mm / 60.0) * 3600);
@@ -988,10 +1063,15 @@ bool Mount::checkMeridianFlip(dms lst)
             }
             else if (initialHA() < 0)
             {
+                double offset = meridianFlipTimeBox->value();
+                // Degrees --> Hours
+                if (meridianFlipDegreesR->isChecked())
+                    offset = rangeHA(offset / 15.0);
+
                 qCDebug(KSTARS_EKOS_MOUNT) << "Meridian flip planned with LST=" <<
                                            lst.toHMSString() <<
                                            " scope RA=" << telescopeCoord.ra().toHMSString() <<
-                                           " and meridian diff=" << meridianFlipTimeBox->value();
+                                           " and meridian diff=" << offset;
 
                 setMeridianFlipStatus(FLIP_PLANNED);
                 return false;
@@ -1173,12 +1253,13 @@ double Mount::hourAngle()
 {
     dms lst = KStarsData::Instance()->geo()->GSTtoLST(KStarsData::Instance()->clock()->utc().gst());
     dms ha(lst.Degrees() - telescopeCoord.ra().Degrees());
-    double HA = ha.Hours();
+    double HA = rangeHA(ha.Hours());
 
-    if (HA > 12.0)
-        return (HA - 24.0);
-    else
-        return HA;
+    return HA;
+    //    if (HA > 12.0)
+    //        return (HA - 24.0);
+    //    else
+    //        return HA;
 }
 
 QList<double> Mount::telescopeInfo()
@@ -1333,7 +1414,7 @@ void Mount::findTarget()
 void Mount::centerMount()
 {
     if (currentTelescope)
-        currentTelescope->runCommand(INDI_ENGAGE_TRACKING);
+        currentTelescope->runCommand(INDI_FIND_TELESCOPE);
 }
 
 bool Mount::resetModel()
@@ -1474,7 +1555,7 @@ int Mount::slewRate()
 
 void Mount::startParkTimer()
 {
-    if (currentTelescope == nullptr)
+    if (currentTelescope == nullptr || m_ParkStatus == ISD::PARK_UNKNOWN)
         return;
 
     if (currentTelescope->isParked())
@@ -1483,25 +1564,51 @@ void Mount::startParkTimer()
         return;
     }
 
-    QDateTime parkTime = startupTimeEdit->dateTime();
-    qint64 parkSeconds = parkTime.msecsTo(KStarsData::Instance()->lt());
-    if (parkSeconds > 0)
+    QTime parkTime = startupTimeEdit->time();
+
+    qCDebug(KSTARS_EKOS_MOUNT) << "Parking time is" << parkTime.toString();
+    QDateTime currentDateTime = KStarsData::Instance()->lt();
+    QDateTime parkDateTime(currentDateTime);
+
+    parkDateTime.setTime(parkTime);
+    qint64 parkMilliSeconds = parkDateTime.msecsTo(currentDateTime);
+    qCDebug(KSTARS_EKOS_MOUNT) << "Until parking time:" << parkMilliSeconds << "ms or" << parkMilliSeconds / (60 * 60 * 1000)
+                               << "hours";
+    if (parkMilliSeconds > 0)
     {
-        appendLogText(i18n("Parking time cannot be in the past."));
-        return;
+        qCDebug(KSTARS_EKOS_MOUNT) << "Added a day to parking time...";
+        parkDateTime = parkDateTime.addDays(1);
+        parkMilliSeconds = parkDateTime.msecsTo(currentDateTime);
+
+        int hours = parkMilliSeconds / (1000 * 60 * 60);
+        if (hours > 0)
+        {
+            // No need to display warning for every day check
+            if (everyDayCheck->isChecked() == false)
+                appendLogText(i18n("Parking time cannot be in the past."));
+            return;
+        }
+        else if (std::abs(hours) > 12)
+        {
+            qCDebug(KSTARS_EKOS_MOUNT) << "Parking time is" << hours << "which exceeds 12 hours, auto park is disabled.";
+            return;
+        }
     }
 
-    parkSeconds = std::abs(parkSeconds);
+    parkMilliSeconds = std::abs(parkMilliSeconds);
 
-    if (parkSeconds > 24 * 60 * 60 * 1000)
+    if (parkMilliSeconds > 24 * 60 * 60 * 1000)
     {
         appendLogText(i18n("Parking time must be within 24 hours of current time."));
         return;
     }
 
+    if (parkMilliSeconds > 12 * 60 * 60 * 1000)
+        appendLogText(i18n("Warning! Parking time is more than 12 hours away."));
+
     appendLogText(i18n("Caution: do not use Auto Park while scheduler is active."));
 
-    autoParkTimer.setInterval(parkSeconds);
+    autoParkTimer.setInterval(parkMilliSeconds);
     autoParkTimer.start();
 
     startTimerB->setEnabled(false);

@@ -42,8 +42,10 @@ class AstrometryParser;
 class OnlineAstrometryParser;
 class OfflineAstrometryParser;
 class RemoteAstrometryParser;
+class ASTAPAstrometryParser;
 class OpsAstrometry;
 class OpsAlign;
+class OpsASTAP;
 class OpsAstrometryCfg;
 class OpsAstrometryIndexFiles;
 
@@ -70,6 +72,8 @@ class Align : public QWidget, public Ui::Align
         Q_PROPERTY(QString filter READ filter WRITE setFilter)
         Q_PROPERTY(double exposure READ exposure WRITE setExposure)
         Q_PROPERTY(QList<double> fov READ fov)
+        Q_PROPERTY(QList<double> cameraInfo READ cameraInfo)
+        Q_PROPERTY(QList<double> telescopeInfo READ telescopeInfo)
         Q_PROPERTY(QString solverArguments READ solverArguments WRITE setSolverArguments)
 
     public:
@@ -97,7 +101,8 @@ class Align : public QWidget, public Ui::Align
             ALT_FINISHED
         } ALTStage;
         typedef enum { GOTO_SYNC, GOTO_SLEW, GOTO_NOTHING } GotoMode;
-        typedef enum { SOLVER_ONLINE, SOLVER_OFFLINE, SOLVER_REMOTE } SolverType;
+        typedef enum { SOLVER_ONLINE, SOLVER_OFFLINE, SOLVER_REMOTE } AstrometrySolverType;
+        typedef enum { SOLVER_ASTAP, SOLVER_ASTROMETRYNET } SolverBackend;
         typedef enum
         {
             PAH_IDLE,
@@ -123,6 +128,15 @@ class Align : public QWidget, public Ui::Align
             ONE_CIRCLE_SOLUTION,
             TWO_CIRCLE_SOLUTION,
             INFINITE_CIRCLE_SOLUTION
+        };
+
+        enum ModelObjectType
+        {
+            OBJECT_ANY_STAR,
+            OBJECT_NAMED_STAR,
+            OBJECT_ANY_OBJECT,
+            OBJECT_FIXED_DEC,
+            OBJECT_FIXED_GRID
         };
 
         /** @defgroup AlignDBusInterface Ekos DBus Interface - Align Module
@@ -223,6 +237,18 @@ class Align : public QWidget, public Ui::Align
         {
             return FOVScopeCombo->currentIndex();
         }
+
+        /** DBUS interface function.
+         * Get currently active camera info in this order:
+         * width, height, pixel_size_x, pixel_size_y
+         */
+        Q_SCRIPTABLE QList<double> cameraInfo();
+
+        /** DBUS interface function.
+         * Get current active telescope info in this order:
+         * focal length, aperture
+         */
+        Q_SCRIPTABLE QList<double> telescopeInfo();
 
         /** @}*/
 
@@ -338,8 +364,8 @@ class Align : public QWidget, public Ui::Align
              * @param optionsMap List of key=value pairs for all astrometry.net options
              * @return String List of valid astrometry.net options
              */
-        static QStringList generateOptions(const QVariantMap &optionsMap);
-        static void generateFOVBounds(double fov_h, double fov_v, QString &fov_low, QString &fov_high);
+        static QStringList generateOptions(const QVariantMap &optionsMap, uint8_t solverType = SOLVER_ASTROMETRYNET);
+        static void generateFOVBounds(double fov_h, QString &fov_low, QString &fov_high, double tolerance = 0.05);
 
     public slots:
 
@@ -392,9 +418,15 @@ class Align : public QWidget, public Ui::Align
 
         /** DBUS interface function.
              * Select the solver type
+             * @param type Set solver type. 0 ASTAP, 1 astrometry.net
+             */
+        Q_SCRIPTABLE Q_NOREPLY void setSolverBackend(int type);
+
+        /** DBUS interface function.
+             * Select the astrometry solver type
              * @param type Set solver type. 0 online, 1 offline, 2 remote
              */
-        Q_SCRIPTABLE Q_NOREPLY void setSolverType(int type);
+        Q_SCRIPTABLE Q_NOREPLY void setAstrometrySolverType(int type);
 
         /** DBUS interface function.
              * Capture and solve an image using the astrometry.net engine
@@ -543,7 +575,7 @@ class Align : public QWidget, public Ui::Align
         void finishAlignmentPoint(bool solverSucceeded);
         void moveAlignPoint(int logicalIndex, int oldVisualIndex, int newVisualIndex);
         void exportSolutionPoints();
-        void alignTypeChanged(const QString alignType);
+        void alignTypeChanged(int alignType);
         void togglePreviewAlignPoints();
         void slotSortAlignmentPoints();
         void slotAutoScaleGraph();
@@ -683,6 +715,16 @@ class Align : public QWidget, public Ui::Align
         int findClosestAlignmentPointToTelescope();
         void swapAlignPoints(int firstPt, int secondPt);
 
+        /**
+         * @brief React when a mount motion has been detected
+         */
+        void handleMountMotion();
+
+        /**
+         * @brief Continue aligning according to the current mount status
+         */
+        void handleMountStatus();
+
         // Effective FOV
 
         /**
@@ -694,6 +736,8 @@ class Align : public QWidget, public Ui::Align
         QList<QVariantMap> effectiveFOVs;
         void syncFOV();
 
+        // We are using calculated FOV now until a more accurate effective FOV is found.
+        bool m_EffectiveFOVPending { false };
         /// Which chip should we invoke in the current CCD?
         bool useGuideHead { false };
         /// Can the mount sync its coordinates to those set by Ekos?
@@ -720,9 +764,9 @@ class Align : public QWidget, public Ui::Align
         int ccd_height { 0 };
 
         // Keep track of solver results
-        double sOrientation { -1 };
-        double sRA { -1 };
-        double sDEC { -1 };
+        double sOrientation { INVALID_VALUE };
+        double sRA { INVALID_VALUE };
+        double sDEC { INVALID_VALUE };
 
         /// Solver alignment coordinates
         SkyPoint alignCoord;
@@ -760,6 +804,8 @@ class Align : public QWidget, public Ui::Align
 
         std::unique_ptr<RemoteAstrometryParser> remoteParser;
         ISD::GDInterface *remoteParserDevice { nullptr };
+
+        std::unique_ptr<ASTAPAstrometryParser> astapParser;
 
         // Pointers to our devices
         ISD::Telescope *currentTelescope { nullptr };
@@ -858,6 +904,7 @@ class Align : public QWidget, public Ui::Align
         OpsAlign *opsAlign { nullptr };
         OpsAstrometryCfg *opsAstrometryCfg { nullptr };
         OpsAstrometryIndexFiles *opsAstrometryIndexFiles { nullptr };
+        OpsASTAP *opsASTAP { nullptr };
         QCPCurve *centralTarget { nullptr };
         QCPCurve *yellowTarget { nullptr };
         QCPCurve *redTarget { nullptr };

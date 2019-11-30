@@ -58,13 +58,20 @@ class FITSView : public QScrollArea
         typedef enum {dragCursor, selectCursor, scopeCursor, crosshairCursor } CursorMode;
 
         /**
-         * @brief loadFITS Loads FITS data and display it in FITSView frame
+         * @brief loadFITS Loads FITS data and displays it in a FITSView frame
          * @param inFilename FITS File name
          * @param silent if set, error popups are suppressed.
          * @note If image is successfully, loaded() signal is emitted, otherwise failed() signal is emitted.
          * Obtain error by calling lastError()
          */
         void loadFITS(const QString &inFilename, bool silent = true);
+
+        /**
+         * @brief loadFITSFromData Takes ownership of the FITSData instance passed in and displays it in a FITSView frame
+         * @param inFilename FITS File name to use
+         */
+         bool loadFITSFromData(FITSData *data, const QString &inFilename);
+  
         // Save FITS
         int saveFITS(const QString &newFilename);
         // Rescale image lineary from image_buffer, fit to window if desired
@@ -119,12 +126,14 @@ class FITSView : public QScrollArea
         void drawObjectNames(QPainter *painter);
         void drawPixelGrid(QPainter *painter);
 
+        bool isImageStretched();
         bool isCrosshairShown();
         bool areObjectsShown();
         bool isEQGridShown();
         bool isPixelGridShown();
         bool imageHasWCS();
 
+        // Setup the graphics.
         void updateFrame();
 
         bool isTelescopeActive();
@@ -157,6 +166,7 @@ class FITSView : public QScrollArea
         int findStars(StarAlgorithm algorithm = ALGORITHM_CENTROID, const QRect &searchBox = QRect());
         void toggleStars(bool enable);
         void setStarsEnabled(bool enable);
+        void setStarsHFREnabled(bool enable);
         void setStarFilterRange(float const innerRadius, float const outerRadius);
         int filterStars();
 
@@ -214,8 +224,10 @@ class FITSView : public QScrollArea
 
         void centerTelescope();
 
-        void processPointSelection(int x, int y);
-        void processMarkerSelection(int x, int y);
+        void toggleStretch();
+
+        virtual void processPointSelection(int x, int y);
+        virtual void processMarkerSelection(int x, int y);
         void move3DTrackingBox(int x, int y);
         void resizeTrackingBox(int newSize);
 
@@ -255,6 +267,8 @@ class FITSView : public QScrollArea
         double currentZoom { 0 };
 
     private:
+        bool processData();
+
         QLabel *noImageLabel { nullptr };
         QPixmap noImage;
 
@@ -288,7 +302,10 @@ class FITSView : public QScrollArea
         bool showObjects { false };
         bool showEQGrid { false };
         bool showPixelGrid { false };
+        bool showStarsHFR { false };
 
+        bool stretchImage { false };
+  
         struct
         {
             bool used() const
@@ -328,6 +345,8 @@ class FITSView : public QScrollArea
         QAction *toggleObjectsAction { nullptr };
         QAction *toggleStarsAction { nullptr };
         QAction *toggleProfileAction { nullptr };
+        QAction *toggleStretchAction { nullptr };
+  
 
         //Star Profile Viewer
 #ifdef HAVE_DATAVISUALIZATION

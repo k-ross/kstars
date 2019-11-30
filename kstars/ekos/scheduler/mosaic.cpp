@@ -194,6 +194,8 @@ Mosaic::Mosaic()
     selectJobsDirB->setIcon(
         QIcon::fromTheme("document-open-folder"));
 
+    connect(fetchB, &QPushButton::clicked, this, &Mosaic::fetchINDIInformation);
+
     //mosaicView->setResizeAnchor(QGraphicsView::AnchorViewCenter);
 
     // scene.addItem(mosaicTile);
@@ -287,7 +289,9 @@ void Mosaic::updateTargetFOV()
 
     center.EquatorialToHorizontal(KStarsData::Instance()->lst(), KStarsData::Instance()->geo()->lat());
 
-    map->setFocusObject(nullptr);
+    //map->setFocusObject(nullptr);
+    //map->setFocusPoint(&center);
+    map->setClickedObject(nullptr);
     map->setClickedPoint(&center);
     map->slotCenter();
     qApp->processEvents();
@@ -503,4 +507,41 @@ void Mosaic::createJobs()
 
     accept();
 }
+
+void Mosaic::fetchINDIInformation()
+{
+    QDBusInterface alignInterface("org.kde.kstars",
+                                  "/KStars/Ekos/Align",
+                                  "org.kde.kstars.Ekos.Align",
+                                  QDBusConnection::sessionBus());
+
+    QDBusReply<QList<double>> cameraReply = alignInterface.call("cameraInfo");
+    if (cameraReply.isValid())
+    {
+        QList<double> values = cameraReply.value();
+
+        cameraWSpin->setValue(values[0]);
+        cameraHSpin->setValue(values[1]);
+        pixelWSizeSpin->setValue(values[2]);
+        pixelHSizeSpin->setValue(values[3]);
+    }
+
+    QDBusReply<QList<double>> telescopeReply = alignInterface.call("telescopeInfo");
+    if (telescopeReply.isValid())
+    {
+        QList<double> values = telescopeReply.value();
+        focalLenSpin->setValue(values[0]);
+    }
+
+    QDBusReply<QList<double>> solutionReply = alignInterface.call("getSolutionResult");
+    if (solutionReply.isValid())
+    {
+        QList<double> values = solutionReply.value();
+        if (values[0] > INVALID_VALUE)
+            rotationSpin->setValue(values[0]);
+    }
+
+    constructMosaic();
+}
+
 }

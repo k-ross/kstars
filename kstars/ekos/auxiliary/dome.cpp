@@ -14,6 +14,7 @@
 #include "indi/driverinfo.h"
 #include "indi/clientmanager.h"
 #include "kstars.h"
+#include "ekos_debug.h"
 
 #include <basedevice.h>
 
@@ -37,10 +38,11 @@ void Dome::setDome(ISD::GDInterface *newDome)
     currentDome->disconnect(this);
 
     connect(currentDome, &ISD::Dome::newStatus, this, &Dome::newStatus);
-    connect(currentDome, &ISD::Dome::newParkStatus, this, &Dome::newParkStatus);
+    connect(currentDome, &ISD::Dome::newStatus, this, &Dome::setStatus);
     connect(currentDome, &ISD::Dome::newParkStatus, [&](ISD::ParkStatus status)
     {
         m_ParkStatus = status;
+        emit newParkStatus(status);
     });
     connect(currentDome, &ISD::Dome::newShutterStatus, this, &Dome::newShutterStatus);
     connect(currentDome, &ISD::Dome::newShutterStatus, [&](ISD::Dome::ShutterStatus status)
@@ -53,22 +55,6 @@ void Dome::setDome(ISD::GDInterface *newDome)
     connect(currentDome, &ISD::Dome::Disconnected, this, &Dome::disconnected);
 }
 
-//void Dome::setTelescope(ISD::GDInterface *newTelescope)
-//{
-//    if (currentDome == nullptr)
-//        return;
-
-//    ITextVectorProperty *activeDevices = currentDome->getBaseDevice()->getText("ACTIVE_DEVICES");
-//    if (activeDevices)
-//    {
-//        IText *activeTelescope = IUFindText(activeDevices, "ACTIVE_TELESCOPE");
-//        if (activeTelescope)
-//        {
-//            IUSaveText(activeTelescope, newTelescope->getDeviceName());
-//            currentDome->getDriverInfo()->getClientManager()->sendNewText(activeDevices);
-//        }
-//    }
-//}
 
 bool Dome::canPark()
 {
@@ -83,6 +69,7 @@ bool Dome::park()
     if (currentDome == nullptr || currentDome->canPark() == false)
         return false;
 
+    qCDebug(KSTARS_EKOS) << "Parking dome...";
     return currentDome->Park();
 }
 
@@ -91,6 +78,7 @@ bool Dome::unpark()
     if (currentDome == nullptr || currentDome->canPark() == false)
         return false;
 
+    qCDebug(KSTARS_EKOS) << "Unparking dome...";
     return currentDome->UnPark();
 }
 
@@ -99,6 +87,7 @@ bool Dome::abort()
     if (currentDome == nullptr)
         return false;
 
+    qCDebug(KSTARS_EKOS) << "Aborting...";
     return currentDome->Abort();
 }
 
@@ -108,6 +97,12 @@ bool Dome::isMoving()
         return false;
 
     return currentDome->isMoving();
+}
+
+bool Dome::isRolloffRoof()
+{
+    // a rolloff roof is a dome that can move neither absolutely nor relatively
+    return (currentDome && !currentDome->canAbsMove() && !currentDome->canRelMove());
 }
 
 bool Dome::canAbsoluteMove()
@@ -145,6 +140,19 @@ void Dome::setRelativePosition(double position)
         currentDome->setRelativePosition(position);
 }
 
+bool Dome::moveDome(bool moveCW, bool start)
+{
+    if (currentDome == nullptr)
+        return false;
+
+    if (isRolloffRoof())
+        qCDebug(KSTARS_EKOS) << (moveCW ? "Opening" : "Closing") << "rolloff roof" << (start ? "started." : "stopped.");
+    else
+        qCDebug(KSTARS_EKOS) << "Moving dome" << (moveCW ? "" : "counter") << "clockwise" << (start ? "started." : "stopped.");
+    return currentDome->moveDome(moveCW ? ISD::Dome::DOME_CW : ISD::Dome::DOME_CCW,
+                                 start  ? ISD::Dome::MOTION_START : ISD::Dome::MOTION_STOP);
+}
+
 bool Dome::isAutoSync()
 {
     if (currentDome)
@@ -173,54 +181,50 @@ bool Dome::controlShutter(bool open)
 {
 
     if (currentDome)
+    {
+        qCDebug(KSTARS_EKOS) << (open ? "Opening" : "Closing") << " shutter...";
         return currentDome->ControlShutter(open);
+    }
     // no dome, no shutter control
     return false;
 }
 
-#if 0
-Dome::ParkingStatus Dome::getParkingStatus()
-{
-    if (currentDome == nullptr || currentDome->canPark() == false)
-        return PARKING_ERROR;
-
-    ISwitchVectorProperty *parkSP = currentDome->getBaseDevice()->getSwitch("DOME_PARK");
-
-    if (parkSP == nullptr)
-        return PARKING_ERROR;
-
-    switch (parkSP->s)
-    {
-        case IPS_IDLE:
-            return PARKING_IDLE;
-
-        case IPS_OK:
-            if (parkSP->sp[0].s == ISS_ON)
-                return PARKING_OK;
-            else
-                return UNPARKING_OK;
-
-        case IPS_BUSY:
-            if (parkSP->sp[0].s == ISS_ON)
-                return PARKING_BUSY;
-            else
-                return UNPARKING_BUSY;
-
-        case IPS_ALERT:
-            return PARKING_ERROR;
-    }
-
-    return PARKING_ERROR;
-}
-#endif
-
 void Dome::removeDevice(ISD::GDInterface *device)
 {
     device->disconnect(this);
-    if (device == currentDome)
+    if (currentDome && !strcmp(currentDome->getDeviceName(), device->getDeviceName()))
     {
         currentDome = nullptr;
     }
+}
+
+void Dome::setStatus(ISD::Dome::Status status)
+{
+    // special case for rolloff roofs.
+    if (isRolloffRoof())
+    {
+        // if a parked rolloff roof starts to move, its state changes to unparking
+        // CW ==> Opening = Unparking
+        if (status == ISD::Dome::DOME_MOVING_CW && (m_ParkStatus == ISD::PARK_PARKED || m_ParkStatus == ISD::PARK_PARKING))
+        {
+            m_ParkStatus = ISD::PARK_UNPARKING;
+            qCDebug(KSTARS_EKOS) << "Unparking rolloff roof (status = " << status << ").";
+            emit newParkStatus(m_ParkStatus);
+        }
+        // if a unparked rolloff roof starts to move, its state changes to parking
+        // CCW ==> Closing = Parking
+        else if (status == ISD::Dome::DOME_MOVING_CCW && (m_ParkStatus == ISD::PARK_UNPARKED || m_ParkStatus == ISD::PARK_UNPARKING))
+        {
+            m_ParkStatus = ISD::PARK_PARKING;
+            qCDebug(KSTARS_EKOS) << "Parking rolloff roof (status = " << status << ").";
+            emit newParkStatus(m_ParkStatus);
+        }
+        else
+        {
+            qCDebug(KSTARS_EKOS) << "Rolloff roof status = " << status << ".";
+        }
+    }
+    // in all other cases, do nothing
 }
 
 }

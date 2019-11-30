@@ -18,6 +18,7 @@
 
 #include <QStringList>
 #include <QPointer>
+#include <QtConcurrent>
 
 #include <memory>
 
@@ -85,8 +86,10 @@ class CCDChip
 
         // Set Image Info
         bool setImageInfo(uint16_t width, uint16_t height, double pixelX, double pixelY, uint8_t bitdepth);
-        // Get Pixel size
-        bool getPixelSize(double &x, double &y);
+        // Get Image Info
+        bool getImageInfo(uint16_t &width, uint16_t &height, double &pixelX, double &pixelY, uint8_t &bitdepth);
+        // Bayer Info
+        bool getBayerInfo(uint16_t &offsetX, uint16_t &offsetY, QString &pattern);
 
         bool isCapturing();
         bool abortExposure();
@@ -311,6 +314,15 @@ class CCD : public DeviceDecorator
         }
         bool setExposureLoopCount(uint32_t count);
 
+        const QMap<QString, double> &getExposurePresets() const
+        {
+            return m_ExposurePresets;
+        }
+        const QPair<double, double> getExposurePresetsMinMax() const
+        {
+            return m_ExposurePresetsMinMax;
+        }
+
     public slots:
         void FITSViewerDestroyed();
         void StreamWindowHidden();
@@ -335,10 +347,17 @@ class CCD : public DeviceDecorator
         void previewFITSGenerated(const QString &previewFITS);
         void previewJPEGGenerated(const QString &previewJPEG, QJsonObject metadata);
         void ready();
+        void captureFailed();
 
     private:
-        void addFITSKeywords(const QString &filename);
-        void loadImageInView(IBLOB *bp, ISD::CCDChip *targetChip);
+        void processStream(IBLOB *bp);
+        void loadImageInView(IBLOB *bp, ISD::CCDChip *targetChip, FITSData *data);
+        bool generateFilename(const QString &format, bool batch_mode, QString *filename);
+        // Saves an image to disk on a separate thread.
+        bool WriteImageFile(IBLOB *bp, const QString &format, bool is_fits,
+                            bool batch_mode, QString *filename);
+        // Creates or finds the FITSViewer.
+        void setupFITSViewerWindows();
 
         QString filter;
         bool ISOMode { true };
@@ -379,5 +398,14 @@ class CCD : public DeviceDecorator
         QPointer<ImageViewer> m_ImageViewerWindow;
 
         QDateTime m_LastNotificationTS;
+
+        // Typically for DSLRs
+        QMap<QString, double> m_ExposurePresets;
+        QPair<double, double> m_ExposurePresetsMinMax;
+
+        // Used when writing the image fits file to disk in a separate thread.
+        char *fileWriteBuffer { nullptr };
+        int fileWriteBufferSize { 0 };
+        QFuture<void> fileWriteThread;
 };
 }

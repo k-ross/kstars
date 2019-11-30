@@ -55,6 +55,12 @@ class Weather : public QObject
          */
         Q_SCRIPTABLE quint16 getUpdatePeriod();
 
+        /**
+         * DBUS interface function.
+         * @brief Refresh the weather status
+         */
+        Q_SCRIPTABLE bool refresh();
+
         /** @}*/
 
         /**
@@ -71,6 +77,7 @@ class Weather : public QObject
          * @param status IPS_OK --> Good, IPS_BUSY --> Warning, IPS_ALERT --> Alert
          */
         void newStatus(ISD::Weather::Status status);
+        void newWeatherData(std::vector<ISD::Weather::WeatherData>);
         void ready();
         // Signal when the underlying ISD::Weather signals a Disconnected()
         void disconnected();

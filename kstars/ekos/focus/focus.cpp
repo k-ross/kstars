@@ -231,7 +231,12 @@ void Focus::checkCCD(int ccdNum)
                     gainIN->setMaximum(max);
                     if (step > 0)
                         gainIN->setSingleStep(step);
-                    gainIN->setValue(gain);
+
+                    double defaultGain = Options::focusGain();
+                    if (defaultGain > 0)
+                        gainIN->setValue(defaultGain);
+                    else
+                        gainIN->setValue(gain);
                 }
             }
             else
@@ -432,13 +437,13 @@ void Focus::checkFocuser(int FocuserNum)
         return;
     }
 
-    if (FocuserNum <= Focusers.count())
+    if (FocuserNum < Focusers.count())
         currentFocuser = Focusers.at(FocuserNum);
 
     filterManager->setFocusReady(currentFocuser->isConnected());
 
     // Disconnect all focusers
-    foreach (ISD::Focuser *oneFocuser, Focusers)
+    for (auto &oneFocuser : Focusers)
     {
         disconnect(oneFocuser, &ISD::GDInterface::numberUpdated, this, &Ekos::Focus::processFocusNumber);
     }
@@ -477,6 +482,28 @@ void Focus::checkFocuser(int FocuserNum)
     canTimerMove = currentFocuser->canTimerMove();
 
     focusType = (canRelMove || canAbsMove || canTimerMove) ? FOCUS_AUTO : FOCUS_MANUAL;
+
+    bool hasBacklash = currentFocuser->hasBacklash();
+    focusBacklashSpin->setEnabled(hasBacklash);
+    focusBacklashSpin->disconnect(this);
+    if (hasBacklash)
+    {
+        double min = 0, max = 0, step = 0;
+        currentFocuser->getMinMaxStep("FOCUS_BACKLASH_STEPS", "FOCUS_BACKLASH_VALUE", &min, &max, &step);
+        focusBacklashSpin->setMinimum(min);
+        focusBacklashSpin->setMaximum(max);
+        focusBacklashSpin->setSingleStep(step);
+        focusBacklashSpin->setValue(currentFocuser->getBacklash());
+        connect(focusBacklashSpin, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged), this, [this](int value)
+        {
+            if (currentFocuser)
+                currentFocuser->setBacklash(value);
+        });
+    }
+    else
+    {
+        focusBacklashSpin->setValue(0);
+    }
 
     connect(currentFocuser, &ISD::GDInterface::numberUpdated, this, &Ekos::Focus::processFocusNumber, Qt::UniqueConnection);
     //connect(currentFocuser, SIGNAL(propertyDefined(INDI::Property*)), this, &Ekos::Focus::(registerFocusProperty(INDI::Property*)), Qt::UniqueConnection);
@@ -679,12 +706,14 @@ void Focus::stop(bool aborted)
     //starSelected       = false;
     polySolutionFound  = 0;
     captureInProgress  = false;
+    captureFailureCounter = 0;
     minimumRequiredHFR = -1;
     noStarCount        = 0;
     HFRFrames.clear();
     //maxHFR=1;
 
     disconnect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Focus::newFITS);
+    disconnect(currentCCD, &ISD::CCD::captureFailed, this, &Ekos::Focus::processCaptureFailure);
 
     if (rememberUploadMode != currentCCD->getUploadMode())
         currentCCD->setUploadMode(rememberUploadMode);
@@ -808,6 +837,7 @@ void Focus::capture()
         currentCCD->setGain(gainIN->value());
 
     connect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Focus::newFITS);
+    connect(currentCCD, &ISD::CCD::captureFailed, this, &Ekos::Focus::processCaptureFailure);
 
     targetChip->setFrameType(FRAME_LIGHT);
 
@@ -937,6 +967,7 @@ void Focus::newFITS(IBLOB *bp)
 
     ISD::CCDChip *targetChip = currentCCD->getChip(ISD::CCDChip::PRIMARY_CCD);
     disconnect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Focus::newFITS);
+    disconnect(currentCCD, &ISD::CCD::captureFailed, this, &Ekos::Focus::processCaptureFailure);
 
     if (darkFrameCheck->isChecked())
     {
@@ -1070,7 +1101,7 @@ void Focus::setCaptureComplete()
         }
 
         // Let's now report the current HFR
-        qCDebug(KSTARS_EKOS_FOCUS) << "Focus newFITS #" << HFRFrames.count() + 1 << ": Current HFR " << currentHFR;
+        qCDebug(KSTARS_EKOS_FOCUS) << "Focus newFITS #" << HFRFrames.count() + 1 << ": Current HFR " << currentHFR << " Num stars " << (starSelected ? 1 : image_data->getDetectedStars());
         // Add it to existing frames in case we need to take an average
         HFRFrames.append(currentHFR);
 
@@ -1142,6 +1173,7 @@ void Focus::setCaptureComplete()
         // Format the HFR value into a string
         QString HFRText = QString("%1").arg(currentHFR, 0, 'f', 2);
         HFROut->setText(HFRText);
+        starsOut->setText(QString("%1").arg(image_data->getDetectedStars()));
 
         // Display message in case _last_ HFR was negative
         if (lastHFR == -1)
@@ -1150,13 +1182,14 @@ void Focus::setCaptureComplete()
         // If we have a valid HFR value
         if (currentHFR > 0)
         {
-            // Check if we're done from polynomail fitting algorithm
+            // Check if we're done from polynomial fitting algorithm
             if (focusAlgorithm == FOCUS_POLYNOMIAL && polySolutionFound == MINIMUM_POLY_SOLUTIONS)
             {
                 polySolutionFound = 0;
                 appendLogText(i18n("Autofocus complete after %1 iterations.", hfr_position.count()));
                 stop();
                 setAutoFocusResult(true);
+                graphPolynomialFunction();
                 return;
             }
             Edge *maxStarHFR = nullptr;
@@ -1444,15 +1477,16 @@ void Focus::setCaptureComplete()
     drawProfilePlot();
 
     // If focus logging is enabled, let's save the frame.
-    if (Options::focusLogging())
+    if (Options::focusLogging() && Options::saveFocusImages())
     {
         QDir dir;
+        QDateTime now = KStarsData::Instance()->lt();
         QString path = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + "autofocus/" +
-                       QDateTime::currentDateTime().toString("yyyy-MM-dd");
+                       now.toString("yyyy-MM-dd");
         dir.mkpath(path);
         // IS8601 contains colons but they are illegal under Windows OS, so replacing them with '-'
         // The timestamp is no longer ISO8601 but it should solve interoperality issues between different OS hosts
-        QString name     = "autofocus_frame_" + QDateTime::currentDateTime().toString("HH-mm-ss") + ".fits";
+        QString name     = "autofocus_frame_" + now.toString("HH-mm-ss") + ".fits";
         QString filename = path + QStringLiteral("/") + name;
         focusView->getImageData()->saveFITS(filename);
     }
@@ -1484,6 +1518,10 @@ void Focus::clearDataPoints()
     maxHFR = 1;
     hfr_position.clear();
     hfr_value.clear();
+    polynomialGraph->data()->clear();
+    focusPoint->data()->clear();
+    polynomialGraphIsShown = false;
+    HFRPlot->clearItems();
 
     drawHFRPlot();
 }
@@ -1496,13 +1534,13 @@ void Focus::drawHFRPlot()
     {
         //HFRPlot->xAxis->setLabel(i18n("Position"));
         HFRPlot->xAxis->setRange(minPos - pulseDuration, maxPos + pulseDuration);
-        HFRPlot->yAxis->setRange(currentHFR / 1.5, maxHFR);
+        HFRPlot->yAxis->setRange(currentHFR / 2.5, maxHFR);
     }
     else
     {
         //HFRPlot->xAxis->setLabel(i18n("Iteration"));
         HFRPlot->xAxis->setRange(1, hfr_value.count() + 1);
-        HFRPlot->yAxis->setRange(currentHFR / 1.5, maxHFR * 1.25);
+        HFRPlot->yAxis->setRange(currentHFR / 2.5, maxHFR * 1.25);
     }
 
     HFRPlot->replot();
@@ -1670,6 +1708,9 @@ void Focus::autoFocusAbs()
                     appendLogText(i18n("Autofocus complete after %1 iterations.", hfr_position.count()));
                     stop();
                     setAutoFocusResult(true);
+
+                    if (focusAlgorithm == FOCUS_POLYNOMIAL)
+                        graphPolynomialFunction();
                 }
                 break;
             }
@@ -1739,7 +1780,7 @@ void Focus::autoFocusAbs()
                 {
                     minHFR    = lastHFR;
                     minHFRPos = currentPosition;
-                    qCDebug(KSTARS_EKOS_FOCUS) << "new minHFR " << minHFR << " @ positioin " << minHFRPos;
+                    qCDebug(KSTARS_EKOS_FOCUS) << "new minHFR " << minHFR << " @ position " << minHFRPos;
                 }
 
                 lastHFRPos = currentPosition;
@@ -1814,6 +1855,24 @@ void Focus::autoFocusAbs()
                         polySolutionFound++;
                         targetPosition = floor(min_position);
                         appendLogText(i18n("Found polynomial solution @ %1", QString::number(min_position, 'f', 0)));
+
+                        graphPolynomialFunction();
+                        focusPoint->data()->clear();
+                        focusPoint->addData(min_position, min_hfr);
+
+                        HFRPlot->clearItems();
+
+                        QCPItemText *textLabel = new QCPItemText(HFRPlot);
+                        textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+                        textLabel->position->setType(QCPItemPosition::ptPlotCoords);
+                        textLabel->position->setCoords(min_position, min_hfr / 2);
+                        textLabel->setColor(Qt::red);
+                        textLabel->setPadding(QMargins(0, 0, 0, 0));
+                        textLabel->setBrush(Qt::white);
+                        textLabel->setPen(Qt::NoPen);
+                        textLabel->setFont(QFont(font().family(), 8));
+                        textLabel->setText(QString::number(min_position));
+
                     }
                 }
 
@@ -1856,6 +1915,8 @@ void Focus::autoFocusAbs()
                 appendLogText(i18n("Autofocus complete after %1 iterations.", hfr_position.count()));
                 stop();
                 setAutoFocusResult(true);
+                if (focusAlgorithm == FOCUS_POLYNOMIAL)
+                    graphPolynomialFunction();
                 return;
             }
 
@@ -1918,6 +1979,24 @@ void Focus::autoFocusAbs()
     }
 }
 
+void Focus::graphPolynomialFunction()
+{
+    if(polynomialGraph)
+    {
+        polynomialGraph->data()->clear();
+        QCPRange range = HFRPlot->xAxis->range();
+        double interval = range.size() / 20.0;
+
+        for(double x = range.lower ; x < range.upper ; x += interval)
+        {
+            double y = fn1(x, this);
+            polynomialGraph->addData(x, y);
+        }
+        HFRPlot->replot();
+        polynomialGraphIsShown = true;
+    }
+}
+
 void Focus::autoFocusRel()
 {
     static int noStarCount = 0;
@@ -1966,6 +2045,8 @@ void Focus::autoFocusRel()
                 appendLogText(i18n("Autofocus complete after %1 iterations.", hfr_position.count()));
                 stop();
                 setAutoFocusResult(true);
+                if (focusAlgorithm == FOCUS_POLYNOMIAL)
+                    graphPolynomialFunction();
                 break;
             }
             else if (currentHFR < lastHFR)
@@ -2042,6 +2123,12 @@ void Focus::processFocusNumber(INumberVectorProperty *nvp)
     // Return if it is not our current focuser
     if (strcmp(nvp->device, currentFocuser->getDeviceName()))
         return;
+
+    if (!strcmp(nvp->name, "FOCUS_BACKLASH_STEPS"))
+    {
+        focusBacklashSpin->setValue(nvp->np[0].value);
+        return;
+    }
 
     if (!strcmp(nvp->name, "ABS_FOCUS_POSITION"))
     {
@@ -2163,7 +2250,7 @@ void Focus::processFocusNumber(INumberVectorProperty *nvp)
 void Focus::appendLogText(const QString &text)
 {
     m_LogText.insert(0, i18nc("log entry; %1 is the date, %2 is the text", "%1 %2",
-                              QDateTime::currentDateTime().toString("yyyy-MM-ddThh:mm:ss"), text));
+                              KStarsData::Instance()->lt().toString("yyyy-MM-ddThh:mm:ss"), text));
 
     qCInfo(KSTARS_EKOS_FOCUS) << text;
 
@@ -2732,7 +2819,10 @@ double Focus::fn1(double x, void *params)
 {
     Focus *module = static_cast<Focus *>(params);
 
-    return (module->coeff[0] + module->coeff[1] * x + module->coeff[2] * pow(x, 2) + module->coeff[3] * pow(x, 3));
+    if(module && !module->coeff.empty())
+        return (module->coeff[0] + module->coeff[1] * x + module->coeff[2] * pow(x, 2) + module->coeff[3] * pow(x, 3));
+    else
+        return -1;
 }
 
 bool Focus::findMinimum(double expected, double *position, double *hfr)
@@ -2744,7 +2834,6 @@ bool Focus::findMinimum(double expected, double *position, double *hfr)
     double m = expected;
     double a = *std::min_element(hfr_position.constBegin(), hfr_position.constEnd());
     double b = *std::max_element(hfr_position.constBegin(), hfr_position.constEnd());
-    ;
     gsl_function F;
 
     F.function = &Focus::fn1;
@@ -2792,20 +2881,19 @@ void Focus::removeDevice(ISD::GDInterface *deviceRemoved)
     // Check in Focusers
     for (ISD::GDInterface *focuser : Focusers)
     {
-        if (focuser == deviceRemoved)
+        if (!strcmp(focuser->getDeviceName(), deviceRemoved->getDeviceName()))
         {
             Focusers.removeAll(dynamic_cast<ISD::Focuser*>(focuser));
             focuserCombo->removeItem(focuserCombo->findText(focuser->getDeviceName()));
             checkFocuser();
             resetButtons();
-            return;
         }
     }
 
     // Check in CCDs
     for (ISD::GDInterface *ccd : CCDs)
     {
-        if (ccd == deviceRemoved)
+        if (!strcmp(ccd->getDeviceName(), deviceRemoved->getDeviceName()))
         {
             CCDs.removeAll(dynamic_cast<ISD::CCD*>(ccd));
             CCDCaptureCombo->removeItem(CCDCaptureCombo->findText(ccd->getDeviceName()));
@@ -2818,10 +2906,10 @@ void Focus::removeDevice(ISD::GDInterface *deviceRemoved)
     // Check in Filters
     for (ISD::GDInterface *filter : Filters)
     {
-        if (filter == deviceRemoved)
+        if (!strcmp(filter->getDeviceName(), deviceRemoved->getDeviceName()))
         {
             Filters.removeAll(filter);
-            filterCombo->removeItem(filterCombo->findText(filter->getDeviceName()));
+            FilterDevicesCombo->removeItem(FilterDevicesCombo->findText(filter->getDeviceName()));
             if (Filters.empty())
                 currentFilter = nullptr;
             checkFilter();
@@ -2892,7 +2980,6 @@ void Focus::setFilterManager(const QSharedPointer<FilterManager> &manager)
     connect(filterManager.data(), &FilterManager::exposureChanged, this, [this]()
     {
         exposureIN->setValue(filterManager->getFilterExposure());
-        ;
     });
 
     connect(FilterPosCombo, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::currentIndexChanged),
@@ -2966,6 +3053,31 @@ void Focus::processCaptureTimeout()
     targetChip->abortExposure();
     targetChip->capture(exposureIN->value());
     captureTimeout.start(exposureIN->value() * 1000 + FOCUS_TIMEOUT_THRESHOLD);
+}
+
+void Focus::processCaptureFailure()
+{
+    captureFailureCounter++;
+
+    if (captureFailureCounter >= 3)
+    {
+        captureFailureCounter = 0;
+        appendLogText(i18n("Exposure failure. Aborting..."));
+        abort();
+        if (inAutoFocus)
+            setAutoFocusResult(false);
+        else if (m_GuidingSuspended)
+        {
+            emit resumeGuiding();
+            m_GuidingSuspended = false;
+        }
+        return;
+    }
+
+    appendLogText(i18n("Exposure failure. Restarting exposure..."));
+    ISD::CCDChip *targetChip = currentCCD->getChip(ISD::CCDChip::PRIMARY_CCD);
+    targetChip->abortExposure();
+    targetChip->capture(exposureIN->value());
 }
 
 void Focus::syncSettings()
@@ -3106,7 +3218,7 @@ void Focus::loadSettings()
     maxTravelIN->setValue(Options::focusMaxTravel());
     // Step
     stepIN->setValue(Options::focusTicks());
-    // Tolernace
+    // Tolerance
     toleranceIN->setValue(Options::focusTolerance());
     // Threshold spin
     thresholdSpin->setValue(Options::focusThreshold());
@@ -3236,9 +3348,56 @@ void Focus::initPlots()
     HFRPlot->setInteractions(QCP::iRangeZoom);
     HFRPlot->setInteraction(QCP::iRangeDrag, true);
 
+    polynomialGraph = HFRPlot->addGraph();
+    polynomialGraph->setLineStyle(QCPGraph::lsLine);
+    polynomialGraph->setPen(QPen(QColor(140, 140, 140), 2, Qt::DotLine));
+    polynomialGraph->setScatterStyle(QCPScatterStyle::ssNone);
+
+    connect(HFRPlot->xAxis, static_cast<void(QCPAxis::*)(const QCPRange &)>(&QCPAxis::rangeChanged), this, [this]()
+    {
+        if(polynomialGraphIsShown)
+        {
+            if (focusAlgorithm == FOCUS_POLYNOMIAL)
+                graphPolynomialFunction();
+        }
+    });
+
+    connect(HFRPlot, &QCustomPlot::mouseMove, this, [this](QMouseEvent * event)
+    {
+        double key = HFRPlot->xAxis->pixelToCoord(event->localPos().x());
+        if (HFRPlot->xAxis->range().contains(key))
+        {
+            QCPGraph *graph = qobject_cast<QCPGraph *>(HFRPlot->plottableAt(event->pos(), false));
+
+            if (graph)
+            {
+                if(graph == v_graph)
+                {
+                    int positionKey = v_graph->findBegin(key);
+                    double focusPosition = v_graph->dataMainKey(positionKey);
+                    double halfFluxRadius = v_graph->dataMainValue(positionKey);
+                    QToolTip::showText(
+                        event->globalPos(),
+                        i18nc("HFR graphics tooltip; %1 is the Focus Position; %2 is the Half Flux Radius;",
+                              "<table>"
+                              "<tr><td>POS:   </td><td>%1</td></tr>"
+                              "<tr><td>HFR:   </td><td>%2</td></tr>"
+                              "</table>",
+                              QString::number(focusPosition, 'f', 0),
+                              QString::number(halfFluxRadius, 'f', 2)));
+                }
+            }
+        }
+    });
+
+    focusPoint = HFRPlot->addGraph();
+    focusPoint->setLineStyle(QCPGraph::lsImpulse);
+    focusPoint->setPen(QPen(QColor(140, 140, 140), 2, Qt::SolidLine));
+    focusPoint->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, Qt::white, Qt::yellow, 10));
+
     v_graph = HFRPlot->addGraph();
     v_graph->setLineStyle(QCPGraph::lsNone);
-    v_graph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, Qt::white, Qt::red, 3));
+    v_graph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, Qt::white, Qt::red, 5));
 
 }
 
@@ -3280,7 +3439,7 @@ void Focus::initConnections()
 
     // Capture a single frame
     connect(captureB, &QPushButton::clicked, this, &Ekos::Focus::capture);
-    // Start continious capture
+    // Start continuous capture
     connect(startLoopB, &QPushButton::clicked, this, &Ekos::Focus::startFraming);
     // Use a subframe when capturing
     connect(useSubFrame, &QCheckBox::toggled, this, &Ekos::Focus::toggleSubframe);
@@ -3357,6 +3516,7 @@ void Focus::initView()
     focusingWidget->setLayout(vlayout);
     connect(focusView, &FITSView::trackingStarSelected, this, &Ekos::Focus::focusStarSelected, Qt::UniqueConnection);
     focusView->setStarsEnabled(true);
+    focusView->setStarsHFREnabled(true);
 }
 
 }

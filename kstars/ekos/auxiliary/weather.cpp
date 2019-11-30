@@ -34,6 +34,7 @@ void Weather::setWeather(ISD::GDInterface *newWeather)
     currentWeather = static_cast<ISD::Weather *>(newWeather);
     currentWeather->disconnect(this);
     connect(currentWeather, &ISD::Weather::newStatus, this, &Weather::newStatus);
+    connect(currentWeather, &ISD::Weather::newWeatherData, this, &Weather::newWeatherData);
     connect(currentWeather, &ISD::Weather::ready, this, &Weather::ready);
     connect(currentWeather, &ISD::Weather::Connected, this, &Weather::ready);
     connect(currentWeather, &ISD::Weather::Disconnected, this, &Weather::disconnected);
@@ -42,7 +43,7 @@ void Weather::setWeather(ISD::GDInterface *newWeather)
 void Weather::removeDevice(ISD::GDInterface *device)
 {
     device->disconnect(this);
-    if (device == currentWeather)
+    if (currentWeather && !strcmp(currentWeather->getDeviceName(), device->getDeviceName()))
     {
         currentWeather = nullptr;
     }
@@ -63,4 +64,11 @@ quint16 Weather::getUpdatePeriod()
 
     return currentWeather->getUpdatePeriod();
 }
+
+bool Weather::refresh()
+{
+    return currentWeather->refresh();
+
+}
+
 }

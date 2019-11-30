@@ -8,14 +8,18 @@
   <property name="status" type="(i)" access="read">
     <annotation name="org.qtproject.QtDBus.QtTypeName" value="Ekos::AlignState"/>
   </property>
-  <property name="fov" type="(i)" access="read">
+  <property name="fov" type="ad" access="read">
     <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;double&gt;"/>
   </property>
   <property name="solverArguments" type="s" access="readwrite"/>
     <method name="abort">
       <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
     </method>
-    <method name="setSolverType">
+    <method name="setSolverBackend">
+      <arg name="type" type="i" direction="in"/>
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
+    </method>
+    <method name="setAstrometrySolverType">
       <arg name="type" type="i" direction="in"/>
       <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
     </method>
@@ -34,6 +38,16 @@
     <method name="setSolverAction">
       <arg name="mode" type="i" direction="in"/>
       <annotation name="org.freedesktop.DBus.Method.NoReply" value="true"/>
+    </method>
+    <method name="cameraInfo">
+    <arg type="ad" direction="out"/>
+    <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QList&lt;double&gt;"/>
+    <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QList&lt;double&gt;"/>
+    </method>
+    <method name="telescopeInfo">
+    <arg type="ad" direction="out"/>
+    <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QList&lt;double&gt;"/>
+    <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QList&lt;double&gt;"/>
     </method>
     <method name="getSolutionResult">
       <arg type="ad" direction="out"/>

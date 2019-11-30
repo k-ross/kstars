@@ -132,6 +132,8 @@ void Dome::processSwitch(ISwitchVectorProperty *svp)
     }
     else if (!strcmp(svp->name, "DOME_PARK"))
     {
+        m_CanPark = true;
+
         ISwitch *sp = IUFindSwitch(svp, "PARK");
         if (sp)
         {
@@ -219,12 +221,19 @@ void Dome::processSwitch(ISwitchVectorProperty *svp)
     {
         Status lastStatus = m_Status;
 
-        if (svp->s == IPS_BUSY && lastStatus != DOME_MOVING && lastStatus != DOME_PARKING && lastStatus != DOME_UNPARKING)
+        if (svp->s == IPS_BUSY && lastStatus != DOME_MOVING_CW && lastStatus != DOME_MOVING_CCW && lastStatus != DOME_PARKING && lastStatus != DOME_UNPARKING)
         {
-            m_Status = DOME_MOVING;
+            m_Status = svp->sp->s == ISS_ON ? DOME_MOVING_CW : DOME_MOVING_CCW;
             emit newStatus(m_Status);
+
+            // rolloff roofs: cw = opening = unparking, ccw = closing = parking
+            if (!canAbsMove() && !canRelMove())
+            {
+                m_ParkStatus = (m_Status == DOME_MOVING_CW) ? PARK_UNPARKING : PARK_PARKING;
+                emit newParkStatus(m_ParkStatus);
+            }
         }
-        else if (svp->s == IPS_OK && lastStatus == DOME_MOVING)
+        else if (svp->s == IPS_OK && (lastStatus == DOME_MOVING_CW || lastStatus == DOME_MOVING_CCW))
         {
             m_Status = DOME_TRACKING;
             emit newStatus(m_Status);
@@ -232,6 +241,11 @@ void Dome::processSwitch(ISwitchVectorProperty *svp)
         else if (svp->s == IPS_IDLE && lastStatus != DOME_IDLE)
         {
             m_Status = DOME_IDLE;
+            emit newStatus(m_Status);
+        }
+        else if (svp->s == IPS_ALERT)
+        {
+            m_Status = DOME_ERROR;
             emit newStatus(m_Status);
         }
     }
@@ -253,41 +267,42 @@ void Dome::processSwitch(ISwitchVectorProperty *svp)
 
         ShutterStatus status = shutterStatus(svp);
 
-        switch (status) {
-        case SHUTTER_CLOSING:
-            if (m_ShutterStatus != SHUTTER_CLOSING)
-            {
-                m_ShutterStatus = SHUTTER_CLOSING;
-                KNotification::event(QLatin1String("ShutterClosing"), i18n("Shutter closing is in progress"));
-                emit newShutterStatus(m_ShutterStatus);
-            }
-            break;
-        case SHUTTER_OPENING:
-            if (m_ShutterStatus != SHUTTER_OPENING)
-            {
-                m_ShutterStatus = SHUTTER_OPENING;
-                KNotification::event(QLatin1String("ShutterOpening"), i18n("Shutter opening is in progress"));
-                emit newShutterStatus(m_ShutterStatus);
-            }
-            break;
-        case SHUTTER_CLOSED:
-            if (m_ShutterStatus != SHUTTER_CLOSED)
-            {
-                m_ShutterStatus = SHUTTER_CLOSED;
-                KNotification::event(QLatin1String("ShutterClosed"), i18n("Shutter closed"));
-                emit newShutterStatus(m_ShutterStatus);
-            }
-            break;
-        case SHUTTER_OPEN:
-            if (m_ShutterStatus != SHUTTER_OPEN)
-            {
-                m_ShutterStatus = SHUTTER_OPEN;
-                KNotification::event(QLatin1String("ShutterOpened"), i18n("Shutter opened"));
-                emit newShutterStatus(m_ShutterStatus);
-            }
-            break;
-        default:
-            break;
+        switch (status)
+        {
+            case SHUTTER_CLOSING:
+                if (m_ShutterStatus != SHUTTER_CLOSING)
+                {
+                    m_ShutterStatus = SHUTTER_CLOSING;
+                    KNotification::event(QLatin1String("ShutterClosing"), i18n("Shutter closing is in progress"));
+                    emit newShutterStatus(m_ShutterStatus);
+                }
+                break;
+            case SHUTTER_OPENING:
+                if (m_ShutterStatus != SHUTTER_OPENING)
+                {
+                    m_ShutterStatus = SHUTTER_OPENING;
+                    KNotification::event(QLatin1String("ShutterOpening"), i18n("Shutter opening is in progress"));
+                    emit newShutterStatus(m_ShutterStatus);
+                }
+                break;
+            case SHUTTER_CLOSED:
+                if (m_ShutterStatus != SHUTTER_CLOSED)
+                {
+                    m_ShutterStatus = SHUTTER_CLOSED;
+                    KNotification::event(QLatin1String("ShutterClosed"), i18n("Shutter closed"));
+                    emit newShutterStatus(m_ShutterStatus);
+                }
+                break;
+            case SHUTTER_OPEN:
+                if (m_ShutterStatus != SHUTTER_OPEN)
+                {
+                    m_ShutterStatus = SHUTTER_OPEN;
+                    KNotification::event(QLatin1String("ShutterOpened"), i18n("Shutter opened"));
+                    emit newShutterStatus(m_ShutterStatus);
+                }
+                break;
+            default:
+                break;
         }
 
         return;
@@ -443,6 +458,21 @@ bool Dome::setAutoSync(bool activate)
     return true;
 }
 
+bool Dome::moveDome(DomeDirection dir, DomeMotionCommand operation)
+{
+    ISwitchVectorProperty *domeMotion = baseDevice->getSwitch("DOME_MOTION");
+    if (domeMotion == nullptr)
+        return false;
+
+    ISwitch *opSwitch = IUFindSwitch(domeMotion, dir == DomeDirection::DOME_CW ? "DOME_CW" : "DOME_CCW");
+    IUResetSwitch(domeMotion);
+    opSwitch->s = (operation == DomeMotionCommand::MOTION_START ? ISS_ON : ISS_OFF);
+
+    clientManager->sendNewSwitch(domeMotion);
+
+    return true;
+}
+
 bool Dome::ControlShutter(bool open)
 {
     ISwitchVectorProperty *shutterSP = baseDevice->getSwitch("DOME_SHUTTER");
@@ -506,8 +536,11 @@ const QString Dome::getStatusString(Dome::Status status)
         case ISD::Dome::DOME_UNPARKING:
             return i18n("UnParking");
 
-        case ISD::Dome::DOME_MOVING:
-            return i18n("Moving");
+        case ISD::Dome::DOME_MOVING_CW:
+            return i18n("Moving clockwise");
+
+        case ISD::Dome::DOME_MOVING_CCW:
+            return i18n("Moving counter clockwise");
 
         case ISD::Dome::DOME_TRACKING:
             return i18n("Tracking");
@@ -522,7 +555,7 @@ const QString Dome::getStatusString(Dome::Status status)
 
 }
 
-QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Dome::Status& source)
+QDBusArgument &operator<<(QDBusArgument &argument, const ISD::Dome::Status &source)
 {
     argument.beginStructure();
     argument << static_cast<int>(source);

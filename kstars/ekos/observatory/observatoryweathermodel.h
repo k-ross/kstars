@@ -19,7 +19,7 @@ namespace Ekos
 struct WeatherActions
 {
     bool parkDome, closeShutter, stopScheduler;
-    int delay;
+    uint delay;
 };
 
 class ObservatoryWeatherModel : public QObject
@@ -32,6 +32,8 @@ class ObservatoryWeatherModel : public QObject
 
         void initModel(Weather *weather);
         ISD::Weather::Status status();
+
+        bool refresh();
 
         /**
          * @brief Actions to be taken when a weather warning occurs
@@ -61,6 +63,17 @@ class ObservatoryWeatherModel : public QObject
             return alertActionsActive;
         }
 
+        /**
+         * @brief Retrieve the currently known weather sensor values
+         */
+        std::vector<ISD::Weather::WeatherData> getWeatherData() { return m_WeatherData; }
+
+        /**
+         * @brief Flag whether the X axis should be visible in the sensor graph
+         */
+        bool autoScaleValues() {return m_autoScaleValues;}
+        void setAutoScaleValues(bool show);
+
     public slots:
         /**
          * @brief Activate or deactivate the weather warning actions
@@ -71,13 +84,22 @@ class ObservatoryWeatherModel : public QObject
          */
         void setAlertActionsActive(bool active);
 
-    private:
+private:
         Weather *weatherInterface;
         QTimer warningTimer, alertTimer;
         struct WeatherActions warningActions, alertActions;
-        bool warningActionsActive, alertActionsActive;
+        bool warningActionsActive, alertActionsActive, m_autoScaleValues;
 
-    private slots:
+        void startAlertTimer();
+        void startWarningTimer();
+
+        // hold all sensor data received from the weather station
+        std::vector<ISD::Weather::WeatherData> m_WeatherData;
+        // update the stored values
+        void updateWeatherData(std::vector<ISD::Weather::WeatherData> entries);
+        unsigned long findWeatherData(QString name);
+
+private slots:
         void weatherChanged(ISD::Weather::Status status);
         void updateWeatherStatus();
 

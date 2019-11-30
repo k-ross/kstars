@@ -169,6 +169,10 @@
          <whatsthis>Toggle display of INDI messages in the KStars statusbar.</whatsthis>
          <default>true</default>
       </entry>
+      <entry name="SaveFocusImages" type="Bool">
+         <label>Save autofocus images on disk?</label>
+         <default>false</default>
+      </entry>
       <entry name="messageNotificationINDI" type="Bool">
          <label>INDI message notifications</label>
          <whatsthis>Show INDI messages as desktop notifications instead of dialogs.</whatsthis>
@@ -1383,6 +1387,10 @@
          <whatsthis>Log Ekos Mount Module activity.</whatsthis>
          <default>false</default>
       </entry>
+      <entry name="ObservatoryLogging" type="Bool">
+         <whatsthis>Log Ekos Observatory Module activity.</whatsthis>
+         <default>false</default>
+      </entry>
    </group>
    <group name="FITSViewer">
    <entry name="useFITSViewer" type="Bool">
@@ -1547,6 +1555,26 @@
          <label>Flips the mount when reaching the meridian, if supported.</label>
          <default>false</default>
       </entry>
+      <entry name="MeridianFlipUnitDegrees" type="Bool">
+         <label>Sets the display unit for meridian flip to degrees.</label>
+         <default>true</default>
+      </entry>
+      <entry name="LeftRightReversed" type="Bool">
+         <label>Reverse the direction of right and left buttons in mount control.</label>
+         <default>false</default>
+      </entry>
+      <entry name="UpDownReversed" type="Bool">
+         <label>Reverse the direction of up and down buttons in mount control.</label>
+         <default>false</default>
+      </entry>
+      <entry name="ParkEveryDay" type="Bool">
+         <label>Automatically start parking timer on startup.</label>
+         <default>false</default>
+      </entry>
+      <entry name="ParkTime" type="String">
+         <label>Park mount at this time in 12 hour format.</label>
+         <default>3:00 AM</default>
+      </entry>
    </group>
    <group name="Capture">
       <entry name="DefaultCaptureCCD" type="String">
@@ -1672,6 +1700,10 @@
          <label>Display every captured DSLR image in the Image Viewer window.</label>
          <default>!KSUtils::isHardwareLimited()</default>
       </entry>
+      <entry name="ForceDSLRPresets" type="Bool">
+         <label>Force exposure times to align with DSLR exposure presets. This insures accurate exposure times for sub-second exposures.</label>
+         <default>true</default>
+      </entry>
       <entry name="CaptureFormatIndex" type="UInt">
          <label>Index of desired capture format (FITS or Native).</label>
          <default>0</default>
@@ -1686,6 +1718,18 @@
       <entry name="ManualCoverTimeout" type="UInt">
          <label>Cover or uncover telescope dialog timeout in seconds.</label>
          <default>60</default>
+      </entry>
+      <entry name="fileSettingsUseFilter" type="Bool">
+         <label>Add the filter name to the capture file name.</label>
+         <default>false</default>
+      </entry>
+      <entry name="fileSettingsUseDuration" type="Bool">
+         <label>Add the capture duration to the capture file name.</label>
+         <default>false</default>
+      </entry>
+      <entry name="fileSettingsUseTimestamp" type="Bool">
+         <label>Add the capture timestamp to the capture file name.</label>
+         <default>false</default>
       </entry>
    </group>
    <group name="Focus">
@@ -1817,8 +1861,12 @@
          <whatsthis>Threshold between measured and FITS position angles in arcminutes to consider the load and slew operation successful.</whatsthis>
          <default>30</default>
       </entry>
-      <entry name="SolverType" type="UInt">
-         <label>Set solver type (online, offline, remote).</label>
+      <entry name="SolverBackend" type="UInt">
+         <whatsthis>Solver backend (0 ASTAP, 1 astrometry.net).</whatsthis>
+         <default>1</default>
+      </entry>
+      <entry name="AstrometrySolverType" type="UInt">
+         <label>Set astrometry.net solver type (online, offline, remote).</label>
          <default>0</default>
       </entry>
       <entry name="SolverScopeType" type="UInt">
@@ -1947,14 +1995,9 @@
          <whatsthis>Path to astrometry.net file location.</whatsthis>
          <default code="true">KSUtils::getDefaultPath("AstrometryConfFile")</default>
       </entry>
-      <entry name="AstrometryIndexFileLocation" type="String">
-         <label>Astrometry.net Index files Location</label>
-         <whatsthis>Astrometry.net Index files Location.</whatsthis>
-         <default code="true">KSUtils::getDefaultPath("AstrometryIndexFileLocation")</default>
-      </entry>
       <entry name="AstrometryConfFileIsInternal" type="Bool">
          <label>Internal or External Astrometry.net Conf File?</label>
-         <default>false</default>
+         <default>true</default>
       </entry>
       <entry name="UseDefaultPython" type="Bool">
          <label>Use the Default System Python Path</label>
@@ -2053,10 +2096,6 @@
       </entry>
       <entry name="GuideAutoSquareSizeEnabled" type="Bool">
          <label>Automatically select the square size based on the selected star width.</label>
-         <default>false</default>
-      </entry>
-      <entry name="GuideRemoteImagesEnabled" type="Bool">
-         <label>When using external guiders, enable reception of remote images in Ekos guide module. By default, remote images are disabled.</label>
          <default>false</default>
       </entry>
       <entry name="AutoModeIterations" type="UInt">
@@ -2266,6 +2305,14 @@
          <label>Do not permit jobs to be scheduled less than this many degrees before the altitude restriction. Actual execution proceeds until the altitude limit.</label>
          <default>3</default>
       </entry>
+      <entry name="DawnOffset" type="Double">
+         <label>Offset astronomical dawn by this many hours to relax twilight restriction when using narrowband filters.</label>
+         <default>0</default>
+      </entry>
+      <entry name="DuskOffset" type="Double">
+         <label>Offset astronomical dusk by this many hours to relax twilight restriction when using narrowband filters.</label>
+         <default>0</default>
+      </entry>
       <entry name="TelescopeFocalLength" type="Double">
          <label>Telescope focal length in millimeters.</label>
          <default>0</default>
@@ -2289,6 +2336,18 @@
       <entry name="CameraRotation" type="Double">
          <label>Position angle of the camera with respect to north.</label>
          <default>0</default>
+      </entry>
+      <entry name="ErrorHandlingStrategy" type="UInt">
+         <label>Strategy how to react, when a job aborts or steps into an error.</label>
+         <default>1</default>
+      </entry>
+      <entry name="ErrorHandlingStrategyDelay" type="UInt">
+         <label>Delay in minutes how long the scheduler should pause before restarting an aborted job or a job that ran into an error.</label>
+         <default>0</default>
+      </entry>
+      <entry name="RescheduleErrors" type="Bool">
+         <label>Re-schedule jobs that ran into errors.</label>
+         <default>false</default>
       </entry>
    </group>
    <group name="INDI Lite">
@@ -2323,6 +2382,10 @@
     </entry>
     <entry name="HIPSShowGrid" type="Bool">
           <label>Show HiPS grid on the sky map.</label>
+          <default>false</default>
+    </entry>
+    <entry name="HIPSPanning" type="Bool">
+          <label>Redraw HiPS while panning.</label>
           <default>false</default>
     </entry>
     <entry name="ShowHIPS" type="Bool">
@@ -2383,6 +2446,40 @@
    <entry name="observatoryStatusUseWeather" type="Bool">
       <label>Weather status relevant for the Observatory status.</label>
       <default>true</default>
+   </entry>
+   <entry name="weatherAutoScaleValues" type="Bool">
+      <label>Scale the sensor graph value axis to the values range.</label>
+      <default>true</default>
+   </entry>
+   </group>
+   <group name="ASTAP">
+   <entry name="ASTAPExecutable" type="String">
+      <label>Full path to the ASTAP executable.</label>
+      <default code="true">KSUtils::getDefaultPath("ASTAP")</default>
+   </entry>
+   <entry name="ASTAPDownSample" type="Bool">
+      <label>Down sample prior to solving. Also called binning. A value 0 will result in auto selection downsampling.</label>
+      <default>false</default>
+   </entry>
+   <entry name="ASTAPDownSampleValue" type="Double">
+      <label>Down sample prior to solving. Also called binning. A value 0 will result in auto selection downsampling.</label>
+      <default>0</default>
+   </entry>
+   <entry name="ASTAPSearchRadius" type="Bool">
+      <label>The program will search in a square spiral around the start position up to this radius.</label>
+      <default>true</default>
+   </entry>
+   <entry name="ASTAPSearchRadiusValue" type="Double">
+      <label>The program will search in a square spiral around the start position up to this radius.</label>
+      <default>30</default>
+   </entry>
+   <entry name="ASTAPUpdateFITS" type="Bool">
+      <label>Update the fits header with the found solution.</label>
+      <default>false</default>
+   </entry>
+   <entry name="ASTAPLargeSearchWindow" type="Bool">
+      <label>Increase search window size.</label>
+      <default>false</default>
    </entry>
    </group>
 </kcfg>

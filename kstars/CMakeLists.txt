@@ -118,6 +118,7 @@ if (INDI_FOUND)
             ekos/align/opsastrometrycfg.ui
             ekos/align/opsastrometryindexfiles.ui
             ekos/align/mountmodel.ui
+            ekos/align/opsastap.ui
             # Focus
             ekos/focus/focus.ui
             # Mount
@@ -183,9 +184,11 @@ if (INDI_FOUND)
             ekos/align/opsalign.cpp
             ekos/align/opsastrometrycfg.cpp
             ekos/align/opsastrometryindexfiles.cpp
+            ekos/align/opsastap.cpp
             ekos/align/offlineastrometryparser.cpp
             ekos/align/onlineastrometryparser.cpp
             ekos/align/remoteastrometryparser.cpp
+            ekos/align/astapastrometryparser.cpp
 
             # Guide
             ekos/guide/guide.cpp
@@ -237,6 +240,7 @@ if (CFITSIO_FOUND)
     set (fits_SRCS
         fitsviewer/fitslabel.cpp
         fitsviewer/fitsviewer.cpp
+        fitsviewer/stretch.cpp
         fitsviewer/fitstab.cpp
         fitsviewer/fitsdebayer.cpp
         fitsviewer/opsfits.cpp
@@ -1005,6 +1009,8 @@ IF (NOT ANDROID)
     )
 
     add_library(KStarsLib STATIC ${kstars_SRCS})
+    include(GenerateExportHeader)
+    generate_export_header(KStarsLib)
 
     target_link_libraries(KStarsLib
         LibKSDataHandlers
@@ -1030,7 +1036,7 @@ IF (NOT ANDROID)
         )
 
     if (Qt5Keychain_FOUND)
-        include_directories(KStarsLib PUBLIC ${QTKEYCHAIN_INCLUDE_DIRS})
+        target_include_directories(KStarsLib PUBLIC ${QTKEYCHAIN_INCLUDE_DIRS})
         target_link_libraries(KStarsLib ${QTKEYCHAIN_LIBRARIES})
     endif(Qt5Keychain_FOUND)
 

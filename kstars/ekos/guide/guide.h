@@ -193,6 +193,7 @@ class Guide : public QWidget, public Ui::Guide
         /** @}*/
 
         void addCamera(ISD::GDInterface *newCCD);
+        void configurePHD2Camera();
         void setTelescope(ISD::GDInterface *newTelescope);
         void addST4(ISD::ST4 *setST4);
         void setAO(ISD::ST4 *newAO);
@@ -394,6 +395,7 @@ class Guide : public QWidget, public Ui::Guide
         void setDECSwap(bool enable);
 
         void refreshColorScheme();
+        void setupNSEWLabels();
 
         //plot slots
         void handleVerticalPlotSizeChange();
@@ -413,6 +415,7 @@ class Guide : public QWidget, public Ui::Guide
 
         void updateDirectionsFromPHD2(QString mode);
 
+        void guideAfterMeridianFlip();
 
     protected slots:
         void updateTelescopeType(int index);
@@ -520,7 +523,7 @@ class Guide : public QWidget, public Ui::Guide
          * @param enable True to enable BLOB reception, false to disable BLOB reception
          * @param name CCD to enable to disable. If empty (default), then action is applied to all CCDs.
          */
-        void setBLOBEnabled(bool enable, const QString &ccd = QString());
+        void setExternalGuiderBLOBEnabled(bool enable);
 
         void handleManualDither();
 
@@ -541,6 +544,7 @@ class Guide : public QWidget, public Ui::Guide
 
         // Devices
         ISD::CCD *currentCCD { nullptr };
+        QString lastPHD2CameraName; //This is for the configure PHD2 camera method.
         ISD::Telescope *currentTelescope { nullptr };
         ISD::ST4 *ST4Driver { nullptr };
         ISD::ST4 *AODriver { nullptr };
@@ -629,5 +633,10 @@ class Guide : public QWidget, public Ui::Guide
 
         bool graphOnLatestPt = true;
         QUrl guideURLPath;
+
+        //This is for enforcing the PHD2 Star lock when Guide is pressed,
+        //autostar is not selected, and the user has chosen a star.
+        //This connection storage is so that the connection can be disconnected after enforcement
+        QMetaObject::Connection guideConnect;
 };
 }

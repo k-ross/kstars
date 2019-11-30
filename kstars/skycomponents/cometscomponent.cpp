@@ -248,12 +248,34 @@ void CometsComponent::downloadReady()
     file.write(data);
     file.close();
 
+    QString focusedComet;
+
+#ifdef KSTARS_LITE
+    SkyObject *foc = KStarsLite::Instance()->map()->focusObject();
+    if (foc && foc->type() == SkyObject::COMET)
+    {
+        focusedComet = foc->name();
+        KStarsLite::Instance()->map()->setFocusObject(nullptr);
+    }
+#else
+    SkyObject *foc = KStars::Instance()->map()->focusObject();
+    if (foc && foc->type() == SkyObject::COMET)
+    {
+        focusedComet = foc->name();
+        KStars::Instance()->map()->setFocusObject(nullptr);
+    }
+#endif
+
     // Reload asteroids
     loadData();
 
 #ifdef KSTARS_LITE
     KStarsLite::Instance()->data()->setFullTimeUpdate();
+    if (!focusedComet.isEmpty())
+        KStarsLite::Instance()->map()->setFocusObject(KStarsLite::Instance()->data()->objectNamed(focusedComet));
 #else
+    if (!focusedComet.isEmpty())
+        KStars::Instance()->map()->setFocusObject(KStars::Instance()->data()->objectNamed(focusedComet));
     KStars::Instance()->data()->setFullTimeUpdate();
 #endif
 

@@ -1,17 +1,20 @@
 PROJECT(kstars CXX C)
 set (KStars_VERSION_MAJOR 3)
 set (KStars_VERSION_MINOR 3)
-set (KStars_VERSION_REVISION 3)
+set (KStars_VERSION_REVISION 8)
 set (CMAKE_CXX_STANDARD 11)
 
 # Build KStars Lite with -DBUILD_KSTARS_LITE=ON
 option(BUILD_KSTARS_LITE "Build KStars Lite" OFF)
 
+# Build KStars documentation
+option(BUILD_DOC "Build Documentation" ON)
+
 # Fetch translations with -DFETCH_TRANSLATIONS=ON
 option(FETCH_TRANSLATIONS "Fetch Translations" OFF)
 
 # minimal requirements
-cmake_minimum_required (VERSION 2.8.12 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.4.0 FATAL_ERROR)
 
 # KStars Timestap build
 string(TIMESTAMP KSTARS_BUILD_TS UTC)
@@ -187,17 +190,17 @@ if (ANDROID)
     endif()
     externalproject_add(indi SOURCE_DIR "${CMAKE_BINARY_DIR}/packaging/android/indi"
         URL https://github.com/indilib/indi/archive/master.zip
-        CONFIGURE_COMMAND cd libindi && cmake . -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \\
+        CONFIGURE_COMMAND cmake . -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \\
              -DINDI_BUILD_POSIX_CLIENT=OFF -DINDI_BUILD_SERVER=OFF -DINDI_BUILD_DRIVERS=OFF -DINDI_BUILD_UNITTESTS=OFF \\
              -DINDI_BUILD_DRIVERS=OFF -DINDI_BUILD_QT5_CLIENT=ON -DINDI_CALCULATE_MINMAX=ON \\
              -DCFITSIO_DIR=${CMAKE_BINARY_DIR}/packaging/android/3rdparty/cfitsio -DQT_ANDROID=${QT_ANDROID} -DCMAKE_PREFIX_PATH=${QT_ANDROID} ${extra_cmake}
-        BUILD_COMMAND make -C libindi
+        BUILD_COMMAND make
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND "")
 
     set(INDI_FOUND TRUE)
-    set(INDI_INCLUDE_DIR ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libs/indibase ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libs)
-    set(INDI_CLIENT_ANDROID_LIBRARIES ${CMAKE_BINARY_DIR}/packaging/android/indi/libindi/libindiclientqt.a)
+    set(INDI_INCLUDE_DIR ${CMAKE_BINARY_DIR}/packaging/android/indi/libs/indibase ${CMAKE_BINARY_DIR}/packaging/android/indi ${CMAKE_BINARY_DIR}/packaging/android/indi/libs)
+    set(INDI_CLIENT_ANDROID_LIBRARIES ${CMAKE_BINARY_DIR}/packaging/android/indi/libindiclientqt.a)
 else ()
     find_package(INDI 1.7.1)
 endif ()
@@ -295,8 +298,12 @@ IF (UNIX OR APPLE OR ANDROID)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SEC_COMP_FLAGS}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEC_COMP_FLAGS}")
     SET(SEC_LINK_FLAGS "")
+
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/CheckNodump.cmake")
+    check_nodump(NODUMP_FLAGS)
+
     IF (NOT APPLE)
-        SET(SEC_LINK_FLAGS "${SEC_LINK_FLAGS} -Wl,-z,nodump -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now")
+        SET(SEC_LINK_FLAGS "${SEC_LINK_FLAGS} ${NODUMP_FLAGS} -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now")
     ENDIF ()
     IF (NOT ANDROID AND NOT APPLE)
         SET(SEC_LINK_FLAGS "${SEC_LINK_FLAGS} -pie")
@@ -414,7 +421,10 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kstars/version.h.cmake
 # let our config.h be found first in any case
 include_directories (BEFORE ${CMAKE_CURRENT_BINARY_DIR})
 
-add_subdirectory(doc)
+if (BUILD_DOC)
+    add_subdirectory(doc)
+endif()
+
 add_subdirectory(kstars)
 add_subdirectory(datahandlers)
 

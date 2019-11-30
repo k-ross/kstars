@@ -25,11 +25,11 @@
 #endif
 
 #include "ksnotification.h"
-#include <QDesktopWidget>
 #include <QFileDialog>
 #include <QJsonObject>
 #include <QPainter>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QStatusBar>
 #include <QTemporaryFile>
 #include <QVBoxLayout>
@@ -160,7 +160,7 @@ void ImageViewer::init(QString caption, QString capText)
     // Add layout
     QVBoxLayout *vlay = new QVBoxLayout(page);
     vlay->setSpacing(0);
-    vlay->setMargin(0);
+    vlay->setContentsMargins(0, 0, 0, 0);
     vlay->addWidget(m_View);
     vlay->addWidget(m_Caption);
 
@@ -274,7 +274,7 @@ bool ImageViewer::showImage()
 
     //If the image is larger than screen width and/or screen height,
     //shrink it to fit the screen
-    QRect deskRect = QApplication::desktop()->availableGeometry();
+    QRect deskRect = QGuiApplication::primaryScreen()->geometry();
     int w          = deskRect.width();  // screen width
     int h          = deskRect.height(); // screen height
 

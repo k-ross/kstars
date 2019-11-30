@@ -49,6 +49,19 @@ void Weather::processLight(ILightVectorProperty *lvp)
 
 void Weather::processNumber(INumberVectorProperty *nvp)
 {
+    if (nvp == nullptr)
+        return;
+    std::vector<WeatherData> entries;
+
+    // read all sensor values recieved
+    for (int i = 0; i < nvp->nnp; i++)
+    {
+        INumber number = nvp->np[i];
+        entries.push_back({QString(number.name), QString(number.label), number.value});
+    }
+    emit newWeatherData(entries);
+
+    // and now continue with the standard behavior
     DeviceDecorator::processNumber(nvp);
 }
 
@@ -82,6 +95,26 @@ quint16 Weather::getUpdatePeriod()
         return 0;
 
     return static_cast<quint16>(updateNP->np[0].value);
+}
+
+bool Weather::refresh()
+{
+    ISwitchVectorProperty *refreshSP = baseDevice->getSwitch("WEATHER_REFRESH");
+
+    if (refreshSP == nullptr)
+        return false;
+
+    ISwitch *refreshSW = IUFindSwitch(refreshSP, "REFRESH");
+
+    if (refreshSW == nullptr)
+        return false;
+
+    IUResetSwitch(refreshSP);
+    refreshSW->s = ISS_ON;
+    clientManager->sendNewSwitch(refreshSP);
+
+    return true;
+
 }
 }
 

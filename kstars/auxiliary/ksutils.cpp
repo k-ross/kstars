@@ -18,6 +18,7 @@
 #include "ksutils.h"
 #include "config-kstars.h"
 #include "ksnotification.h"
+#include "kstars_debug.h"
 
 #include "deepskyobject.h"
 #ifndef KSTARS_LITE
@@ -64,16 +65,14 @@ bool openDataFile(QFile &file, const QString &s)
 
 QString getDSSURL(const SkyPoint *const p)
 {
-    const DeepSkyObject *dso = nullptr;
     double height, width;
-
     double dss_default_size = Options::defaultDSSImageSize();
     double dss_padding      = Options::dSSPadding();
 
     Q_ASSERT(p);
     Q_ASSERT(dss_default_size > 0.0 && dss_padding >= 0.0);
 
-    dso = dynamic_cast<const DeepSkyObject *>(p);
+    const DeepSkyObject *dso = dynamic_cast<const DeepSkyObject *>(p);
 
     // Decide what to do about the height and width
     if (dso)
@@ -1021,28 +1020,48 @@ void Logging::Disabled(QtMsgType, const QMessageLogContext &, const QString &)
 
 void Logging::SyncFilterRules()
 {
-    QString rules = QString("org.kde.kstars.ekos.debug=%1\n"
-                            "org.kde.kstars.indi.debug=%2\n"
-                            "org.kde.kstars.fits.debug=%3\n"
-                            "org.kde.kstars.ekos.capture.debug=%4\n"
-                            "org.kde.kstars.ekos.focus.debug=%5\n"
-                            "org.kde.kstars.ekos.guide.debug=%6\n"
-                            "org.kde.kstars.ekos.align.debug=%7\n"
-                            "org.kde.kstars.ekos.mount.debug=%8\n"
-                            "org.kde.kstars.ekos.scheduler.debug=%9\n"
-                            "org.kde.kstars.debug=%1").arg(
-                        Options::verboseLogging() ? "true" : "false",
-                        Options::iNDILogging() ? "true" : "false",
-                        Options::fITSLogging() ? "true" : "false",
-                        Options::captureLogging() ? "true" : "false",
-                        Options::focusLogging() ? "true" : "false",
-                        Options::guideLogging() ? "true" : "false",
-                        Options::alignmentLogging() ? "true" : "false",
-                        Options::mountLogging() ? "true" : "false",
-                        Options::schedulerLogging() ? "true" : "false"
-                    );
+    //    QString rules = QString("org.kde.kstars.ekos.debug=%1\n"
+    //                            "org.kde.kstars.indi.debug=%2\n"
+    //                            "org.kde.kstars.fits.debug=%3\n"
+    //                            "org.kde.kstars.ekos.capture.debug=%4\n"
+    //                            "org.kde.kstars.ekos.focus.debug=%5\n"
+    //                            "org.kde.kstars.ekos.guide.debug=%6\n"
+    //                            "org.kde.kstars.ekos.align.debug=%7\n"
+    //                            "org.kde.kstars.ekos.mount.debug=%8\n"
+    //                            "org.kde.kstars.ekos.scheduler.debug=%9\n").arg(
+    //                        Options::verboseLogging() ? "true" : "false",
+    //                        Options::iNDILogging() ? "true" : "false",
+    //                        Options::fITSLogging() ? "true" : "false",
+    //                        Options::captureLogging() ? "true" : "false",
+    //                        Options::focusLogging() ? "true" : "false",
+    //                        Options::guideLogging() ? "true" : "false",
+    //                        Options::alignmentLogging() ? "true" : "false",
+    //                        Options::mountLogging() ? "true" : "false",
+    //                        Options::schedulerLogging() ? "true" : "false")
+    //            .append(QString("org.kde.kstars.ekos.observatory.debug=%2\n"
+    //                            "org.kde.kstars.debug=%1").arg(
+    //                        Options::verboseLogging() ? "true" : "false",
+    //                        Options::observatoryLogging() ? "true" : "false"));
 
-    QLoggingCategory::setFilterRules(rules);
+    QStringList rules;
+
+    rules << "org.kde.kstars.ekos.debug" << (Options::verboseLogging() ? "true" : "false");
+    rules << "org.kde.kstars.indi.debug" << (Options::iNDILogging() ? "true" : "false");
+    rules << "org.kde.kstars.fits.debug" << (Options::fITSLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.capture.debug" << (Options::captureLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.focus.debug" << (Options::focusLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.guide.debug" << (Options::guideLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.align.debug" << (Options::alignmentLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.mount.debug" << (Options::mountLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.scheduler.debug" << (Options::schedulerLogging() ? "true" : "false");
+    rules << "org.kde.kstars.ekos.observatory.debug" << (Options::observatoryLogging() ? "true" : "false");
+    rules << "org.kde.kstars.debug" << (Options::verboseLogging() ? "true" : "false");
+
+    QString formattedRules;
+    for (int i = 0; i < rules.size(); i += 2)
+        formattedRules.append(QString("%1=%2\n").arg(rules[i], rules[i + 1]));
+
+    QLoggingCategory::setFilterRules(formattedRules);
 }
 
 /**
@@ -1063,7 +1082,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "indiServer")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/bin/indiserver";
 #endif
         if (flat.isEmpty() == false)
@@ -1073,7 +1092,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "indiDriversDir")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/share/indi";
 #elif defined(Q_OS_LINUX)
         if (flat.isEmpty() == false)
@@ -1086,7 +1105,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "AstrometrySolverBinary")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/bin/solve-field";
 #endif
         if (flat.isEmpty() == false)
@@ -1096,7 +1115,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "AstrometryWCSInfo")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/bin/wcsinfo";
 #endif
         if (flat.isEmpty() == false)
@@ -1106,7 +1125,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "AstrometryConfFile")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/etc/astrometry.cfg";
 #endif
         if (flat.isEmpty() == false)
@@ -1116,7 +1135,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "AstrometryIndexFileLocation")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/Astrometry/";
 #endif
         if (flat.isEmpty() == false)
@@ -1126,7 +1145,7 @@ QString getDefaultPath(QString option)
     }
     else if (option == "XplanetPath")
     {
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
         return "/usr/local/bin/xplanet";
 #endif
         if (flat.isEmpty() == false)
@@ -1134,11 +1153,23 @@ QString getDefaultPath(QString option)
         else
             return snap + "/usr/bin/xplanet";
     }
+    else if (option == "ASTAP")
+    {
+#if defined(Q_OS_OSX)
+        return "/Applications/ASTAP.app/Contents/MacOS/astap";
+#elif defined(Q_OS_WIN)
+        return "C:/Program Files/astap/astap.exe";
+#endif
+        if (flat.isEmpty() == false)
+            return flat + "/bin/astap";
+        else
+            return snap + "/opt/astap/astap";
+    }
 
     return QString();
 }
 
-#ifdef Q_OS_OSX
+#if defined(Q_OS_OSX)
 //Note that this will copy and will not overwrite, so that the user's changes in the files are preserved.
 void copyResourcesFolderFromAppBundle(QString folder)
 {
@@ -1200,54 +1231,43 @@ bool copyDataFolderFromAppBundleIfNeeded() //The method returns true if the data
     return true; //This means the data directory was good to go from the start and the wizard did not run.
 }
 
-bool getAstrometryDataDir(QString &dataDir)
+
+//Can this and the linux method be merged somehow? See KSUtils::createLocalAstrometryConf
+bool configureAstrometry()
 {
-    QString confPath;
-
-    if (Options::astrometryConfFileIsInternal())
-        confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
-    else
-        confPath = Options::astrometryConfFile();
-
-    QFile confFile(confPath);
-
-    if (confFile.open(QIODevice::ReadOnly) == false)
-    {
-        KSNotification::error(i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
-                                   "configuration file full path in INDI options.",
-                                   Options::astrometryConfFile()));
+    QStringList astrometryDataDirs = getAstrometryDataDirs();
+    if (astrometryDataDirs.count() == 0)
         return false;
-    }
-
-    QTextStream in(&confFile);
-    QString line;
-    while (!in.atEnd())
+    QString defaultAstrometryDataDir = getDefaultPath("AstrometryIndexFileLocation");
+    if(astrometryDataDirs.contains("IndexFileLocationNotYetSet"))
+        replaceIndexFileNotYetSet();
+    if (QDir(defaultAstrometryDataDir).exists() == false)
     {
-        line = in.readLine();
-        if (line.isEmpty() || line.startsWith('#'))
-            continue;
-
-        line = line.trimmed();
-        if (line.startsWith(QLatin1String("add_path")))
+        if (KMessageBox::warningYesNo(
+                    nullptr, i18n("The selected Astrometry Index File Location:\n %1 \n does not exist.  Do you want to make the directory?", defaultAstrometryDataDir),
+                    i18n("Make Astrometry Index File Directory?")) == KMessageBox::Yes)
         {
-            dataDir = line.trimmed().mid(9).trimmed();
-            return true;
+            if(QDir(defaultAstrometryDataDir).mkdir(defaultAstrometryDataDir))
+            {
+                KSNotification::info(i18n("The Default Astrometry Index File Location was created."));
+            }
+            else
+            {
+                KSNotification::sorry(i18n("The Default Astrometry Index File Directory does not exist and was not able to be created."));
+            }
+        }
+        else
+        {
+            return false;
         }
     }
 
-    KSNotification::error(i18n("Unable to find data dir in astrometry configuration file."));
-    return false;
+    return true;
 }
 
-bool setAstrometryDataDir(QString dataDir)
+bool replaceIndexFileNotYetSet()
 {
-    if(Options::astrometryIndexFileLocation() != dataDir)
-        Options::setAstrometryIndexFileLocation(dataDir);
-    QString confPath;
-    if (Options::astrometryConfFileIsInternal())
-        confPath = QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
-    else
-        confPath = Options::astrometryConfFile();
+    QString confPath = KSUtils::getAstrometryConfFilePath();
 
     QFile confFile(confPath);
     QString contents;
@@ -1258,97 +1278,23 @@ bool setAstrometryDataDir(QString dataDir)
     }
     else
     {
-        QTextStream in(&confFile);
-        QString line;
-        bool foundPathBefore   = false;
-        bool fileNeedsUpdating = false;
-        while (!in.atEnd())
-        {
-            line = in.readLine();
-            if (line.trimmed().startsWith(QLatin1String("add_path")))
-            {
-                if (!foundPathBefore) //This will ensure there is not more than one add_path line in the file.
-                {
-                    foundPathBefore = true;
-                    QString dataDirInFile = line.trimmed().mid(9).trimmed();
-                    if (dataDirInFile != dataDir) //Update to the correct path.
-                    {
-                        contents += "add_path " + dataDir + '\n';
-                        fileNeedsUpdating = true;
-                    }
-                }
-            }
-            else
-            {
-                contents += line + '\n';
-            }
-        }
+        QByteArray fileContent = confFile.readAll();
         confFile.close();
-        if (fileNeedsUpdating)
-        {
-            if (confFile.open(QIODevice::WriteOnly) == false)
-            {
-                KSNotification::error( i18n("Internal Astrometry Configuration File Write Error."));
-                return false;
-            }
-            else
-            {
-                QTextStream out(&confFile);
-                out << contents;
-                confFile.close();
-            }
-        }
-    }
-    return true;
-}
+        QString contents = QString::fromLatin1(fileContent);
+        contents.replace("IndexFileLocationNotYetSet", getDefaultPath("AstrometryIndexFileLocation"));
 
-bool configureAstrometry()
-{
-    QString astrometryDataDir;
-    if (KSUtils::getAstrometryDataDir(astrometryDataDir) == false)
-        return false;
-    if(astrometryDataDir == "IndexFileLocationNotYetSet")
-    {
-        astrometryDataDir = Options::astrometryIndexFileLocation();
-        setAstrometryDataDir(astrometryDataDir);
-    }
-    if(Options::astrometryIndexFileLocation() != astrometryDataDir)
-    {
-        if (KMessageBox::warningYesNo(
-                    nullptr, i18n("The Astrometry Index File Location Stored in KStars: \n %1 \n does not match the Index file location in the config file: \n %2 \n  Do you want to update the config file?", Options::astrometryIndexFileLocation(), astrometryDataDir),
-                    i18n("Update Config File?")) == KMessageBox::Yes)
+        if (confFile.open(QIODevice::WriteOnly) == false)
         {
-            astrometryDataDir = Options::astrometryIndexFileLocation();
-            setAstrometryDataDir(astrometryDataDir);
+            KSNotification::error( i18n("Internal Astrometry Configuration File Write Error."));
+            return false;
         }
         else
         {
-            return false;
+            QTextStream out(&confFile);
+            out << contents;
+            confFile.close();
         }
     }
-    if (QDir(astrometryDataDir).exists() == false)
-    {
-        if (KMessageBox::warningYesNo(
-                    nullptr, i18n("The selected Astrometry Index File Location:\n %1 \n does not exist.  Do you want to make the directory?", astrometryDataDir),
-                    i18n("Make Astrometry Index File Directory?")) == KMessageBox::Yes)
-        {
-            if(QDir(astrometryDataDir).mkdir(astrometryDataDir))
-            {
-                KSNotification::info(i18n("The Astrometry Index File Location was created."));
-            }
-            else
-            {
-                KSNotification::sorry(i18n("The Astrometry Index File Directory does not exist and was not able to be created."));
-            }
-        }
-        else
-        {
-
-            return false;
-        }
-    }
-
-    //If the Index File Directories match and the directory exists, we are good to go.
     return true;
 }
 
@@ -1384,6 +1330,262 @@ bool copyRecursively(QString sourceFolder, QString destFolder)
 }
 #endif
 
+//Note maybe the Mac and Linux versions of creating the local astrometry conf file and index file folder can be merged.
+//I moved both of them here and this method references each one separately.
+//One is createLocalAstrometryConf and the other is configureAstrometry
+bool configureLocalAstrometryConfIfNecessary()
+{
+#if defined(Q_OS_LINUX)
+    QString confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("astrometry") + QLatin1String("/astrometry.cfg");
+    if (QFileInfo(confPath).exists() == false)
+    {
+        if(createLocalAstrometryConf() == false)
+            return false;
+    }
+#elif defined(Q_OS_OSX)
+    if(configureAstrometry() == false)
+    {
+        KMessageBox::information(
+            nullptr,
+            i18n(
+                "Failed to properly configure astrometry config file.  Please click the options button in the lower right of the Astrometry Tab in Ekos to correct your settings.  Then try starting Ekos again."),
+            i18n("Astrometry Config File Error"), "astrometry_configuration_failure_warning");
+        return false;
+    }
+#endif
+    return true;
+}
+
+//Can this and the mac method be merged somehow?  See KSUtils::configureAstrometry.
+bool createLocalAstrometryConf()
+{
+    bool rc = false;
+
+    QString confPath = KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("astrometry") + QLatin1String("/astrometry.cfg");
+    QString systemConfPath = "/etc/astrometry.cfg";
+
+    // Check if directory already exists, if it doesn't create one
+    QDir writableDir(KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("astrometry"));
+    if (writableDir.exists() == false)
+    {
+        rc = writableDir.mkdir(KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("astrometry"));
+
+        if (rc == false)
+        {
+            qCCritical(KSTARS) << "Failed to create local astrometry directory";
+            return false;
+        }
+    }
+
+    // Now copy system astrometry.cfg to local directory
+    rc = QFile(systemConfPath).copy(confPath);
+
+    if (rc == false)
+    {
+        qCCritical(KSTARS) << "Failed to copy" << systemConfPath << "to" << confPath;
+        return false;
+    }
+
+    QFile localConf(confPath);
+
+    // Open file and add our own path to it
+    if (localConf.open(QFile::ReadWrite))
+    {
+        QString all = localConf.readAll();
+        QStringList lines = all.split("\n");
+        for (int i = 0; i < lines.count(); i++)
+        {
+            if (lines[i].startsWith("add_path"))
+            {
+                lines.insert(i + 1, QString("add_path %1astrometry").arg(KSPaths::writableLocation(QStandardPaths::GenericDataLocation)));
+                break;
+            }
+        }
+
+        // Clear contents
+        localConf.resize(0);
+
+        // Now write back all the lines including our own inserted above
+        QTextStream out(&localConf);
+        for(const QString &line : lines)
+            out << line << endl;
+        localConf.close();
+        return true;
+    }
+
+    qCCritical(KSTARS) << "Failed to open local astrometry config" << confPath;
+    return false;
+}
+
+QString getAstrometryConfFilePath()
+{
+#if defined(Q_OS_LINUX)
+    if (Options::astrometryConfFileIsInternal())
+        return KSPaths::writableLocation(QStandardPaths::GenericDataLocation) + QLatin1String("astrometry") + QLatin1String("/astrometry.cfg");
+#elif defined(Q_OS_OSX)
+    if (Options::astrometryConfFileIsInternal())
+        return QCoreApplication::applicationDirPath() + "/astrometry/bin/astrometry.cfg";
+#endif
+
+    return Options::astrometryConfFile();
+}
+
+QStringList getAstrometryDataDirs()
+{
+    QStringList dataDirs;
+    QString confPath = KSUtils::getAstrometryConfFilePath();
+
+    QFile confFile(confPath);
+
+    if (confFile.open(QIODevice::ReadOnly) == false)
+    {
+        bool confFileExists = false;
+        if(Options::astrometryConfFileIsInternal())
+        {
+            if(KSUtils::configureLocalAstrometryConfIfNecessary())
+            {
+                if (confFile.open(QIODevice::ReadOnly))
+                    confFileExists = true;
+            }
+        }
+        if(!confFileExists)
+        {
+            KSNotification::error(i18n("Astrometry configuration file corrupted or missing: %1\nPlease set the "
+                                       "configuration file full path in INDI options.",
+                                       confPath));
+            return dataDirs;
+        }
+    }
+
+    QTextStream in(&confFile);
+    QString line;
+    while (!in.atEnd())
+    {
+        line = in.readLine();
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
+
+        line = line.trimmed();
+        if (line.startsWith(QLatin1String("add_path")))
+        {
+            dataDirs << line.mid(9).trimmed();
+        }
+    }
+    // if(dataDirs.size()==0)
+    //    KSNotification::error(i18n("Unable to find data dir in astrometry configuration file."));
+
+    return dataDirs;
+}
+
+bool addAstrometryDataDir(QString dataDir)
+{
+    //This will need to be fixed!
+    //if(Options::astrometryIndexFileLocation() != dataDir)
+    //    Options::setAstrometryIndexFileLocation(dataDir);
+
+    QString confPath = KSUtils::getAstrometryConfFilePath();
+    QStringList astrometryDataDirs = getAstrometryDataDirs();
+
+    QFile confFile(confPath);
+    QString contents;
+    if (confFile.open(QIODevice::ReadOnly) == false)
+    {
+        KSNotification::error( i18n("Astrometry Configuration File Read Error."));
+        return false;
+    }
+    else
+    {
+        QTextStream in(&confFile);
+        QString line;
+        bool foundSpot = false;
+        while (!in.atEnd())
+        {
+            line = in.readLine();
+
+            if (line.trimmed().startsWith(QLatin1String("add_path")))
+            {
+                if (!foundSpot)
+                {
+                    foundSpot = true;
+                    for(QString astrometryDataDir : astrometryDataDirs)
+                        contents += "add_path " + astrometryDataDir + '\n';
+                    contents += "add_path " + dataDir + '\n';
+                }
+                else
+                {
+                    //Do not keep adding the other add_paths because they just got added in the seciton above.
+                }
+            }
+            else
+            {
+                contents += line + '\n';
+            }
+        }
+        if(!foundSpot)
+        {
+            for(QString astrometryDataDir : astrometryDataDirs)
+                contents += "add_path " + astrometryDataDir + '\n';
+            contents += "add_path " + dataDir + '\n';
+        }
+
+        confFile.close();
+
+        if (confFile.open(QIODevice::WriteOnly) == false)
+        {
+            KSNotification::error( i18n("Internal Astrometry Configuration File Write Error."));
+            return false;
+        }
+        else
+        {
+            QTextStream out(&confFile);
+            out << contents;
+            confFile.close();
+        }
+    }
+    return true;
+}
+
+bool removeAstrometryDataDir(QString dataDir)
+{
+    QString confPath = KSUtils::getAstrometryConfFilePath();
+    QStringList astrometryDataDirs = getAstrometryDataDirs();
+
+    QFile confFile(confPath);
+    QString contents;
+    if (confFile.open(QIODevice::ReadOnly) == false)
+    {
+        KSNotification::error( i18n("Astrometry Configuration File Read Error."));
+        return false;
+    }
+    else
+    {
+        QTextStream in(&confFile);
+        QString line;
+        while (!in.atEnd())
+        {
+            line = in.readLine();
+            if (line.mid(9).trimmed() != dataDir)
+            {
+                contents += line + '\n';
+            }
+
+        }
+        confFile.close();
+
+        if (confFile.open(QIODevice::WriteOnly) == false)
+        {
+            KSNotification::error( i18n("Internal Astrometry Configuration File Write Error."));
+            return false;
+        }
+        else
+        {
+            QTextStream out(&confFile);
+            out << contents;
+            confFile.close();
+        }
+    }
+    return true;
+}
 QByteArray getJPLQueryString(const QByteArray &kind, const QByteArray &dataFields, const QVector<JPLFilter> &filters)
 {
     QByteArray query("obj_group=all&obj_kind=" + kind + "&obj_numbered=all&OBJ_field=0&ORB_field=0");

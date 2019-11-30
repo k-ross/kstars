@@ -45,9 +45,9 @@ INDI_P::INDI_P(INDI_G *ipg, INDI::Property *prop)
     name = QString(prop->getName());
 
     PHBox.reset(new QHBoxLayout());
-    PHBox->setMargin(0);
+    PHBox->setContentsMargins(0, 0, 0, 0);
     PVBox = new QVBoxLayout();
-    PVBox->setMargin(0);
+    PVBox->setContentsMargins(0, 0, 0, 0);
 
     initGUI();
 }
@@ -460,6 +460,7 @@ void INDI_P::sendText()
                 el->updateNP();
 
             pg->getDevice()->getClientManager()->sendNewNumber(nvp);
+            break;
 
         default:
             break;
@@ -646,12 +647,12 @@ void INDI_P::newTime()
         QDate newDate(timedialog.selectedDate());
 
         timeEle->setText(QString("%1-%2-%3T%4:%5:%6")
-                             .arg(newDate.year())
-                             .arg(newDate.month())
-                             .arg(newDate.day())
-                             .arg(newTime.hour())
-                             .arg(newTime.minute())
-                             .arg(newTime.second()));
+                         .arg(newDate.year())
+                         .arg(newDate.month())
+                         .arg(newDate.day())
+                         .arg(newTime.hour())
+                         .arg(newTime.minute())
+                         .arg(newTime.second()));
 
         offsetEle->setText(QString().setNum(KStars::Instance()->data()->geo()->TZ(), 'g', 2));
 

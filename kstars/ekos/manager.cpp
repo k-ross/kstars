@@ -145,7 +145,7 @@ Manager::Manager(QWidget * parent) : QDialog(parent)
     connect(ekosLiveClient.get()->message(), &EkosLive::Message::previewJPEGGenerated, ekosLiveClient.get()->media(), &EkosLive::Media::sendPreviewJPEG);
     connect(KSMessageBox::Instance(), &KSMessageBox::newMessage, ekosLiveClient.get()->message(), &EkosLive::Message::sendDialog);
 
-    // Serial Port Assistat
+    // Serial Port Assistant
     connect(serialPortAssistantB, &QPushButton::clicked, [&]()
     {
         serialPortAssistant->show();
@@ -436,6 +436,8 @@ void Manager::reset()
     weatherProcess.reset();
     observatoryProcess.reset();
     dustCapProcess.reset();
+
+    DarkLibrary::Instance()->reset();
 
     Ekos::CommunicationStatus previousStatus = m_ekosStatus;
     m_ekosStatus   = Ekos::Idle;
@@ -1121,8 +1123,8 @@ void Manager::deviceConnected()
 
     qCDebug(KSTARS_EKOS) << nConnectedDevices << " devices connected out of " << genericDevices.count();
 
-    //if (nConnectedDevices >= pi->drivers.count())
-    if (nConnectedDevices >= genericDevices.count())
+    if (nConnectedDevices >= currentProfile->drivers.count())
+        //if (nConnectedDevices >= genericDevices.count())
     {
         m_indiStatus = Ekos::Success;
         qCInfo(KSTARS_EKOS) << "All INDI devices are now connected.";
@@ -1600,8 +1602,28 @@ void Manager::processNewProperty(INDI::Property * prop)
 
     if (!strcmp(prop->getName(), "CONNECTION") && currentProfile->autoConnect)
     {
-        deviceInterface->Connect();
+        // Check if we need to do any mappings
+        const QString port = m_ProfileMapping.value(QString(deviceInterface->getDeviceName())).toString();
+        // If we don't have port mapping, then we connect immediately.
+        if (port.isEmpty())
+            deviceInterface->Connect();
         return;
+    }
+
+    if (!strcmp(prop->getName(), "DEVICE_PORT"))
+    {
+        // Check if we need to do any mappings
+        const QString port = m_ProfileMapping.value(QString(deviceInterface->getDeviceName())).toString();
+        if (!port.isEmpty())
+        {
+            ITextVectorProperty *tvp = prop->getText();
+            IUSaveText(&(tvp->tp[0]), port.toLatin1().data());
+            deviceInterface->getDriverInfo()->getClientManager()->sendNewText(tvp);
+            // Now connect if we need to.
+            if (currentProfile->autoConnect)
+                deviceInterface->Connect();
+            return;
+        }
     }
 
     // Check if we need to turn on DEBUG for logging purposes
@@ -1632,6 +1654,12 @@ void Manager::processNewProperty(INDI::Property * prop)
 
             deviceInterface->getDriverInfo()->getClientManager()->sendNewSwitch(debugLevel);
         }
+    }
+
+    if (!strcmp(prop->getName(), "ACTIVE_DEVICES"))
+    {
+        if (deviceInterface->getDriverInterface() > 0)
+            syncActiveDevices();
     }
 
     if (!strcmp(prop->getName(), "TELESCOPE_INFO") || !strcmp(prop->getName(), "TELESCOPE_SLEW_RATE")
@@ -1847,6 +1875,20 @@ QList<ISD::GDInterface *> Manager::findDevices(DeviceFamily type)
     return deviceList;
 }
 
+QList<ISD::GDInterface *> Manager::findDevicesByInterface(uint32_t interface)
+{
+    QList<ISD::GDInterface *> deviceList;
+
+    for (const auto dev : genericDevices)
+    {
+        uint32_t devInterface = dev->getDriverInterface();
+        if (devInterface & interface)
+            deviceList.append(dev);
+    }
+
+    return deviceList;
+}
+
 void Manager::processTabChange()
 {
     QWidget * currentWidget = toolsWidget->currentWidget();
@@ -1863,18 +1905,18 @@ void Manager::processTabChange()
                 if (alignProcess->isParserOK())
                     alignProcess->setEnabled(true);
                 //#ifdef Q_OS_WIN
-                else
+                else if (Options::solverBackend() == Ekos::Align::SOLVER_ASTROMETRYNET)
                 {
                     // If current setting is remote astrometry and profile doesn't contain
                     // remote astrometry, then we switch to online solver. Otherwise, the whole align
                     // module remains disabled and the user cannot change re-enable it since he cannot select online solver
                     ProfileInfo * pi = getCurrentProfile();
-                    if (Options::solverType() == Ekos::Align::SOLVER_REMOTE && pi->aux1() != "Astrometry" && pi->aux2() != "Astrometry"
+                    if (Options::astrometrySolverType() == Ekos::Align::SOLVER_REMOTE && pi->aux1() != "Astrometry" && pi->aux2() != "Astrometry"
                             && pi->aux3() != "Astrometry" && pi->aux4() != "Astrometry")
                     {
 
-                        Options::setSolverType(Ekos::Align::SOLVER_ONLINE);
-                        alignModule()->setSolverType(Ekos::Align::SOLVER_ONLINE);
+                        Options::setAstrometrySolverType(Ekos::Align::SOLVER_ONLINE);
+                        alignModule()->setAstrometrySolverType(Ekos::Align::SOLVER_ONLINE);
                         alignProcess->setEnabled(true);
                     }
                 }
@@ -1933,7 +1975,7 @@ void Manager::updateLog()
 void Manager::appendLogText(const QString &text)
 {
     m_LogText.insert(0, i18nc("log entry; %1 is the date, %2 is the text", "%1 %2",
-                              QDateTime::currentDateTime().toString("yyyy-MM-ddThh:mm:ss"), text));
+                              KStarsData::Instance()->lt().toString("yyyy-MM-ddThh:mm:ss"), text));
 
     qCInfo(KSTARS_EKOS) << text;
 
@@ -2001,6 +2043,7 @@ void Manager::initCapture()
                 summaryPreview->loadFITS(filename);
         }
     });
+    connect(captureProcess.get(), &Ekos::Capture::newDownloadProgress, this, &Ekos::Manager::updateDownloadProgress);
     connect(captureProcess.get(), &Ekos::Capture::newExposureProgress, this, &Ekos::Manager::updateExposureProgress);
     captureGroup->setEnabled(true);
     sequenceProgress->setEnabled(true);
@@ -2263,6 +2306,15 @@ void Manager::initDome()
 
     connect(domeProcess.get(), &Ekos::Dome::newStatus, [&](ISD::Dome::Status newStatus)
     {
+        // For roll-off domes
+        // cw ---> unparking
+        // ccw --> parking
+        if (domeProcess->isRolloffRoof() &&
+                (newStatus == ISD::Dome::DOME_MOVING_CW || newStatus == ISD::Dome::DOME_MOVING_CCW))
+        {
+            newStatus = (newStatus == ISD::Dome::DOME_MOVING_CW) ? ISD::Dome::DOME_UNPARKING :
+                        ISD::Dome::DOME_PARKING;
+        }
         QJsonObject status = { { "status", ISD::Dome::getStatusString(newStatus)} };
         ekosLiveClient.get()->message()->updateDomeStatus(status);
     });
@@ -2768,10 +2820,17 @@ void Manager::updateCaptureProgress(Ekos::SequenceJob * job)
     }
 }
 
+void Manager::updateDownloadProgress(double timeLeft)
+{
+    imageCountDown.setHMS(0, 0, 0);
+    imageCountDown = imageCountDown.addSecs(timeLeft);
+    imageRemainingTime->setText(imageCountDown.toString("hh:mm:ss"));
+}
+
 void Manager::updateExposureProgress(Ekos::SequenceJob * job)
 {
     imageCountDown.setHMS(0, 0, 0);
-    imageCountDown = imageCountDown.addSecs(job->getExposeLeft());
+    imageCountDown = imageCountDown.addSecs(job->getExposeLeft() + captureProcess->getEstimatedDownloadTime());
     if (imageCountDown.hour() == 23)
         imageCountDown.setHMS(0, 0, 0);
 
@@ -3094,12 +3153,7 @@ void Manager::connectModules()
 
         // Meridian Flip
         connect(captureProcess.get(), &Ekos::Capture::meridianFlipStarted, guideProcess.get(), &Ekos::Guide::abort, Qt::UniqueConnection);
-        connect(captureProcess.get(), &Ekos::Capture::meridianFlipCompleted, guideProcess.get(), [&]()
-        {
-            if (Options::resetGuideCalibration())
-                guideProcess->clearCalibration();
-            guideProcess->guide();
-        });
+        connect(captureProcess.get(), &Ekos::Capture::meridianFlipCompleted, guideProcess.get(), &Ekos::Guide::guideAfterMeridianFlip, Qt::UniqueConnection);
     }
 
     // Guide <---> Mount connections
@@ -3250,6 +3304,9 @@ void Manager::syncActiveDevices()
                             INDI::BaseDevice::GPS_INTERFACE |
                             INDI::BaseDevice::FILTER_INTERFACE))
         {
+            // #1 Make sure all PREVIOUSLY defined drivers
+            // are properly updated.
+#if 0
             for (auto otherDevice : genericDevices)
             {
                 if (otherDevice == oneDevice)
@@ -3272,6 +3329,46 @@ void Manager::syncActiveDevices()
                     {
                         IUSaveText(snoopProperty, oneDevice->getDeviceName());
                         otherDevice->getDriverInfo()->getClientManager()->sendNewText(tvp);
+                    }
+                }
+            }
+#endif
+
+            // #2 Make sure CURRENT driver is updated
+            ITextVectorProperty *tvp = oneDevice->getBaseDevice()->getText("ACTIVE_DEVICES");
+            if (tvp)
+            {
+                for (int i = 0; i < tvp->ntp; i++)
+                {
+                    QList<ISD::GDInterface *> devs;
+                    if (!strcmp(tvp->tp[i].name, "ACTIVE_TELESCOPE"))
+                    {
+                        devs = findDevicesByInterface(INDI::BaseDevice::TELESCOPE_INTERFACE);
+                    }
+                    else if (!strcmp(tvp->tp[i].name, "ACTIVE_DOME"))
+                    {
+                        devs = findDevicesByInterface(INDI::BaseDevice::DOME_INTERFACE);
+                    }
+                    else if (!strcmp(tvp->tp[i].name, "ACTIVE_GPS"))
+                    {
+                        devs = findDevicesByInterface(INDI::BaseDevice::GPS_INTERFACE);
+                    }
+                    else if (!strcmp(tvp->tp[i].name, "ACTIVE_FILTER"))
+                    {
+                        devs = findDevicesByInterface(INDI::BaseDevice::FILTER_INTERFACE);
+                    }
+                    else if (!strcmp(tvp->tp[i].name, "ACTIVE_WEATHER"))
+                    {
+                        devs = findDevicesByInterface(INDI::BaseDevice::WEATHER_INTERFACE);
+                    }
+
+                    if (!devs.empty())
+                    {
+                        if (strcmp(tvp->tp[i].text, devs.first()->getDeviceName()))
+                        {
+                            IUSaveText(&tvp->tp[i], devs.first()->getDeviceName());
+                            oneDevice->getDriverInfo()->getClientManager()->sendNewText(tvp);
+                        }
                     }
                 }
             }

@@ -37,6 +37,8 @@ class Weather : public DeviceDecorator
             WEATHER_ALERT,
         } Status;
 
+        typedef struct { QString name; QString label; double value; } WeatherData;
+
         void registerProperty(INDI::Property *prop) override;
         void processSwitch(ISwitchVectorProperty *svp) override;
         void processText(ITextVectorProperty *tvp) override;
@@ -50,9 +52,11 @@ class Weather : public DeviceDecorator
 
         Status getWeatherStatus();
         quint16 getUpdatePeriod();
+        bool refresh();
 
     signals:
         void newStatus(Status status);
+        void newWeatherData(std::vector<WeatherData>);
         void ready();
 
     private:

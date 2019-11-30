@@ -115,6 +115,7 @@ Guide::Guide() : QWidget()
     connect(opsGuide, &OpsGuide::settingsUpdated, [this]()
     {
         onThresholdChanged(Options::guideAlgorithm());
+        configurePHD2Camera();
     });
 
     page = dialog->addPage(opsGuide, i18n("Guide"));
@@ -124,6 +125,10 @@ Guide::Guide() : QWidget()
 
     // Set current guide type
     setGuiderType(-1);
+
+    //This allows the current guideSubframe option to be loaded.
+    if(guiderType == GUIDE_PHD2)
+        setExternalGuiderBLOBEnabled(!Options::guideSubframeEnabled());
 
     //Note:  This is to prevent a button from being called the default button
     //and then executing when the user hits the enter key such as when on a Text Box
@@ -147,6 +152,19 @@ void Guide::handleVerticalPlotSizeChange()
 {
     driftPlot->yAxis->setScaleRatio(driftPlot->xAxis, 1.0);
     driftPlot->replot();
+}
+
+void Guide::guideAfterMeridianFlip()
+{
+    //This will clear the tracking box selection
+    //The selected guide star is no longer valid due to the flip
+    guideView->setTrackingBoxEnabled(false);
+    starCenter = QVector3D();
+
+    if (Options::resetGuideCalibration())
+        clearCalibration();
+    guide();
+
 }
 
 void Guide::resizeEvent(QResizeEvent *event)
@@ -250,6 +268,79 @@ void Guide::clearGuideGraphs()
     driftGraph->clearItems();  //Clears dither text items from the graph
     driftGraph->replot();
     driftPlot->replot();
+
+    //Since the labels got cleared with clearItems above.
+    setupNSEWLabels();
+}
+
+void Guide::setupNSEWLabels()
+{
+    //Labels for N/S/E/W
+    QColor raLabelColor(KStarsData::Instance()->colorScheme()->colorNamed("RAGuideError"));
+    QColor deLabelColor(KStarsData::Instance()->colorScheme()->colorNamed("DEGuideError"));
+
+    //DriftGraph
+    {
+        QCPItemText *northLabel = new QCPItemText(driftGraph);
+        northLabel->setColor(deLabelColor);
+        northLabel->setText(i18nc("North","N"));
+        northLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        northLabel->position->setCoords(0.6,0.1);
+        northLabel->setVisible(true);
+
+        QCPItemText *southLabel = new QCPItemText(driftGraph);
+        southLabel->setColor(deLabelColor);
+        southLabel->setText(i18nc("South","S"));
+        southLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        southLabel->position->setCoords(0.6,0.8);
+        southLabel->setVisible(true);
+
+        QCPItemText *westLabel = new QCPItemText(driftGraph);
+        westLabel->setColor(raLabelColor);
+        westLabel->setText(i18nc("West","W"));
+        westLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        westLabel->position->setCoords(0.8,0.1);
+        westLabel->setVisible(true);
+
+        QCPItemText *eastLabel = new QCPItemText(driftGraph);
+        eastLabel->setColor(raLabelColor);
+        eastLabel->setText(i18nc("East","E"));
+        eastLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        eastLabel->position->setCoords(0.8,0.8);
+        eastLabel->setVisible(true);
+
+    }
+
+    //DriftPlot
+    {
+        QCPItemText *northLabel = new QCPItemText(driftPlot);
+        northLabel->setColor(deLabelColor);
+        northLabel->setText(i18nc("North","N"));
+        northLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        northLabel->position->setCoords(0.25,0.2);
+        northLabel->setVisible(true);
+
+        QCPItemText *southLabel = new QCPItemText(driftPlot);
+        southLabel->setColor(deLabelColor);
+        southLabel->setText(i18nc("South","S"));
+        southLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        southLabel->position->setCoords(0.25,0.7);
+        southLabel->setVisible(true);
+
+        QCPItemText *westLabel = new QCPItemText(driftPlot);
+        westLabel->setColor(raLabelColor);
+        westLabel->setText(i18nc("West","W"));
+        westLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        westLabel->position->setCoords(0.8,0.75);
+        westLabel->setVisible(true);
+
+        QCPItemText *eastLabel = new QCPItemText(driftPlot);
+        eastLabel->setColor(raLabelColor);
+        eastLabel->setText(i18nc("East","E"));
+        eastLabel->position->setType(QCPItemPosition::ptViewportRatio);
+        eastLabel->position->setCoords(0.3,0.75);
+        eastLabel->setVisible(true);
+    }
 }
 
 void Guide::slotAutoScaleGraphs()
@@ -471,12 +562,15 @@ void Guide::addCamera(ISD::GDInterface *newCCD)
 
     if (CCDs.contains(ccd))
         return;
-    if (guiderType != GUIDE_INTERNAL)
+    if(guiderType != GUIDE_INTERNAL)
     {
-        connect(ccd, &ISD::CCD::newBLOBManager, [ccd](INDI::Property * prop)
+        connect(ccd, &ISD::CCD::newBLOBManager, [ccd, this](INDI::Property * prop)
         {
             if (!strcmp(prop->getName(), "CCD1") ||  !strcmp(prop->getName(), "CCD2"))
-                ccd->setBLOBEnabled(Options::guideRemoteImagesEnabled(), prop->getName());
+            {
+                ccd->setBLOBEnabled(false); //This will disable PHD2 external guide frames until it is properly connected.
+                currentCCD = ccd;
+            }
         });
         guiderCombo->clear();
         guiderCombo->setEnabled(false);
@@ -484,16 +578,88 @@ void Guide::addCamera(ISD::GDInterface *newCCD)
             guiderCombo->addItem("PHD2");
         else
             guiderCombo->addItem("LinGuider");
-        return;
     }
     else
+    {
         guiderCombo->setEnabled(true);
+        guiderCombo->addItem(ccd->getDeviceName());
+    }
 
     CCDs.append(ccd);
-
-    guiderCombo->addItem(ccd->getDeviceName());
-
     checkCCD();
+    configurePHD2Camera();
+}
+
+void Guide::configurePHD2Camera()
+{
+    //Maybe something like this can be done for Linguider?
+    //But for now, Linguider doesn't support INDI Cameras
+    if(guiderType != GUIDE_PHD2)
+        return;
+    //This prevents a crash if phd2guider is null
+    if(!phd2Guider)
+        return;
+    //This way it doesn't check if the equipment isn't connected yet.
+    //It will check again when the equipment is connected.
+    if(!phd2Guider->isConnected())
+        return;
+    //This way it doesn't check if the equipment List has not been received yet.
+    //It will ask for the list.  When the list is received it will check again.
+    if(phd2Guider->getCurrentCamera() == "")
+    {
+        phd2Guider->requestCurrentEquipmentUpdate();
+        return;
+    }
+
+    //this checks to see if a CCD in the list matches the name of PHD2's camera
+    ISD::CCD *ccdMatch = nullptr;
+    QString currentPHD2CameraName = "None";
+    foreach(ISD::CCD *ccd, CCDs)
+    {
+        if(phd2Guider->getCurrentCamera().contains(ccd->getDeviceName()))
+        {
+            ccdMatch = ccd;
+            currentPHD2CameraName = (phd2Guider->getCurrentCamera());
+            break;
+        }
+    }
+
+    //If this method gives the same result as last time, no need to update the Camera info again.
+    //That way the user doesn't see a ton of messages printing about the PHD2 external camera.
+    //But lets make sure the blob is set correctly every time.
+    if(lastPHD2CameraName == currentPHD2CameraName)
+    {
+        setExternalGuiderBLOBEnabled(!Options::guideSubframeEnabled());
+        return;
+    }
+
+    //This means that a Guide Camera was connected before but it changed.
+    if(currentCCD)
+        setExternalGuiderBLOBEnabled(false);
+
+    //Updating the currentCCD
+    currentCCD = ccdMatch;
+
+    //This updates the last camera name for the next time it is checked.
+    lastPHD2CameraName = currentPHD2CameraName;
+
+    //This sets a boolean that allows you to tell if the PHD2 camera is in Ekos
+    phd2Guider->setCurrentCameraIsNotInEkos(currentCCD == nullptr);
+
+    if(phd2Guider->isCurrentCameraNotInEkos())
+    {
+        appendLogText(i18n("PHD2's current camera: %1, is NOT connected to Ekos.  The PHD2 Guide Star Image will be received, but the full external guide frames cannot.", phd2Guider->getCurrentCamera()));
+        subFrameCheck->setEnabled(false);
+        //We don't want to actually change the user's subFrame Setting for when a camera really is connected, just check the box to tell the user.
+        disconnect(subFrameCheck, &QCheckBox::toggled, this, &Ekos::Guide::setSubFrameEnabled);
+        subFrameCheck->setChecked(true);
+        return;
+    }
+
+    appendLogText(i18n("PHD2's current camera: %1, IS connected to Ekos.  You can select whether to use the full external guide frames or just receive the PHD2 Guide Star Image using the SubFrame checkbox.", phd2Guider->getCurrentCamera()));
+    subFrameCheck->setEnabled(true);
+    connect(subFrameCheck, &QCheckBox::toggled, this, &Ekos::Guide::setSubFrameEnabled);
+    subFrameCheck->setChecked(Options::guideSubframeEnabled());
 }
 
 void Guide::addGuideHead(ISD::GDInterface *newCCD)
@@ -586,31 +752,6 @@ void Guide::checkCCD(int ccdNum)
         //connect(currentCCD, SIGNAL(FITSViewerClosed()), this, &Ekos::Guide::viewerClosed()), Qt::UniqueConnection);
         connect(currentCCD, &ISD::CCD::numberUpdated, this, &Ekos::Guide::processCCDNumber, Qt::UniqueConnection);
         connect(currentCCD, &ISD::CCD::newExposureValue, this, &Ekos::Guide::checkExposureValue, Qt::UniqueConnection);
-
-        // If guider is external and already connected and remote images option was disabled AND it was already
-        // disabled, then let's go ahead and disable it.
-#if 0
-        if (guiderType != GUIDE_INTERNAL && Options::guideRemoteImagesEnabled() == false && guider->isConnected())
-        {
-            for (int i = 0; i < CCDs.count(); i++)
-            {
-                ISD::CCD * oneCCD = CCDs[i];
-                if (i == ccdNum && oneCCD->getDriverInfo()->getClientManager()->getBLOBMode(oneCCD->getDeviceName(), "CCD1") != B_NEVER)
-                {
-                    appendLogText(i18n("Disabling remote image reception from %1", oneCCD->getDeviceName()));
-                    oneCCD->getDriverInfo()->getClientManager()->setBLOBMode(B_NEVER, oneCCD->getDeviceName(), "CCD1");
-                    oneCCD->getDriverInfo()->getClientManager()->setBLOBMode(B_NEVER, oneCCD->getDeviceName(), "CCD2");
-                }
-                // If it was already disabled, enable it back
-                else if (i != ccdNum && oneCCD->getDriverInfo()->getClientManager()->getBLOBMode(oneCCD->getDeviceName(), "CCD1") == B_NEVER)
-                {
-                    appendLogText(i18n("Enabling remote image reception from %1", oneCCD->getDeviceName()));
-                    oneCCD->getDriverInfo()->getClientManager()->setBLOBMode(B_ALSO, oneCCD->getDeviceName(), "CCD1");
-                    oneCCD->getDriverInfo()->getClientManager()->setBLOBMode(B_ALSO, oneCCD->getDeviceName(), "CCD2");
-                }
-            }
-        }
-#endif
 
         targetChip->setImageView(guideView, FITS_GUIDE);
 
@@ -724,7 +865,9 @@ void Guide::updateGuideParams()
     if (targetChip->getFrameType() != FRAME_LIGHT)
         return;
 
-    binningCombo->setEnabled(targetChip->canBin());
+    if(guiderType == GUIDE_INTERNAL)
+        binningCombo->setEnabled(targetChip->canBin());
+
     int subBinX = 1, subBinY = 1;
     if (targetChip->canBin())
     {
@@ -923,21 +1066,6 @@ bool Guide::captureOneFrame()
                              settings["h"].toInt());
     }
 
-#if 0
-    switch (state)
-    {
-        case GUIDE_GUIDING:
-            if (Options::rapidGuideEnabled() == false)
-                connect(currentCCD, SIGNAL(BLOBUpdated(IBLOB*)), this, &Ekos::Guide::newFITS(IBLOB *)), Qt::UniqueConnection);
-                targetChip->capture(seqExpose);
-                return true;
-                break;
-
-            default:
-                    break;
-                }
-#endif
-
     currentCCD->setTransformFormat(ISD::CCD::FORMAT_FITS);
 
     connect(currentCCD, &ISD::CCD::BLOBUpdated, this, &Ekos::Guide::newFITS, Qt::UniqueConnection);
@@ -978,10 +1106,7 @@ bool Guide::abort()
     {
         case GUIDE_IDLE:
         case GUIDE_CONNECTED:
-            setBLOBEnabled(false);
-            break;
         case GUIDE_DISCONNECTED:
-            setBLOBEnabled(true);
             break;
 
         case GUIDE_CALIBRATING:
@@ -1026,14 +1151,16 @@ void Guide::setBusy(bool enable)
     }
     else
     {
-        if (guiderType == GUIDE_INTERNAL)
+        if(guiderType != GUIDE_LINGUIDER)
         {
             captureB->setEnabled(true);
             loopB->setEnabled(true);
-            darkFrameCheck->setEnabled(true);
-            subFrameCheck->setEnabled(true);
             autoStarCheck->setEnabled(true);
+            if(currentCCD)
+                subFrameCheck->setEnabled(true);
         }
+        if (guiderType == GUIDE_INTERNAL)
+            darkFrameCheck->setEnabled(true);
 
         if (calibrationComplete)
             clearCalibrationB->setEnabled(true);
@@ -1181,7 +1308,7 @@ void Guide::setCaptureComplete()
 void Guide::appendLogText(const QString &text)
 {
     m_LogText.insert(0, i18nc("log entry; %1 is the date, %2 is the text", "%1 %2",
-                              QDateTime::currentDateTime().toString("yyyy-MM-ddThh:mm:ss"), text));
+                              KStarsData::Instance()->lt().toString("yyyy-MM-ddThh:mm:ss"), text));
 
     qCInfo(KSTARS_EKOS_GUIDE) << text;
 
@@ -1238,90 +1365,6 @@ QStringList Guide::getST4Devices()
     return devices;
 }
 
-#if 0
-void Guide::processRapidStarData(ISD::CCDChip * targetChip, double dx, double dy, double fit)
-{
-    // Check if guide star is lost
-    if (dx == -1 && dy == -1 && fit == -1)
-    {
-        KSNotification::error(i18n("Lost track of the guide star. Rapid guide aborted."));
-        guider->abort();
-        return;
-    }
-
-    FITSView * targetImage = targetChip->getImage(FITS_GUIDE);
-
-    if (targetImage == nullptr)
-    {
-        pmath->setImageView(nullptr);
-        guider->setImageView(nullptr);
-        calibration->setImageView(nullptr);
-    }
-
-    if (rapidGuideReticleSet == false)
-    {
-        // Let's set reticle parameter on first capture to those of the star, then we check if there
-        // is any set
-        double x, y, angle;
-        pmath->getReticleParameters(&x, &y, &angle);
-        pmath->setReticleParameters(dx, dy, angle);
-        rapidGuideReticleSet = true;
-    }
-
-    pmath->setRapidStarData(dx, dy);
-
-    if (guider->isDithering())
-    {
-        pmath->performProcessing();
-        if (guider->dither() == false)
-        {
-            appendLogText(i18n("Dithering failed. Autoguiding aborted."));
-            emit newStatus(GUIDE_DITHERING_ERROR);
-            guider->abort();
-            //emit ditherFailed();
-        }
-    }
-    else
-    {
-        guider->guide();
-        capture();
-    }
-
-}
-
-void Guide::startRapidGuide()
-{
-    ISD::CCDChip * targetChip = currentCCD->getChip(useGuideHead ? ISD::CCDChip::GUIDE_CCD : ISD::CCDChip::PRIMARY_CCD);
-
-    if (currentCCD->setRapidGuide(targetChip, true) == false)
-    {
-        appendLogText(i18n("The CCD does not support Rapid Guiding. Aborting..."));
-        guider->abort();
-        return;
-    }
-
-    rapidGuideReticleSet = false;
-
-    pmath->setRapidGuide(true);
-    currentCCD->configureRapidGuide(targetChip, true);
-    connect(currentCCD, SIGNAL(newGuideStarData(ISD::CCDChip*, double, double, double)), this, &Ekos::Guide::processRapidStarData(ISD::CCDChip *, double, double, double)));
-}
-
-void Guide::stopRapidGuide()
-{
-    ISD::CCDChip * targetChip = currentCCD->getChip(useGuideHead ? ISD::CCDChip::GUIDE_CCD : ISD::CCDChip::PRIMARY_CCD);
-
-    pmath->setRapidGuide(false);
-
-    rapidGuideReticleSet = false;
-
-    currentCCD->disconnect(SIGNAL(newGuideStarData(ISD::CCDChip*, double, double, double)));
-
-    currentCCD->configureRapidGuide(targetChip, false, false, false);
-
-    currentCCD->setRapidGuide(targetChip, false);
-}
-#endif
 
 bool Guide::calibrate()
 {
@@ -1375,6 +1418,34 @@ bool Guide::guide()
 
         saveSettings();
         guider->guide();
+
+        //If PHD2 gets a Guide command and it is looping, it will accept a lock position
+        //but if it was not looping it will ignore the lock position and do an auto star automatically
+        //This is not the default behavior in Ekos if auto star is not selected.
+        //This gets around that by noting the position of the tracking box, and enforcing it after the state switches to guide.
+        if(!Options::guideAutoStarEnabled())
+        {
+            if(guiderType == GUIDE_PHD2 && guideView->isTrackingBoxEnabled())
+            {
+                double x = starCenter.x();
+                double y = starCenter.y();
+
+                if(guideView->getImageData() != nullptr)
+                {
+                    if(guideView->getImageData()->width() > 50)
+                    {
+                        guideConnect = connect(this, &Guide::newStatus, this, [this, x, y](Ekos::GuideState newState)
+                        {
+                            if(newState == GUIDE_GUIDING)
+                            {
+                                phd2Guider->setLockPosition(x,y);
+                                disconnect(guideConnect);
+                            }
+                        });
+                    }
+                }
+            }
+        }
     };
 
     if (Options::defaultCaptureCCD() == guiderCombo->currentText())
@@ -1483,15 +1554,25 @@ void Guide::setPierSide(ISD::Telescope::PierSide newSide)
 
 void Guide::setMountStatus(ISD::Telescope::Status newState)
 {
-    // If we're guiding, and the mount either slews or parks, then we abort.
-    if ((state == GUIDE_GUIDING || state == GUIDE_DITHERING) && (newState == ISD::Telescope::MOUNT_PARKING || newState == ISD::Telescope::MOUNT_SLEWING))
+    if (newState == ISD::Telescope::MOUNT_PARKING || newState == ISD::Telescope::MOUNT_SLEWING)
     {
+        // reset the calibration if "Always reset calibration" is selected and the mount moves
+        if (Options::resetGuideCalibration())
+        {
+            appendLogText(i18n("Mount is moving. Resetting calibration..."));
+            clearCalibration();
+        }
+
+        // If we're guiding, and the mount either slews or parks, then we abort.
+        if (state == GUIDE_GUIDING || state == GUIDE_DITHERING)
+        {
         if (newState == ISD::Telescope::MOUNT_PARKING)
             appendLogText(i18n("Mount is parking. Aborting guide..."));
         else
             appendLogText(i18n("Mount is slewing. Aborting guide..."));
 
         abort();
+        }
     }
 
     if (guiderType != GUIDE_INTERNAL)
@@ -1567,14 +1648,10 @@ void Guide::setSubFrameEnabled(bool enable)
     Options::setGuideSubframeEnabled(enable);
     if (subFrameCheck->isChecked() != enable)
         subFrameCheck->setChecked(enable);
+    if(guiderType == GUIDE_PHD2)
+        setExternalGuiderBLOBEnabled(!enable);
 }
 
-#if 0
-void Guide::setGuideRapidEnabled(bool enable)
-{
-    //guider->setGuideOptions(guider->getAlgorithm(), guider->useSubFrame() , enable);
-}
-#endif
 
 void Guide::setDitherSettings(bool enable, double value)
 {
@@ -1582,33 +1659,6 @@ void Guide::setDitherSettings(bool enable, double value)
     Options::setDitherPixels(value);
 }
 
-#if 0
-void Guide::startAutoCalibrateGuide()
-{
-    // A must for auto stuff
-    Options::setGuideAutoStarEnabled(true);
-
-    if (Options::resetGuideCalibration())
-        clearCalibration();
-
-    guide();
-
-#if 0
-    if (guiderType == GUIDE_INTERNAL)
-    {
-        calibrationComplete = false;
-        autoCalibrateGuide  = true;
-        calibrate();
-    }
-    else
-    {
-        calibrationComplete = true;
-        autoCalibrateGuide  = true;
-        guide();
-    }
-#endif
-}
-#endif
 
 void Guide::clearCalibration()
 {
@@ -1640,11 +1690,18 @@ void Guide::setStatus(Ekos::GuideState newState)
             appendLogText(i18n("External guider connected."));
             externalConnectB->setEnabled(false);
             externalDisconnectB->setEnabled(true);
-            captureB->setEnabled(false);
-            loopB->setEnabled(false);
             clearCalibrationB->setEnabled(true);
             guideB->setEnabled(true);
-            setBLOBEnabled(false);
+
+            if(guiderType == GUIDE_PHD2)
+            {
+                captureB->setEnabled(true);
+                loopB->setEnabled(true);
+                autoStarCheck->setEnabled(true);
+                configurePHD2Camera();
+                setExternalGuiderBLOBEnabled(!Options::guideSubframeEnabled());
+                boxSizeCombo->setEnabled(true);
+            }
             break;
 
         case GUIDE_DISCONNECTED:
@@ -1656,7 +1713,9 @@ void Guide::setStatus(Ekos::GuideState newState)
             guideB->setEnabled(false);
             captureB->setEnabled(false);
             loopB->setEnabled(false);
-            setBLOBEnabled(true);
+            autoStarCheck->setEnabled(false);
+            boxSizeCombo->setEnabled(false);
+            //setExternalGuiderBLOBEnabled(true);
 #ifdef Q_OS_OSX
             repaint(); //This is a band-aid for a bug in QT 5.10.0
 #endif
@@ -1832,6 +1891,22 @@ void Guide::setStarPosition(const QVector3D &newCenter, bool updateNow)
 
 void Guide::syncTrackingBoxPosition()
 {
+    if(!currentCCD || guiderType == GUIDE_LINGUIDER)
+        return;
+
+    if(guiderType == GUIDE_PHD2)
+    {
+        //This way it won't set the tracking box on the Guide Star Image.
+        if(guideView->getImageData() != nullptr)
+        {
+            if(guideView->getImageData()->width() < 50)
+            {
+                guideView->setTrackingBoxEnabled(false);
+                return;
+            }
+        }
+    }
+
     ISD::CCDChip *targetChip = currentCCD->getChip(useGuideHead ? ISD::CCDChip::GUIDE_CCD : ISD::CCDChip::PRIMARY_CCD);
     Q_ASSERT(targetChip);
 
@@ -1999,14 +2074,7 @@ bool Guide::setGuiderType(int type)
             binningCombo->setEnabled(false);
             boxSizeCombo->setEnabled(false);
             filterCombo->setEnabled(false);
-
-            if (Options::guideRemoteImagesEnabled() == false)
-            {
-                //guiderCombo->setCurrentIndex(-1);
-                guiderCombo->setToolTip(i18n("Select a camera to disable remote streaming."));
-            }
-            else
-                guiderCombo->setEnabled(false);
+            guiderCombo->setEnabled(false);
 
             if (Options::resetGuideCalibration())
                 appendLogText(i18n("Warning: Reset Guiding Calibration is enabled. It is recommended to turn this option off for PHD2."));
@@ -2039,13 +2107,7 @@ bool Guide::setGuiderType(int type)
             boxSizeCombo->setEnabled(false);
             filterCombo->setEnabled(false);
 
-            if (Options::guideRemoteImagesEnabled() == false)
-            {
-                guiderCombo->setCurrentIndex(-1);
-                guiderCombo->setToolTip(i18n("Select a camera to disable remote streaming."));
-            }
-            else
-                guiderCombo->setEnabled(false);
+            guiderCombo->setEnabled(false);
 
             updateGuideParams();
 
@@ -2062,6 +2124,8 @@ bool Guide::setGuiderType(int type)
         connect(guider, &Ekos::GuideInterface::newAxisDelta, this, &Ekos::Guide::setAxisDelta);
         connect(guider, &Ekos::GuideInterface::newAxisPulse, this, &Ekos::Guide::setAxisPulse);
         connect(guider, &Ekos::GuideInterface::newAxisSigma, this, &Ekos::Guide::setAxisSigma);
+
+        connect(guider, &Ekos::GuideInterface::guideEquipmentUpdated, this, &Ekos::Guide::configurePHD2Camera);
     }
 
     externalConnectB->setEnabled(false);
@@ -2257,25 +2321,6 @@ void Guide::updateDirectionsFromPHD2(QString mode)
     connect(southControlCheck, &QCheckBox::toggled, this, &Ekos::Guide::onControlDirectionChanged);
 }
 
-#if 0
-void Guide::onRapidGuideChanged(bool enable)
-{
-    if (m_isStarted)
-    {
-        guideModule->appendLogText(i18n("You must stop auto guiding before changing this setting."));
-        return;
-    }
-
-    m_useRapidGuide = enable;
-
-    if (m_useRapidGuide)
-    {
-        guideModule->appendLogText(i18n("Rapid Guiding is enabled. Guide star will be determined automatically by the CCD driver. No frames are sent to Ekos unless explicitly enabled by the user in the CCD driver settings."));
-    }
-    else
-        guideModule->appendLogText(i18n("Rapid Guiding is disabled."));
-}
-#endif
 
 void Guide::loadSettings()
 {
@@ -2360,6 +2405,16 @@ void Guide::setTrackingStar(int x, int y)
     QVector3D newStarPosition(x, y, -1);
     setStarPosition(newStarPosition, true);
 
+    if(guiderType == GUIDE_PHD2)
+    {
+        //The Guide Star Image is 32 pixels across or less, so this guarantees it isn't that.
+        if(guideView->getImageData() != nullptr)
+        {
+            if(guideView->getImageData()->width() > 50)
+                phd2Guider->setLockPosition(starCenter.x(),starCenter.y());
+        }
+    }
+
     /*if (state == GUIDE_STAR_SELECT)
     {
         guider->setStarPosition(newStarPosition);
@@ -2372,6 +2427,11 @@ void Guide::setTrackingStar(int x, int y)
 
 void Guide::setAxisDelta(double ra, double de)
 {
+    //If PHD2 starts guiding because somebody pusted the button remotely, we want to set the state to guiding.
+    //If guide pulses start coming in, it must be guiding.
+    if(guiderType == GUIDE_PHD2 && state != GUIDE_GUIDING)
+        setStatus(GUIDE_GUIDING);
+
     // Time since timer started.
     double key = guideTimer.elapsed() / 1000.0;
 
@@ -2907,32 +2967,34 @@ void Guide::showFITSViewer()
     }
 }
 
-void Guide::setBLOBEnabled(bool enable, const QString &ccd)
+void Guide::setExternalGuiderBLOBEnabled(bool enable)
 {
-    // Nothing to do if guider is international or remote images are enabled
-    if (guiderType == GUIDE_INTERNAL || Options::guideRemoteImagesEnabled())
+    // Nothing to do if guider is internal
+    if (guiderType == GUIDE_INTERNAL)
         return;
 
-    // If guider is external and remote images option is disabled AND BLOB is enabled, then we disabled it
+    if(!currentCCD)
+        return;
 
-    foreach(ISD::CCD *oneCCD, CCDs)
+    currentCCD->setBLOBEnabled(enable);
+
+    if(currentCCD->isBLOBEnabled())
     {
-        // If it's not the desired CCD, continue.
-        if (ccd.isEmpty() == false && QString(oneCCD->getDeviceName()) != ccd)
-            continue;
+        if (currentCCD->hasGuideHead() && guiderCombo->currentText().contains("Guider"))
+            useGuideHead = true;
+        else
+            useGuideHead = false;
 
-        if (enable == false && oneCCD->isBLOBEnabled())
+        ISD::CCDChip *targetChip =
+            currentCCD->getChip(useGuideHead ? ISD::CCDChip::GUIDE_CCD : ISD::CCDChip::PRIMARY_CCD);
+        if (targetChip)
         {
-            appendLogText(i18n("Disabling remote image reception from %1", oneCCD->getDeviceName()));
-            oneCCD->setBLOBEnabled(enable);
+            targetChip->setImageView(guideView, FITS_GUIDE);
+            targetChip->setCaptureMode(FITS_GUIDE);
         }
-        // Re-enable BLOB reception if it was disabled before when using external guiders
-        else if (enable && oneCCD->isBLOBEnabled() == false)
-        {
-            appendLogText(i18n("Enabling remote image reception from %1", oneCCD->getDeviceName()));
-            oneCCD->setBLOBEnabled(enable);
-        }
+        syncCCDInfo();
     }
+
 }
 
 void Guide::ditherDirectly()
@@ -2991,12 +3053,6 @@ void Guide::setDefaultCCD(const QString &ccd)
 {
     if (guiderType == GUIDE_INTERNAL)
         Options::setDefaultGuideCCD(ccd);
-    else if (ccd.isEmpty() == false)
-    {
-        QString ccdName = ccd;
-        ccdName = ccdName.remove(" Guider");
-        setBLOBEnabled(Options::guideRemoteImagesEnabled(), ccdName);
-    }
 }
 
 void Guide::handleManualDither()
@@ -3092,6 +3148,8 @@ void Guide::initPlots()
     driftGraph->yAxis2->setLabelPadding(1);
     driftGraph->yAxis->setLabel(i18n("drift (arcsec)"));
     driftGraph->yAxis2->setLabel(i18n("pulse (ms)"));
+
+    setupNSEWLabels();
 
     //Sets the default ranges
     driftGraph->xAxis->setRange(0, 60, Qt::AlignRight);
@@ -3278,13 +3336,6 @@ void Guide::initConnections()
             starCenter = QVector3D();
             checkCCD(index);
         }
-        else if (index >= 0)
-        {
-            // Disable or enable selected CCD based on options
-            QString ccdName = guiderCombo->currentText().remove(" Guider");
-            setBLOBEnabled(Options::guideRemoteImagesEnabled(), ccdName);
-            checkCCD(index);
-        }
     }
            );
 
@@ -3294,7 +3345,8 @@ void Guide::initConnections()
     // Dark Frame Check
     connect(darkFrameCheck, &QCheckBox::toggled, this, &Ekos::Guide::setDarkFrameEnabled);
     // Subframe check
-    connect(subFrameCheck, &QCheckBox::toggled, this, &Ekos::Guide::setSubFrameEnabled);
+    if(guiderType != GUIDE_PHD2) //For PHD2, this is handled in the configurePHD2Camera method
+        connect(subFrameCheck, &QCheckBox::toggled, this, &Ekos::Guide::setSubFrameEnabled);
     // ST4 Selection
     connect(ST4Combo, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::activated), [&](const QString & text)
     {
@@ -3347,7 +3399,20 @@ void Guide::initConnections()
         state = GUIDE_CAPTURE;
         emit newStatus(state);
 
-        capture();
+        if(guiderType == GUIDE_PHD2)
+        {
+            configurePHD2Camera();
+            if(phd2Guider->isCurrentCameraNotInEkos())
+                appendLogText(i18n("The PHD2 camera is not available to Ekos, so you cannot see the captured images.  But you will still see the Guide Star Image when you guide."));
+            else if(Options::guideSubframeEnabled())
+            {
+                appendLogText(i18n("To receive PHD2 images other than the Guide Star Image, SubFrame must be unchecked.  Unchecking it now to enable your image captures.  You can re-enable it before Guiding"));
+                subFrameCheck->setChecked(false);
+            }
+            phd2Guider->captureSingleFrame();
+        }
+        else
+            capture();
     });
 
     connect(loopB, &QPushButton::clicked, this, [this]()
@@ -3355,7 +3420,21 @@ void Guide::initConnections()
         state = GUIDE_LOOPING;
         emit newStatus(state);
 
-        capture();
+        if(guiderType == GUIDE_PHD2)
+        {
+            configurePHD2Camera();
+            if(phd2Guider->isCurrentCameraNotInEkos())
+                appendLogText(i18n("The PHD2 camera is not available to Ekos, so you cannot see the captured images.  But you will still see the Guide Star Image when you guide."));
+            else if(Options::guideSubframeEnabled())
+            {
+                appendLogText(i18n("To receive PHD2 images other than the Guide Star Image, SubFrame must be unchecked.  Unchecking it now to enable your image captures.  You can re-enable it before Guiding"));
+                subFrameCheck->setChecked(false);
+            }
+            phd2Guider->loop();
+            stopB->setEnabled(true);
+        }
+        else
+            capture();
     });
 
     // Stop
@@ -3371,12 +3450,12 @@ void Guide::initConnections()
     // Connect External Guide
     connect(externalConnectB, &QPushButton::clicked, this, [&]()
     {
-        setBLOBEnabled(false);
+        //setExternalGuiderBLOBEnabled(false);
         guider->Connect();
     });
     connect(externalDisconnectB, &QPushButton::clicked, this, [&]()
     {
-        setBLOBEnabled(true);
+        //setExternalGuiderBLOBEnabled(true);
         guider->Disconnect();
     });
 
@@ -3401,17 +3480,17 @@ void Guide::initConnections()
                            showGuideRateToolTipB);
     });
 
-
     connect(manualDitherB, &QPushButton::clicked, this, &Guide::handleManualDither);
 
     // Guiding Rate - Advisory only
+    onInfoRateChanged(spinBox_GuideRate->value());
     connect(spinBox_GuideRate, static_cast<void(QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), this, &Ekos::Guide::onInfoRateChanged);
 }
 
 void Guide::removeDevice(ISD::GDInterface *device)
 {
     device->disconnect(this);
-    if (device == currentTelescope)
+    if (currentTelescope && !strcmp(currentTelescope->getDeviceName(), device->getDeviceName()))
     {
         currentTelescope = nullptr;
     }

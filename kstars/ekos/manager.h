@@ -371,6 +371,7 @@ class Manager : public QDialog, public Ui::Manager
         // Capture Summary
         void updateCaptureStatus(CaptureState status);
         void updateCaptureProgress(SequenceJob *job);
+        void updateDownloadProgress(double timeLeft);
         void updateExposureProgress(SequenceJob *job);
         void updateCaptureCountDown();
 
@@ -416,12 +417,18 @@ class Manager : public QDialog, public Ui::Manager
 
         // Find List of devices of specific family type
         QList<ISD::GDInterface *> findDevices(DeviceFamily type);
+        // Find list of devices by device interface
+        QList<ISD::GDInterface *> findDevicesByInterface(uint32_t interface);
         // Get all detected devices
         QList<ISD::GDInterface *> getAllDevices();
 
         ProfileInfo *getCurrentProfile();
         void getCurrentProfileTelescopeInfo(double &primaryFocalLength, double &primaryAperture, double &guideFocalLength, double &guideAperture);
         void updateProfileLocation(ProfileInfo *pi);
+        void setProfileMapping(const QJsonObject &payload)
+        {
+            m_ProfileMapping = payload;
+        }
 
         bool useGuideHead { false };
         bool useST4 { false };
@@ -467,6 +474,7 @@ class Manager : public QDialog, public Ui::Manager
 
         std::unique_ptr<QStandardItemModel> profileModel;
         QList<std::shared_ptr<ProfileInfo>> profiles;
+        QJsonObject m_ProfileMapping;
 
         // Filter Manager
         QSharedPointer<FilterManager> filterManager;

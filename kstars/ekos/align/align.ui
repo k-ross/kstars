@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>873</width>
-    <height>570</height>
+    <width>709</width>
+    <height>543</height>
    </rect>
   </property>
   <layout class="QHBoxLayout" name="primaryLayout" stretch="1,3">
@@ -189,7 +189,7 @@
      <item>
       <widget class="QGroupBox" name="groupBox_5">
        <property name="title">
-        <string>Telescope Coordinates</string>
+        <string>Telescope Coordinates (JNow)</string>
        </property>
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="3">
@@ -278,7 +278,7 @@
      <item>
       <widget class="QGroupBox" name="groupBox_4">
        <property name="title">
-        <string>Solution Coordinates</string>
+        <string>Solution Coordinates (JNow)</string>
        </property>
        <layout class="QGridLayout" name="gridLayout_2">
         <property name="leftMargin">
@@ -353,23 +353,13 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="2">
-         <widget class="QLabel" name="dDE">
-          <property name="toolTip">
-           <string>Difference between telescope coordinates and solution coordinates in Declination</string>
-          </property>
-          <property name="text">
-           <string>dDE</string>
-          </property>
-         </widget>
-        </item>
         <item row="1" column="0">
-         <widget class="QLabel" name="dRA">
+         <widget class="QLabel" name="err">
           <property name="toolTip">
-           <string>Difference between telescope coordinates and solution coordinates in Right Ascension</string>
+           <string>Difference between telescope coordinates and solution coordinates in arcsec</string>
           </property>
           <property name="text">
-           <string>dRA:</string>
+           <string>Err:</string>
           </property>
          </widget>
         </item>
@@ -400,19 +390,6 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="3">
-         <widget class="QLineEdit" name="dDEOut">
-          <property name="toolTip">
-           <string>Difference between telescope coordinates and solution coordinates in Declination</string>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">font-weight: bold;</string>
-          </property>
-          <property name="readOnly">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
         <item row="0" column="2">
          <widget class="QLabel" name="label_6">
           <property name="text">
@@ -420,13 +397,13 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="1">
-         <widget class="QLineEdit" name="dRAOut">
+        <item row="1" column="1" colspan="3">
+         <widget class="QLineEdit" name="errOut">
           <property name="toolTip">
-           <string>Difference between telescope coordinates and solution coordinates in Right Ascension</string>
+           <string>Difference between telescope coordinates and solution coordinates in arcsec</string>
           </property>
-          <property name="styleSheet">
-           <string notr="true">font-weight: bold;</string>
+          <property name="text">
+           <string/>
           </property>
           <property name="readOnly">
            <bool>true</bool>
@@ -671,62 +648,36 @@
            </widget>
           </item>
           <item>
-           <widget class="QRadioButton" name="onlineSolverR">
+           <widget class="QRadioButton" name="astapSolverR">
             <property name="toolTip">
-             <string>Use online astrometry.net solver to solve the image. You must have an Internet connection and a valid API key.</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use ASTAP external solver. ASTAP must be installed and configured.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
-             <string>Onl&amp;ine</string>
+             <string>ASTAP</string>
             </property>
             <property name="checked">
              <bool>true</bool>
             </property>
             <attribute name="buttonGroup">
-             <string notr="true">solverTypeGroup</string>
+             <string notr="true">solverBackendGroup</string>
             </attribute>
            </widget>
           </item>
           <item>
-           <widget class="QRadioButton" name="offlineSolverR">
+           <widget class="QRadioButton" name="astrometrySolverR">
             <property name="toolTip">
-             <string>Use offline astrometry.net solver. You must install all the necessary index files for your field of view.</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use astrometry.net solver.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
-             <string>Offline</string>
+             <string>Astro.net</string>
             </property>
             <attribute name="buttonGroup">
-             <string notr="true">solverTypeGroup</string>
+             <string notr="true">solverBackendGroup</string>
             </attribute>
            </widget>
           </item>
           <item>
-           <widget class="QRadioButton" name="remoteSolverR">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="toolTip">
-             <string>&lt;p&gt;Use astrometry solver on remote machine running INDI server. You must select &lt;b&gt;Astrometry&lt;/b&gt; driver from Auxiliary drivers in your Ekos devices profile for this option to be enabled.&lt;/p&gt;</string>
-            </property>
-            <property name="text">
-             <string>Re&amp;mote</string>
-            </property>
-            <attribute name="buttonGroup">
-             <string notr="true">solverTypeGroup</string>
-            </attribute>
-           </widget>
-          </item>
-          <item>
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
+           <widget class="QComboBox" name="astrometryTypeCombo"/>
           </item>
          </layout>
         </item>
@@ -1124,7 +1075,7 @@
                   <bool>true</bool>
                  </property>
                  <property name="text">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This tool provides a simple method to polar align a German equatorial mount. &lt;span style=&quot; font-weight:600;&quot;&gt;Park&lt;/span&gt; your mount to home position where it &lt;span style=&quot; font-weight:600;&quot;&gt;points&lt;/span&gt; toward the celestial pole. Select mount direction and speed and then click &lt;span style=&quot; font-weight:600;&quot;&gt;Start&lt;/span&gt; to begin the process.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This tool provides a simple method to polar align a German equatorial mount. &lt;span style=&quot; font-weight:600;&quot;&gt;Park&lt;/span&gt; your mount to home position where it &lt;span style=&quot; font-weight:600;&quot;&gt;points&lt;/span&gt; toward the celestial pole with the counter weight down. Select mount direction and speed and then click &lt;span style=&quot; font-weight:600;&quot;&gt;Start&lt;/span&gt; to begin the process.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="wordWrap">
                   <bool>true</bool>
@@ -1786,8 +1737,7 @@
   <tabstop>delaySpin</tabstop>
   <tabstop>SolverRAOut</tabstop>
   <tabstop>SolverDecOut</tabstop>
-  <tabstop>dRAOut</tabstop>
-  <tabstop>dDEOut</tabstop>
+  <tabstop>errOut</tabstop>
   <tabstop>pixScaleOut</tabstop>
   <tabstop>RotOut</tabstop>
   <tabstop>FOVOut</tabstop>
@@ -1803,9 +1753,8 @@
   <tabstop>FilterPosCombo</tabstop>
   <tabstop>solverOptions</tabstop>
   <tabstop>editOptionsB</tabstop>
-  <tabstop>onlineSolverR</tabstop>
-  <tabstop>offlineSolverR</tabstop>
-  <tabstop>remoteSolverR</tabstop>
+  <tabstop>astapSolverR</tabstop>
+  <tabstop>astrometrySolverR</tabstop>
   <tabstop>solutionTable</tabstop>
   <tabstop>clearAllSolutionsB</tabstop>
   <tabstop>removeSolutionB</tabstop>
@@ -1859,7 +1808,7 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="solverTypeGroup"/>
+  <buttongroup name="solverBackendGroup"/>
   <buttongroup name="gotoModeButtonGroup"/>
  </buttongroups>
 </ui>
